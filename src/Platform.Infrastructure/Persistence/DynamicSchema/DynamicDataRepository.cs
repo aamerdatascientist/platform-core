@@ -1,3 +1,4 @@
+using System.Data;
 using System.Text.Json;
 using Dapper;
 using Microsoft.Data.SqlClient;
@@ -52,7 +53,10 @@ public class DynamicDataRepository : IDynamicDataRepository
             columns.Add($"[{field.Code}]");
             valueTokens.Add($"@{paramName}");
             var rawValue = values.TryGetValue(field.Code, out var v) ? v : null;
-            parameters.Add(paramName, ConvertFieldValue(field.FieldType, rawValue));
+            // dbType is mandatory here, not just a hint: without it, Dapper infers the SQL
+            // type by reflecting on the value's own runtime type, and there's no mapping
+            // for a boxed DBNull.Value - it throws NotSupportedException on every null field.
+            parameters.Add(paramName, ConvertFieldValue(field.FieldType, rawValue), MapToDbType(field.FieldType));
         }
 
         var sql = $"""
@@ -160,4 +164,16 @@ public class DynamicDataRepository : IDynamicDataRepository
             _ => throw new NotSupportedException($"Unsupported field type '{fieldType}' for dynamic data.")
         };
     }
+
+    /// <summary>Mirrors SqlTypeMapper.ToSqlColumnType - keep the two in sync.</summary>
+    private static DbType MapToDbType(FieldType fieldType) => fieldType switch
+    {
+        FieldType.ShortText or FieldType.LongText or FieldType.Dropdown => DbType.String,
+        FieldType.Number => DbType.Int32,
+        FieldType.Decimal => DbType.Decimal,
+        FieldType.Boolean => DbType.Boolean,
+        FieldType.DateTime => DbType.DateTime2,
+        FieldType.Lookup => DbType.Guid,
+        _ => throw new NotSupportedException($"Unsupported field type '{fieldType}' for dynamic data.")
+    };
 }

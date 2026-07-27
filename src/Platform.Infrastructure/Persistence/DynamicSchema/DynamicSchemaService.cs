@@ -72,12 +72,26 @@ public class DynamicSchemaService : IDynamicSchemaService
         selectColumns.Append("        d.[CreatedAtUtc] AS [Submitted At],\n");
         selectColumns.Append("        creator.[DisplayName] AS [Submitted By]");
 
+        // SQL Server's default collation compares column names case-insensitively, so a
+        // field labelled e.g. "Submitted by" collides with the fixed "Submitted By" audit
+        // column (and two fields could coincidentally share a label) - CREATE VIEW then
+        // fails outright with "column names must be unique". Disambiguating with the
+        // field's Code, which is unique per version, guarantees no further collision.
+        var usedColumnNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Record Id", "Submitted At", "Submitted By"
+        };
+
         foreach (var field in activeFields)
         {
             SqlTypeMapper.AssertSafeIdentifier(field.Code);
+
+            var displayLabel = usedColumnNames.Add(field.Label) ? field.Label : $"{field.Label} ({field.Code})";
+            usedColumnNames.Add(displayLabel);
+
             // Labels are free text, not identifiers - bracket-quoted aliases don't need to be
             // valid identifiers, but embedded ']' must still be escaped to close the quote safely.
-            var escapedLabel = field.Label.Replace("]", "]]");
+            var escapedLabel = displayLabel.Replace("]", "]]");
 
             var displaySource = field.FieldType == FieldType.Lookup
                 ? ResolveLookupDisplaySource(field, lookupTargets)
