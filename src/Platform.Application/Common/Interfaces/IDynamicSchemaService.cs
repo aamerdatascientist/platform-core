@@ -22,9 +22,17 @@ public interface IDynamicSchemaService
     Task<string> EnsureTableForPublishedVersionAsync(
         FormDefinition formDefinition, FormVersion version, CancellationToken cancellationToken = default);
 
-    /// <summary>Regenerates the reporting view (e.g. "Report_StockAdjustment") from the current active fields.</summary>
+    /// <summary>
+    /// Regenerates the reporting view (e.g. "Report_StockAdjustment") from the current active
+    /// fields. Lookup fields are shown as the raw referenced record's Id unless the caller
+    /// supplies <paramref name="lookupTargets"/> (keyed by FormDefinition.Id, with Versions and
+    /// Fields loaded) - when a Lookup field's target is present there, the view instead joins
+    /// to the target form's table and shows its first active ShortText field.
+    /// </summary>
     Task RefreshReportingViewAsync(
-        FormDefinition formDefinition, FormVersion version, CancellationToken cancellationToken = default);
+        FormDefinition formDefinition, FormVersion version,
+        IReadOnlyDictionary<Guid, FormDefinition>? lookupTargets = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>True if the physical table for this form already has a column for the given field code.</summary>
     Task<bool> ColumnExistsAsync(string tableName, string columnCode, CancellationToken cancellationToken = default);

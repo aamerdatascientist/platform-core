@@ -54,7 +54,9 @@ public class DynamicSchemaService : IDynamicSchemaService
     }
 
     public async Task RefreshReportingViewAsync(
-        FormDefinition formDefinition, FormVersion version, CancellationToken cancellationToken = default)
+        FormDefinition formDefinition, FormVersion version,
+        IReadOnlyDictionary<Guid, FormDefinition>? lookupTargets = null,
+        CancellationToken cancellationToken = default)
     {
         var tableName = formDefinition.TableName
             ?? throw new InvalidOperationException("Cannot build a reporting view before the table has been created.");
@@ -65,6 +67,7 @@ public class DynamicSchemaService : IDynamicSchemaService
         var activeFields = version.Fields.Where(f => f.IsActive && f.FieldType != FieldType.Attachment).ToList();
 
         var selectColumns = new StringBuilder();
+        var joins = new StringBuilder();
         selectColumns.Append("        d.[Id] AS [Record Id],\n");
         selectColumns.Append("        d.[CreatedAtUtc] AS [Submitted At],\n");
         selectColumns.Append("        creator.[DisplayName] AS [Submitted By]");
@@ -75,7 +78,24 @@ public class DynamicSchemaService : IDynamicSchemaService
             // Labels are free text, not identifiers - bracket-quoted aliases don't need to be
             // valid identifiers, but embedded ']' must still be escaped to close the quote safely.
             var escapedLabel = field.Label.Replace("]", "]]");
-            selectColumns.Append($",\n        d.[{field.Code}] AS [{escapedLabel}]");
+
+            var displaySource = field.FieldType == FieldType.Lookup
+                ? ResolveLookupDisplaySource(field, lookupTargets)
+                : null;
+
+            if (displaySource is null)
+            {
+                selectColumns.Append($",\n        d.[{field.Code}] AS [{escapedLabel}]");
+            }
+            else
+            {
+                var (targetTable, displayColumn) = displaySource.Value;
+                var joinAlias = $"lkp_{field.Code}";
+                SqlTypeMapper.AssertSafeIdentifier(joinAlias);
+
+                joins.Append($"\n        LEFT JOIN [{targetTable}] [{joinAlias}] ON [{joinAlias}].[Id] = d.[{field.Code}]");
+                selectColumns.Append($",\n        [{joinAlias}].[{displayColumn}] AS [{escapedLabel}]");
+            }
         }
 
         var sql = $"""
@@ -83,7 +103,7 @@ public class DynamicSchemaService : IDynamicSchemaService
             SELECT
             {selectColumns}
             FROM [{tableName}] d
-            LEFT JOIN [Users] creator ON creator.[Id] = d.[CreatedByUserId]
+            LEFT JOIN [Users] creator ON creator.[Id] = d.[CreatedByUserId]{joins}
             WHERE d.[IsDeleted] = 0;
             """;
 
@@ -93,6 +113,27 @@ public class DynamicSchemaService : IDynamicSchemaService
         await command.ExecuteNonQueryAsync(cancellationToken);
 
         _logger.LogInformation("Refreshed reporting view {ViewName} for form {FormCode}", viewName, formDefinition.Code);
+    }
+
+    /// <summary>
+    /// A Lookup field only gets resolved to a readable value if its target form is present in
+    /// <paramref name="lookupTargets"/>, is published (has a TableName), and has at least one
+    /// active ShortText field to show - falling back to the raw referenced Id otherwise is
+    /// deliberate: a half-resolved join is worse than an honest raw value.
+    /// </summary>
+    private static (string TargetTable, string DisplayColumn)? ResolveLookupDisplaySource(
+        FieldDefinition field, IReadOnlyDictionary<Guid, FormDefinition>? lookupTargets)
+    {
+        if (field.LookupFormDefinitionId is not { } targetId) return null;
+        if (lookupTargets is null || !lookupTargets.TryGetValue(targetId, out var target)) return null;
+        if (target.TableName is not { } targetTable) return null;
+
+        var displayField = target.GetPublishedVersion()?.Fields
+            .Where(f => f.IsActive && f.FieldType == FieldType.ShortText)
+            .OrderBy(f => f.DisplayOrder)
+            .FirstOrDefault();
+
+        return displayField is null ? null : (targetTable, displayField.Code);
     }
 
     public async Task<bool> ColumnExistsAsync(string tableName, string columnCode, CancellationToken cancellationToken = default)
