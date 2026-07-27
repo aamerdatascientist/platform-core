@@ -1,0 +1,21 @@
+## .NET
+bin/
+obj/
+*.user
+.vs/
+*.suo
+
+## Test results
+TestResults/
+
+## Secrets - never commit real connection strings or JWT secrets
+appsettings.*.local.json
+*.env
+
+## Frontend (future)
+node_modules/
+dist/
+
+## OS
+.DS_Store
+Thumbs.db

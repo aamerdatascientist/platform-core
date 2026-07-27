@@ -1,0 +1,26 @@
+using Microsoft.EntityFrameworkCore;
+using Platform.Domain.Forms;
+using Platform.Domain.Identity;
+
+namespace Platform.Application.Common.Interfaces;
+
+/// <summary>
+/// Covers only the STATIC platform schema (Identity, Form metadata). Dynamic per-form
+/// data tables are deliberately excluded from this contract - see IDynamicDataRepository.
+/// EF Core's compiled model can't represent tables that don't exist until an
+/// administrator publishes a form, so mixing the two here would be misleading.
+/// </summary>
+public interface IApplicationDbContext
+{
+    DbSet<User> Users { get; }
+    DbSet<Role> Roles { get; }
+    DbSet<Permission> Permissions { get; }
+    DbSet<Department> Departments { get; }
+    DbSet<RefreshToken> RefreshTokens { get; }
+
+    DbSet<FormDefinition> FormDefinitions { get; }
+    DbSet<FormVersion> FormVersions { get; }
+    DbSet<FieldDefinition> FieldDefinitions { get; }
+
+    Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
+}

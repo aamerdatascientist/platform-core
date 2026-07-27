@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Platform.Domain</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    The one deliberate exception to "Domain has zero dependencies": MediatR's INotification
+    is a marker interface with no behavior, used so domain events can be dispatched through
+    the same pipeline as everything else (see Infrastructure's SaveChanges interceptor, to
+    be added when the first real domain event consumer exists). If that ever feels like it's
+    pulling in more than a marker interface, define IDomainEvent as a bare interface instead
+    and adapt to INotification at the Infrastructure boundary.
+  -->
+  <ItemGroup>
+    <PackageReference Include="MediatR" Version="12.4.1" />
+  </ItemGroup>
+
+</Project>
