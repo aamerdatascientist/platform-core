@@ -46,6 +46,7 @@ public class AddFieldDefinitionCommandHandler : IRequestHandler<AddFieldDefiniti
             request.Code, request.Label, request.FieldType, request.IsRequired,
             request.OptionsJson, request.LookupFormDefinitionId, request.ValidationRulesJson);
 
+        _db.FieldDefinitions.Add(field);
         await _db.SaveChangesAsync(cancellationToken);
 
         return field.Id;

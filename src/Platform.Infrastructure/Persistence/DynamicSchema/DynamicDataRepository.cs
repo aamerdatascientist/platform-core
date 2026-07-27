@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Dapper;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
@@ -50,7 +51,8 @@ public class DynamicDataRepository : IDynamicDataRepository
             var paramName = $"field_{field.Code}";
             columns.Add($"[{field.Code}]");
             valueTokens.Add($"@{paramName}");
-            parameters.Add(paramName, values.TryGetValue(field.Code, out var v) ? v ?? DBNull.Value : DBNull.Value);
+            var rawValue = values.TryGetValue(field.Code, out var v) ? v : null;
+            parameters.Add(paramName, ConvertFieldValue(field.FieldType, rawValue));
         }
 
         var sql = $"""
@@ -105,7 +107,7 @@ public class DynamicDataRepository : IDynamicDataRepository
         var totalCount = await connection.ExecuteScalarAsync<int>(
             new CommandDefinition(countSql, cancellationToken: cancellationToken));
 
-        var rows = await connection.QueryAsync(new CommandDefinition(
+        IEnumerable<object> rows = await connection.QueryAsync(new CommandDefinition(
             pageSql, new { Offset = (page - 1) * pageSize, PageSize = pageSize }, cancellationToken: cancellationToken));
 
         var items = rows.Select(row => ToDynamicRow(row, readableFields)).ToList();
@@ -129,5 +131,33 @@ public class DynamicDataRepository : IDynamicDataRepository
         var id = (Guid)dict["Id"]!;
         var values = fields.ToDictionary(f => f.Code, f => dict.TryGetValue(f.Code, out var v) ? v : null);
         return new DynamicRow(id, values);
+    }
+
+    /// <summary>
+    /// Values arriving from the API controller's JSON-bound dictionary are boxed
+    /// JsonElement, not plain CLR types - Dapper can't map JsonElement to a DbType, so it
+    /// needs unwrapping into the CLR type the field's physical column actually expects.
+    /// </summary>
+    private static object ConvertFieldValue(FieldType fieldType, object? rawValue)
+    {
+        if (rawValue is null) return DBNull.Value;
+
+        if (rawValue is not JsonElement element)
+            return rawValue;
+
+        if (element.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
+            return DBNull.Value;
+
+        return fieldType switch
+        {
+            FieldType.ShortText or FieldType.LongText or FieldType.Dropdown =>
+                (object?)element.GetString() ?? DBNull.Value,
+            FieldType.Number => element.GetInt32(),
+            FieldType.Decimal => element.GetDecimal(),
+            FieldType.Boolean => element.GetBoolean(),
+            FieldType.DateTime => element.GetDateTime(),
+            FieldType.Lookup => Guid.Parse(element.GetString()!),
+            _ => throw new NotSupportedException($"Unsupported field type '{fieldType}' for dynamic data.")
+        };
     }
 }

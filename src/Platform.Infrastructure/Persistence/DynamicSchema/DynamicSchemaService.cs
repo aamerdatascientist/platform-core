@@ -81,7 +81,7 @@ public class DynamicSchemaService : IDynamicSchemaService
         var sql = $"""
             CREATE OR ALTER VIEW [{viewName}] AS
             SELECT
-{selectColumns}
+            {selectColumns}
             FROM [{tableName}] d
             LEFT JOIN [Users] creator ON creator.[Id] = d.[CreatedByUserId]
             WHERE d.[IsDeleted] = 0;

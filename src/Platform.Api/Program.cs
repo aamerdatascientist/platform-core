@@ -40,6 +40,10 @@ builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
+        // Without this, the handler remaps standard short claim names (e.g. "sub") to
+        // long ClaimTypes URIs on the way in, which breaks CurrentUserService's lookups
+        // for the exact claim types JwtTokenService issues.
+        options.MapInboundClaims = false;
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,

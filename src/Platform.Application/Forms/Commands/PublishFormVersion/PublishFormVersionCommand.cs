@@ -45,9 +45,8 @@ public class PublishFormVersionCommandHandler : IRequestHandler<PublishFormVersi
         draft.MarkPublished();
 
         var tableName = await _schemaService.EnsureTableForPublishedVersionAsync(formDefinition, draft, cancellationToken);
-        await _schemaService.RefreshReportingViewAsync(formDefinition, draft, cancellationToken);
-
         formDefinition.MarkPublished(draft, tableName);
+        await _schemaService.RefreshReportingViewAsync(formDefinition, draft, cancellationToken);
 
         await _db.SaveChangesAsync(cancellationToken);
 
