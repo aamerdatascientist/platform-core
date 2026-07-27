@@ -3,6 +3,8 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Platform.Application.Common.Exceptions;
 using Platform.Application.Common.Interfaces;
+using Platform.Domain.Forms;
+using Platform.Domain.Forms.Enums;
 
 namespace Platform.Application.Forms.Commands.PublishFormVersion;
 
@@ -45,12 +47,37 @@ public class PublishFormVersionCommandHandler : IRequestHandler<PublishFormVersi
         draft.MarkPublished();
 
         var tableName = await _schemaService.EnsureTableForPublishedVersionAsync(formDefinition, draft, cancellationToken);
-        await _schemaService.RefreshReportingViewAsync(formDefinition, draft, cancellationToken);
-
         formDefinition.MarkPublished(draft, tableName);
+
+        var lookupTargets = await LoadLookupTargetsAsync(draft, cancellationToken);
+        await _schemaService.RefreshReportingViewAsync(formDefinition, draft, lookupTargets, cancellationToken);
 
         await _db.SaveChangesAsync(cancellationToken);
 
         return new PublishFormVersionResult(draft.Id, draft.VersionNumber, tableName);
+    }
+
+    /// <summary>
+    /// Loads the FormDefinitions referenced by this version's Lookup fields, with Versions and
+    /// Fields included, so RefreshReportingViewAsync can resolve each Lookup to a readable
+    /// display field without issuing its own queries against the EF-owned static schema.
+    /// </summary>
+    private async Task<Dictionary<Guid, FormDefinition>> LoadLookupTargetsAsync(
+        FormVersion draft, CancellationToken cancellationToken)
+    {
+        var targetIds = draft.Fields
+            .Where(f => f.IsActive && f.FieldType == FieldType.Lookup)
+            .Select(f => f.LookupFormDefinitionId!.Value)
+            .Distinct()
+            .ToList();
+
+        if (targetIds.Count == 0) return new Dictionary<Guid, FormDefinition>();
+
+        var targets = await _db.FormDefinitions
+            .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Where(f => targetIds.Contains(f.Id))
+            .ToListAsync(cancellationToken);
+
+        return targets.ToDictionary(f => f.Id);
     }
 }

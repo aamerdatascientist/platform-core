@@ -40,7 +40,7 @@ public class SubmitFormDataCommandHandler : IRequestHandler<SubmitFormDataComman
 
         var publishedVersion = formDefinition.GetPublishedVersion();
         if (publishedVersion is null || formDefinition.TableName is null)
-            throw new ValidationException(new[]
+            throw new Platform.Application.Common.Exceptions.ValidationException(new[]
             {
                 new FluentValidation.Results.ValidationFailure(
                     nameof(request.FormDefinitionId), "This form has no published version to submit data against.")
@@ -55,7 +55,7 @@ public class SubmitFormDataCommandHandler : IRequestHandler<SubmitFormDataComman
             .ToList();
 
         if (missingRequired.Count != 0)
-            throw new ValidationException(missingRequired.Select(code =>
+            throw new Platform.Application.Common.Exceptions.ValidationException(missingRequired.Select(code =>
                 new FluentValidation.Results.ValidationFailure(code, $"'{code}' is required.")));
 
         return await _dynamicDataRepository.InsertAsync(
