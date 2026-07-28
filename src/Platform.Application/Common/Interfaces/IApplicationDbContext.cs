@@ -22,5 +22,12 @@ public interface IApplicationDbContext
     DbSet<FormVersion> FormVersions { get; }
     DbSet<FieldDefinition> FieldDefinitions { get; }
 
+    DbSet<Platform.Domain.Workflow.WorkflowDefinition> WorkflowDefinitions { get; }
+    DbSet<Platform.Domain.Workflow.WorkflowState> WorkflowStates { get; }
+    DbSet<Platform.Domain.Workflow.WorkflowTransition> WorkflowTransitions { get; }
+    DbSet<Platform.Domain.Workflow.WorkflowTransitionRole> WorkflowTransitionRoles { get; }
+    DbSet<Platform.Domain.Workflow.WorkflowInstance> WorkflowInstances { get; }
+    DbSet<Platform.Domain.Workflow.WorkflowInstanceHistoryEntry> WorkflowInstanceHistoryEntries { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

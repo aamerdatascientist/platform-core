@@ -34,6 +34,13 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<FormVersion> FormVersions => Set<FormVersion>();
     public DbSet<FieldDefinition> FieldDefinitions => Set<FieldDefinition>();
 
+    public DbSet<Platform.Domain.Workflow.WorkflowDefinition> WorkflowDefinitions => Set<Platform.Domain.Workflow.WorkflowDefinition>();
+    public DbSet<Platform.Domain.Workflow.WorkflowState> WorkflowStates => Set<Platform.Domain.Workflow.WorkflowState>();
+    public DbSet<Platform.Domain.Workflow.WorkflowTransition> WorkflowTransitions => Set<Platform.Domain.Workflow.WorkflowTransition>();
+    public DbSet<Platform.Domain.Workflow.WorkflowTransitionRole> WorkflowTransitionRoles => Set<Platform.Domain.Workflow.WorkflowTransitionRole>();
+    public DbSet<Platform.Domain.Workflow.WorkflowInstance> WorkflowInstances => Set<Platform.Domain.Workflow.WorkflowInstance>();
+    public DbSet<Platform.Domain.Workflow.WorkflowInstanceHistoryEntry> WorkflowInstanceHistoryEntries => Set<Platform.Domain.Workflow.WorkflowInstanceHistoryEntry>();
+
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         ApplyAuditInformation();

@@ -32,10 +32,12 @@ public class WorkflowInstance : AuditableEntity
         return instance;
     }
 
-    public void ApplyTransition(Guid transitionId, Guid toStateId, Guid executedByUserId, string? comment)
+    public WorkflowInstanceHistoryEntry ApplyTransition(Guid transitionId, Guid toStateId, Guid executedByUserId, string? comment)
     {
         var fromStateId = CurrentStateId;
         CurrentStateId = toStateId;
-        _history.Add(WorkflowInstanceHistoryEntry.Create(Id, fromStateId, toStateId, transitionId, executedByUserId, comment));
+        var entry = WorkflowInstanceHistoryEntry.Create(Id, fromStateId, toStateId, transitionId, executedByUserId, comment);
+        _history.Add(entry);
+        return entry;
     }
 }

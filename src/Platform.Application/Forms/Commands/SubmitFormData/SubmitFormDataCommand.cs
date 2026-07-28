@@ -58,7 +58,24 @@ public class SubmitFormDataCommandHandler : IRequestHandler<SubmitFormDataComman
             throw new Platform.Application.Common.Exceptions.ValidationException(missingRequired.Select(code =>
                 new FluentValidation.Results.ValidationFailure(code, $"'{code}' is required.")));
 
-        return await _dynamicDataRepository.InsertAsync(
+        var newRecordId = await _dynamicDataRepository.InsertAsync(
             formDefinition.TableName, activeFields, request.Values, request.SubmittedByUserId, cancellationToken);
+
+        var publishedWorkflow = await _db.WorkflowDefinitions
+            .Include(w => w.States)
+            .SingleOrDefaultAsync(
+                w => w.FormDefinitionId == formDefinition.Id && w.Status == Domain.Workflow.WorkflowStatus.Published,
+                cancellationToken);
+
+        if (publishedWorkflow is not null)
+        {
+            var initialState = publishedWorkflow.GetInitialState();
+            var instance = Domain.Workflow.WorkflowInstance.Start(
+                publishedWorkflow.Id, formDefinition.Id, newRecordId, initialState.Id, request.SubmittedByUserId);
+            _db.WorkflowInstances.Add(instance);
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+
+        return newRecordId;
     }
 }

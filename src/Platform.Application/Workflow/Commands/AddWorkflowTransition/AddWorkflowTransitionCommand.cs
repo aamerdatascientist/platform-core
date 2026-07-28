@@ -53,6 +53,10 @@ public class AddWorkflowTransitionCommandHandler : IRequestHandler<AddWorkflowTr
             });
 
         var transition = workflow.AddTransition(request.Code, request.Label, request.FromStateId, request.ToStateId, roleIds);
+        // Add() walks the whole reachable graph, so this also correctly tracks the
+        // WorkflowTransitionRole children AddTransition() just created - see WorkflowState's
+        // equivalent fix for why an explicit Add() is required here at all.
+        _db.WorkflowTransitions.Add(transition);
         await _db.SaveChangesAsync(cancellationToken);
 
         return transition.Id;
