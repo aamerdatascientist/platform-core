@@ -6,6 +6,7 @@ using Platform.Application.Forms.Commands.CreateFormDefinition;
 using Platform.Application.Forms.Commands.PublishFormVersion;
 using Platform.Application.Forms.Dtos;
 using Platform.Application.Forms.Queries.GetFormDefinition;
+using Platform.Application.Forms.Queries.GetFormsList;
 using Platform.Domain.Forms.Enums;
 
 namespace Platform.Api.Controllers;
@@ -34,6 +35,11 @@ public class FormsController : ControllerBase
 
         return CreatedAtAction(nameof(Get), new { id }, new { id });
     }
+
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<FormSummaryDto>>> List(
+        [FromQuery] string? moduleName, CancellationToken cancellationToken) =>
+        Ok(await _sender.Send(new GetFormsListQuery(moduleName), cancellationToken));
 
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<FormDefinitionDto>> Get(Guid id, CancellationToken cancellationToken) =>
