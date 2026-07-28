@@ -71,7 +71,11 @@ public class ExecuteWorkflowTransitionCommandHandler : IRequestHandler<ExecuteWo
             throw new ForbiddenAccessException(
                 $"You don't have a role permitted to execute '{transition.Label}' on this record.");
 
-        instance.ApplyTransition(transition.Id, transition.ToStateId, _currentUser.UserId.Value, request.Comment);
+        var historyEntry = instance.ApplyTransition(transition.Id, transition.ToStateId, _currentUser.UserId.Value, request.Comment);
+        // History was never Included on the query above, so EF has no way to discover this
+        // new entry via graph traversal during SaveChanges - same class of bug as
+        // AddFieldDefinitionCommand had, fixed the same way: track it explicitly.
+        _db.WorkflowInstanceHistoryEntries.Add(historyEntry);
         await _db.SaveChangesAsync(cancellationToken);
     }
 }

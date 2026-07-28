@@ -36,6 +36,7 @@ public class AddWorkflowStateCommandHandler : IRequestHandler<AddWorkflowStateCo
             throw new NotFoundException(nameof(Platform.Domain.Workflow.WorkflowDefinition), request.WorkflowDefinitionId);
 
         var state = workflow.AddState(request.Code, request.Label, request.IsInitial, request.IsFinal);
+        _db.WorkflowStates.Add(state);
         await _db.SaveChangesAsync(cancellationToken);
 
         return state.Id;
