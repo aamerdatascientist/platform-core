@@ -15,7 +15,12 @@ public static class DependencyInjection
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlServer(
                 configuration.GetConnectionString("DefaultConnection"),
-                sql => sql.MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName)));
+                sql => sql
+                    .MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName)
+                    // Azure SQL serverless auto-pauses when idle and returns error 40613 on
+                    // the first request that wakes it back up - that's a transient condition,
+                    // not a real failure, and it's in EF Core's default transient-error list.
+                    .EnableRetryOnFailure()));
 
         services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ApplicationDbContext>());
 
