@@ -39,6 +39,14 @@ export interface FormVersionDto {
   fields: FieldDefinitionDto[];
 }
 
+export interface FormSummaryDto {
+  id: string;
+  code: string;
+  name: string;
+  moduleName: string;
+  status: FormStatus;
+}
+
 export interface FormDefinitionDto {
   id: string;
   code: string;

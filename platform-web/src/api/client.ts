@@ -2,6 +2,7 @@ import type {
   CurrentUserDto,
   DynamicRow,
   FormDefinitionDto,
+  FormSummaryDto,
   PagedResult,
   TokenPair,
 } from '../types';
@@ -52,6 +53,9 @@ export const api = {
   },
 
   forms: {
+    list: (token: string, moduleName?: string) =>
+      request<FormSummaryDto[]>(`/api/forms${moduleName ? `?moduleName=${encodeURIComponent(moduleName)}` : ''}`, {}, token),
+
     create: (token: string, input: { code: string; name: string; moduleName: string; description?: string | null }) =>
       request<{ id: string }>('/api/forms', { method: 'POST', body: JSON.stringify(input) }, token),
 

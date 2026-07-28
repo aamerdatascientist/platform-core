@@ -1,17 +1,14 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from './api/client';
+import { FormPicker } from './components/FormPicker';
 import { FormRenderer } from './components/FormRenderer';
 import { SubmissionsTable } from './components/SubmissionsTable';
 import type { DynamicRow, FormDefinitionDto } from './types';
 
 /**
- * Deliberately minimal: this proves the FormRenderer works end to end against the real
- * API, it isn't the real app shell. Two gaps worth knowing about before extending this:
- *
- * 1. There's no GET /api/forms (list) endpoint yet, so this asks for a form ID by hand
- *    instead of showing a picker. Small backend addition needed before a real nav exists.
- * 2. The token is kept in memory + localStorage with no refresh-token flow wired up -
- *    it'll silently start failing when the access token expires (30 min by default).
+ * Still not the real app shell - no routing (refreshing loses your place), and the token
+ * still has no refresh flow (expires after 30 min, sign out/in again when that happens).
+ * But form navigation is now real, driven by GET /api/forms instead of pasting IDs by hand.
  */
 export default function App() {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem('token'));
@@ -19,7 +16,6 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
 
-  const [formId, setFormId] = useState('');
   const [formDefinition, setFormDefinition] = useState<FormDefinitionDto | null>(null);
   const [submissions, setSubmissions] = useState<DynamicRow[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -40,8 +36,8 @@ export default function App() {
     }
   }
 
-  async function loadForm() {
-    if (!token || !formId) return;
+  async function selectForm(formId: string) {
+    if (!token) return;
     setLoadError(null);
     try {
       const def = await api.forms.get(token, formId);
@@ -89,40 +85,35 @@ export default function App() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-10">
-      <div className="mb-8 flex items-center justify-between">
-        <h1 className="text-xl font-medium text-gray-900">Platform</h1>
-        <button className="text-sm text-gray-500" onClick={() => setToken(null)}>
-          Sign out
-        </button>
-      </div>
-
-      <div className="mb-8 flex gap-2">
-        <input
-          type="text"
-          placeholder="Form definition ID"
-          className="flex-1 rounded-md border border-gray-300 px-3 py-2 text-sm"
-          value={formId}
-          onChange={(e) => setFormId(e.target.value)}
-        />
-        <button onClick={loadForm} className="rounded-md border border-gray-300 px-4 py-2 text-sm">
-          Load form
-        </button>
-      </div>
-      {loadError && <p className="mb-4 text-sm text-red-600">{loadError}</p>}
-
-      {formDefinition && (
-        <div className="space-y-8">
-          <div>
-            <h2 className="mb-4 text-lg font-medium text-gray-900">{formDefinition.name}</h2>
-            <FormRenderer token={token} formDefinition={formDefinition} onSubmitted={refreshSubmissions} />
-          </div>
-          <div>
-            <h3 className="mb-3 text-sm font-medium text-gray-500">Records</h3>
-            <SubmissionsTable fields={formDefinition.publishedVersion?.fields ?? []} rows={submissions} />
-          </div>
+    <div className="flex min-h-screen">
+      <aside className="w-64 shrink-0 border-r border-gray-200 px-4 py-6">
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="text-lg font-medium text-gray-900">Platform</h1>
+          <button className="text-xs text-gray-500" onClick={() => setToken(null)}>
+            Sign out
+          </button>
         </div>
-      )}
+        <FormPicker token={token} onSelect={selectForm} selectedFormId={formDefinition?.id} />
+      </aside>
+
+      <main className="flex-1 px-8 py-10">
+        {loadError && <p className="mb-4 text-sm text-red-600">{loadError}</p>}
+
+        {!formDefinition && !loadError && (
+          <p className="text-sm text-gray-400">Pick a form from the left to get started.</p>
+        )}
+
+        {formDefinition && (
+          <div className="max-w-2xl space-y-8">
+            <h2 className="text-lg font-medium text-gray-900">{formDefinition.name}</h2>
+            <FormRenderer token={token} formDefinition={formDefinition} onSubmitted={refreshSubmissions} />
+            <div>
+              <h3 className="mb-3 text-sm font-medium text-gray-500">Records</h3>
+              <SubmissionsTable fields={formDefinition.publishedVersion?.fields ?? []} rows={submissions} />
+            </div>
+          </div>
+        )}
+      </main>
     </div>
   );
 }
