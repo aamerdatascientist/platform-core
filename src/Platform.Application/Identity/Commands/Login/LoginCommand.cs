@@ -51,7 +51,10 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, TokenPair>
 
         var tokenPair = _jwtTokenService.GenerateTokenPair(user.Id, user.Email, roleNames);
 
-        _db.RefreshTokens.Add(RefreshToken.Create(
+        // Fully qualified: Platform.Application.Identity.Commands.RefreshToken (the new
+        // command's namespace) now shadows the unqualified "RefreshToken" name at this
+        // enclosing-namespace scope, ahead of the `using Platform.Domain.Identity;` import.
+        _db.RefreshTokens.Add(Platform.Domain.Identity.RefreshToken.Create(
             user.Id,
             _jwtTokenService.HashRefreshToken(tokenPair.RefreshToken),
             DateTime.UtcNow.AddDays(30)));
