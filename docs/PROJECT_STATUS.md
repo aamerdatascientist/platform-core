@@ -21,6 +21,8 @@ where that's true across the board.**
   correct at every step.
 - **`GET /api/forms` (list endpoint)**: done and verified against the real Azure DB.
   `FormPicker` now shows real navigation grouped by module instead of pasted form IDs.
+- **Refresh-token flow**: done and verified against the real Azure DB. Rotation and logout
+  both confirmed working end-to-end.
 
 ## What just got fixed along the way (worth knowing, not just "it works now")
 
@@ -28,17 +30,16 @@ where that's true across the board.**
   engineering gotchas" section for the pattern and the fix. Now an established convention
   in this codebase, not a one-off patch.
 - **Access tokens expire after 30 min with no refresh flow** - hit repeatedly during manual
-  testing as spurious-looking 401s. Not a bug each time it happens - just re-login. Real
-  fix (an actual refresh-token flow) is still on the backlog, see gaps below.
+  testing as spurious-looking 401s. Not a bug each time it happens - just re-login. Fixed:
+  the refresh-token flow now handles this, see above.
 
 ## Immediate next steps, in priority order
 
-1. **Refresh-token flow.** Moved to top priority - today's testing was interrupted multiple
-   times by expired tokens. The 401-from-expiry pattern above will keep recurring during any
-   real usage, not just testing, until this exists.
-2. **After that:** decide between building out the real frontend app shell (routing,
-   nav, a workflow status/action UI on top of SubmissionsTable) vs. continuing the backend
-   roadmap (Dashboards/Reporting is Phase 4, AI Assistant is Phase 5).
+Both items from the previous list (`GET /api/forms`, refresh tokens) are now complete.
+
+1. **Decide between** building out the real frontend app shell (routing, nav, a workflow
+   status/action UI on top of SubmissionsTable) vs. continuing the backend roadmap
+   (Dashboards/Reporting is Phase 4, AI Assistant is Phase 5).
 
 ## Known environment facts specific to this deployment
 
