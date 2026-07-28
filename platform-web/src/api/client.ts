@@ -6,6 +6,7 @@ import type {
   PagedResult,
   TokenPair,
 } from '../types';
+import { getTokens, setTokens } from '../auth/tokenStore';
 
 // Set VITE_API_BASE_URL in a .env.local file once you know where the API is actually
 // reachable (localhost while developing, or wherever it ends up deployed).
@@ -22,14 +23,61 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string> | undefined),
-  };
-  if (token) headers.Authorization = `Bearer ${token}`;
+// Single-flight guard: if five components all get a 401 in the same moment (e.g. right
+// after the access token expires), they'd otherwise all fire their own refresh request
+// simultaneously - wasteful, and the resulting rotation would invalidate refresh tokens
+// out from under each other. All concurrent callers share this one in-flight promise instead.
+let refreshPromise: Promise<string | null> | null = null;
 
-  const response = await fetch(`${BASE_URL}${path}`, { ...options, headers });
+async function refreshAccessToken(): Promise<string | null> {
+  const stored = getTokens();
+  if (!stored) return null;
+
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const response = await fetch(`${BASE_URL}/api/auth/refresh`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refreshToken: stored.refreshToken }),
+        });
+        if (!response.ok) {
+          // The refresh token itself is invalid/expired/revoked - no recovering from
+          // this client-side. Clear everything so the app falls back to the sign-in screen.
+          setTokens(null);
+          return null;
+        }
+        const newTokens = (await response.json()) as TokenPair;
+        setTokens(newTokens);
+        return newTokens.accessToken;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+  }
+  return refreshPromise;
+}
+
+async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
+  const doFetch = (accessToken?: string) => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string> | undefined),
+    };
+    if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    return fetch(`${BASE_URL}${path}`, { ...options, headers });
+  };
+
+  let response = await doFetch(token);
+
+  // Only attempt a silent refresh if this request was actually authenticated in the first
+  // place - an anonymous 401 (e.g. wrong password on /login) should surface as a normal error.
+  if (response.status === 401 && token) {
+    const newAccessToken = await refreshAccessToken();
+    if (newAccessToken) {
+      response = await doFetch(newAccessToken);
+    }
+  }
 
   if (!response.ok) {
     // Matches Platform.Api.Middleware.ExceptionHandlingMiddleware's problem+json shape.
@@ -50,6 +98,12 @@ export const api = {
       request<{ id: string }>('/api/auth/register', { method: 'POST', body: JSON.stringify(input) }),
 
     me: (token: string) => request<CurrentUserDto>('/api/auth/me', {}, token),
+
+    refresh: (refreshToken: string) =>
+      request<TokenPair>('/api/auth/refresh', { method: 'POST', body: JSON.stringify({ refreshToken }) }),
+
+    logout: (refreshToken: string) =>
+      request<void>('/api/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken }) }),
   },
 
   forms: {
