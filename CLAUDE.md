@@ -73,6 +73,17 @@ it; the handler explicitly calls `_db.Set<T>().Add(child)` rather than relying o
 relationship fixup to pick it up automatically. Check for this in any future "parent
 creates child via a domain method" code before it bites a sixth time.
 
+**A command/query namespace segment that exactly matches a domain entity's simple name
+makes unqualified references to that entity ambiguous project-wide, not just in nearby
+files.** C# namespace visibility isn't file-scoped - it applies everywhere in the
+compilation. Hit when `RefreshTokenCommand`'s namespace
+(`Platform.Application.Identity.Commands.RefreshToken`) collided with the
+`Platform.Domain.Identity.RefreshToken` domain entity, silently breaking an unrelated,
+already-working unqualified reference in `LoginCommand.cs` on the other side of the project.
+
+**Fix going forward:** name command/query namespaces after the action, not a bare noun
+that matches a domain type - `RefreshAccessToken`, not `RefreshToken`.
+
 ## The one rule that's mattered most
 
 **Every phase gets tested end-to-end against real data before moving to the next phase -
