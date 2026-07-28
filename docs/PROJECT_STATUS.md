@@ -19,6 +19,8 @@ where that's true across the board.**
   record was submitted, walked through `submit-for-approval` then `approve` via the real
   API, and its final state (`approved`, `isFinal: true`) and 3-entry history were confirmed
   correct at every step.
+- **`GET /api/forms` (list endpoint)**: done and verified against the real Azure DB.
+  `FormPicker` now shows real navigation grouped by module instead of pasted form IDs.
 
 ## What just got fixed along the way (worth knowing, not just "it works now")
 
@@ -31,12 +33,10 @@ where that's true across the board.**
 
 ## Immediate next steps, in priority order
 
-1. **`GET /api/forms` (list endpoint).** Smallest, highest-leverage next piece - unblocks
-   real frontend navigation instead of pasting form IDs by hand. Already flagged as
-   priority #1 in `platform-web/README.md`'s own suggested next steps.
-2. **Refresh-token flow.** The 401-from-expiry pattern above will keep recurring during any
+1. **Refresh-token flow.** Moved to top priority - today's testing was interrupted multiple
+   times by expired tokens. The 401-from-expiry pattern above will keep recurring during any
    real usage, not just testing, until this exists.
-3. **After those two:** decide between building out the real frontend app shell (routing,
+2. **After that:** decide between building out the real frontend app shell (routing,
    nav, a workflow status/action UI on top of SubmissionsTable) vs. continuing the backend
    roadmap (Dashboards/Reporting is Phase 4, AI Assistant is Phase 5).
 
