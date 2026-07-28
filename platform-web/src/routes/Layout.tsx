@@ -1,4 +1,4 @@
-import { Outlet } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import { api } from '../api/client';
 import { getTokens, setTokens } from '../auth/tokenStore';
 import { FormPicker } from '../components/FormPicker';
@@ -28,6 +28,17 @@ export function Layout({ token }: LayoutProps) {
           </button>
         </div>
         <FormPicker token={token} />
+
+        <div className="mt-8 border-t border-line pt-4">
+          <NavLink
+            to="/builder"
+            className={({ isActive }) =>
+              `font-mono text-[11px] uppercase tracking-wide ${isActive ? 'text-ink' : 'text-ink-muted hover:text-ink'}`
+            }
+          >
+            + Build forms
+          </NavLink>
+        </div>
       </aside>
 
       <main className="flex-1 px-8 py-10">

@@ -136,6 +136,9 @@ export const api = {
         { method: 'POST' },
         token,
       ),
+
+    removeField: (token: string, formId: string, fieldId: string) =>
+      request<void>(`/api/forms/${formId}/fields/${fieldId}`, { method: 'DELETE' }, token),
   },
 
   submissions: {
