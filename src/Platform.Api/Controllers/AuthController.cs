@@ -3,6 +3,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Platform.Application.Common.Interfaces;
 using Platform.Application.Identity.Commands.Login;
+using Platform.Application.Identity.Commands.Logout;
+using Platform.Application.Identity.Commands.RefreshToken;
 using Platform.Application.Identity.Commands.RegisterUser;
 using Platform.Application.Identity.Queries.GetCurrentUser;
 
@@ -43,5 +45,20 @@ public class AuthController : ControllerBase
     {
         var user = await _sender.Send(new GetCurrentUserQuery(), cancellationToken);
         return Ok(user);
+    }
+
+    public record RefreshTokenRequest(string RefreshToken);
+
+    [HttpPost("refresh")]
+    public async Task<ActionResult<TokenPair>> Refresh(RefreshTokenRequest request, CancellationToken cancellationToken) =>
+        Ok(await _sender.Send(new RefreshTokenCommand(request.RefreshToken), cancellationToken));
+
+    public record LogoutRequest(string RefreshToken);
+
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout(LogoutRequest request, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new LogoutCommand(request.RefreshToken), cancellationToken);
+        return NoContent();
     }
 }
