@@ -23,6 +23,11 @@ where that's true across the board.**
   `FormPicker` now shows real navigation grouped by module instead of pasted form IDs.
 - **Refresh-token flow**: done and verified against the real Azure DB. Rotation and logout
   both confirmed working end-to-end.
+- **Frontend app shell (real routing) and workflow status/approval UI**: done, verified
+  directly by the project owner in the browser - not via Code's sandbox, since this was
+  frontend-only work with no backend changes. Confirmed: routing survives a page refresh,
+  role-gated approval buttons correctly appear on draft records and correctly disappear on
+  final-state (approved) records.
 
 ## What just got fixed along the way (worth knowing, not just "it works now")
 
@@ -35,11 +40,12 @@ where that's true across the board.**
 
 ## Immediate next steps, in priority order
 
-Both items from the previous list (`GET /api/forms`, refresh tokens) are now complete.
+The frontend app shell (routing, workflow status/approval UI) is done now too - every item
+from the previous "Immediate next steps" lists is complete.
 
-1. **Decide between** building out the real frontend app shell (routing, nav, a workflow
-   status/action UI on top of SubmissionsTable) vs. continuing the backend roadmap
-   (Dashboards/Reporting is Phase 4, AI Assistant is Phase 5).
+1. **Decide the next phase of work:** continue the backend roadmap (Dashboards/Reporting is
+   Phase 4, AI Assistant is Phase 5) or keep extending the frontend (e.g. dashboard views,
+   further polish).
 
 ## Known environment facts specific to this deployment
 
