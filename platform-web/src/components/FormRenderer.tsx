@@ -133,7 +133,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
   }
 
   if (!formDefinition.publishedVersion) {
-    return <p className="text-sm text-gray-500">This form has no published version yet.</p>;
+    return <p className="text-sm text-ink-muted">This form has no published version yet.</p>;
   }
 
   return (
@@ -150,12 +150,12 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
         />
       ))}
 
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="text-sm text-clay">{error}</p>}
 
       <button
         type="submit"
         disabled={submitting}
-        className="w-full rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        className="w-full bg-ink px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {submitting ? 'Submitting…' : 'Submit'}
       </button>
@@ -179,17 +179,17 @@ function FieldInput({
   lookupChoices?: LookupChoice[];
 }) {
   const baseClass =
-    'w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none';
+    'w-full border border-line px-3 py-2 text-sm focus:border-ink focus:outline-none';
 
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-gray-700">
+      <label className="mb-1 block text-sm font-medium text-ink">
         {field.label}
-        {field.isRequired && <span className="text-red-500"> *</span>}
+        {field.isRequired && <span className="text-clay"> *</span>}
       </label>
 
       {field.fieldType === 'Attachment' ? (
-        <p className="text-sm italic text-gray-400">File upload isn't wired up yet - no File Management module.</p>
+        <p className="text-sm italic text-ink-muted">File upload isn't wired up yet - no File Management module.</p>
       ) : field.fieldType === 'LongText' ? (
         <textarea className={baseClass} rows={3} value={value} onChange={(e) => onChange(e.target.value)} />
       ) : field.fieldType === 'Boolean' ? (
@@ -230,7 +230,7 @@ function FieldInput({
         <input type="text" className={baseClass} value={value} onChange={(e) => onChange(e.target.value)} />
       )}
 
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      {error && <p className="mt-1 text-xs text-clay">{error}</p>}
     </div>
   );
 }

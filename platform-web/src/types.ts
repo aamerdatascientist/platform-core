@@ -86,6 +86,30 @@ export interface CurrentUserDto {
   roles: string[];
 }
 
+export interface AvailableTransitionDto {
+  code: string;
+  label: string;
+}
+
+export interface WorkflowHistoryEntryDto {
+  fromStateLabel: string | null;
+  toStateLabel: string;
+  transitionLabel: string | null;
+  executedByUserId: string;
+  executedAtUtc: string;
+  comment: string | null;
+}
+
+export interface WorkflowStatusDto {
+  recordId: string;
+  workflowCode: string;
+  currentStateCode: string;
+  currentStateLabel: string;
+  isFinal: boolean;
+  availableTransitions: AvailableTransitionDto[];
+  history: WorkflowHistoryEntryDto[];
+}
+
 export interface DropdownOption {
   value: string;
   label: string;

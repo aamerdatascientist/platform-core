@@ -5,6 +5,7 @@ import type {
   FormSummaryDto,
   PagedResult,
   TokenPair,
+  WorkflowStatusDto,
 } from '../types';
 import { getTokens, setTokens } from '../auth/tokenStore';
 
@@ -143,5 +144,17 @@ export const api = {
 
     list: (token: string, formId: string, page = 1, pageSize = 25) =>
       request<PagedResult<DynamicRow>>(`/api/forms/${formId}/submissions?page=${page}&pageSize=${pageSize}`, {}, token),
+  },
+
+  workflow: {
+    status: (token: string, recordId: string) =>
+      request<WorkflowStatusDto>(`/api/records/${recordId}/workflow`, {}, token),
+
+    executeTransition: (token: string, recordId: string, transitionCode: string, comment?: string) =>
+      request<void>(
+        `/api/records/${recordId}/workflow/transitions`,
+        { method: 'POST', body: JSON.stringify({ transitionCode, comment: comment ?? null }) },
+        token,
+      ),
   },
 };
