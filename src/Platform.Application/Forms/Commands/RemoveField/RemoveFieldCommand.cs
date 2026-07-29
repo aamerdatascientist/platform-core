@@ -32,7 +32,7 @@ public class RemoveFieldCommandHandler : IRequestHandler<RemoveFieldCommand>
         if (formDefinition is null)
             throw new NotFoundException(nameof(Platform.Domain.Forms.FormDefinition), request.FormDefinitionId);
 
-        var draft = formDefinition.GetDraftVersion();
+        var draft = formDefinition.GetDraftVersionOrThrow();
         draft.RemoveField(request.FieldDefinitionId);
 
         await _db.SaveChangesAsync(cancellationToken);

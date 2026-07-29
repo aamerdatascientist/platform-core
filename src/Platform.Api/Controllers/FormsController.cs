@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Platform.Application.Forms.Commands.AddFieldDefinition;
 using Platform.Application.Forms.Commands.CreateFormDefinition;
 using Platform.Application.Forms.Commands.PublishFormVersion;
+using Platform.Application.Forms.Commands.RemoveField;
 using Platform.Application.Forms.Dtos;
 using Platform.Application.Forms.Queries.GetFormDefinition;
 using Platform.Application.Forms.Queries.GetFormsList;
@@ -62,4 +63,11 @@ public class FormsController : ControllerBase
     [HttpPost("{id:guid}/publish")]
     public async Task<ActionResult<PublishFormVersionResult>> Publish(Guid id, CancellationToken cancellationToken) =>
         Ok(await _sender.Send(new PublishFormVersionCommand(id), cancellationToken));
+
+    [HttpDelete("{id:guid}/fields/{fieldId:guid}")]
+    public async Task<IActionResult> RemoveField(Guid id, Guid fieldId, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new RemoveFieldCommand(id, fieldId), cancellationToken);
+        return NoContent();
+    }
 }
