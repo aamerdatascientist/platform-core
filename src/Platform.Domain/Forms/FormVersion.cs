@@ -67,6 +67,16 @@ public class FormVersion : AuditableEntity
     public void DeactivateField(Guid fieldDefinitionId) =>
         _fields.Single(f => f.Id == fieldDefinitionId).Deactivate();
 
+    public void RemoveField(Guid fieldId)
+    {
+        if (Status != FormStatus.Draft)
+            throw new InvalidOperationException("Fields can only be removed from a draft version.");
+
+        var removed = _fields.RemoveAll(f => f.Id == fieldId);
+        if (removed == 0)
+            throw new InvalidOperationException("Field not found on this version.");
+    }
+
     public void MarkPublished()
     {
         if (Status != FormStatus.Draft)
