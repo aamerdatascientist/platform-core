@@ -18,6 +18,14 @@ interface LookupChoice {
  * metadata - this is the actual "low-code" part of the platform. No per-form code exists
  * or should ever need to exist here.
  *
+ * Attachments are picked here, inline with everything else, but physically uploaded in a
+ * second step immediately after the record is created - a record's Id has to exist before
+ * a file can be associated with it (see FileMetadata.RecordId). That ordering is invisible
+ * to the person filling the form: one "Submit" click does both, in sequence. If the record
+ * saves but a file fails to upload, that's surfaced honestly as a partial success, not a
+ * generic failure - the data isn't lost, just that one file needs retrying afterward via
+ * the Attachments panel.
+ *
  * Known simplification: Lookup fields need a human-readable label for their dropdown,
  * but FieldDefinitionDto has no designated "display field" for the target form yet - the
  * backend doesn't expose one. This convention-guesses the first ShortText field on the
@@ -31,6 +39,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
   );
 
   const [values, setValues] = useState<Record<string, string>>({});
+  const [attachmentFiles, setAttachmentFiles] = useState<Record<string, File>>({});
   const [lookupChoices, setLookupChoices] = useState<Record<string, LookupChoice[]>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +47,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
 
   useEffect(() => {
     setValues({});
+    setAttachmentFiles({});
     setError(null);
     setFieldErrors({});
 
@@ -80,6 +90,15 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
     setValues((prev) => ({ ...prev, [code]: value }));
   }
 
+  function setAttachmentFile(code: string, file: File | null) {
+    setAttachmentFiles((prev) => {
+      const next = { ...prev };
+      if (file) next[code] = file;
+      else delete next[code];
+      return next;
+    });
+  }
+
   function parseOptions(optionsJson: string | null): DropdownOption[] {
     if (!optionsJson) return [];
     try {
@@ -95,9 +114,9 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
 
     const missing: Record<string, string> = {};
     activeFields.forEach((f) => {
-      if (f.isRequired && f.fieldType !== 'Attachment' && !values[f.code]) {
-        missing[f.code] = 'Required';
-      }
+      if (!f.isRequired) return;
+      const isMissing = f.fieldType === 'Attachment' ? !attachmentFiles[f.code] : !values[f.code];
+      if (isMissing) missing[f.code] = 'Required';
     });
     if (Object.keys(missing).length > 0) {
       setFieldErrors(missing);
@@ -109,7 +128,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
     try {
       const payload: Record<string, unknown> = {};
       activeFields.forEach((f) => {
-        if (f.fieldType === 'Attachment') return;
+        if (f.fieldType === 'Attachment') return; // never part of the JSON body - no physical column
         const raw = values[f.code];
         if (raw === undefined || raw === '') {
           payload[f.code] = null;
@@ -122,8 +141,35 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
         }
       });
 
-      await api.submissions.submit(token, formDefinition.id, payload);
+      const { id: recordId } = await api.submissions.submit(token, formDefinition.id, payload);
+
+      const attachmentFieldsWithFiles = activeFields.filter(
+        (f) => f.fieldType === 'Attachment' && attachmentFiles[f.code],
+      );
+
+      if (attachmentFieldsWithFiles.length > 0) {
+        const results = await Promise.allSettled(
+          attachmentFieldsWithFiles.map((f) =>
+            api.files.upload(token, formDefinition.id, recordId, f.code, attachmentFiles[f.code]),
+          ),
+        );
+        const failedLabels = results
+          .map((r, i) => (r.status === 'rejected' ? attachmentFieldsWithFiles[i].label : null))
+          .filter((label): label is string => label !== null);
+
+        if (failedLabels.length > 0) {
+          // The record itself saved fine - only the file(s) failed. Say so plainly rather
+          // than implying the whole submission failed, since the data wasn't lost.
+          setError(
+            `Record saved, but couldn't upload: ${failedLabels.join(', ')}. You can add ${
+              failedLabels.length > 1 ? 'them' : 'it'
+            } again by selecting this record below.`,
+          );
+        }
+      }
+
       setValues({});
+      setAttachmentFiles({});
       onSubmitted?.();
     } catch (err) {
       if (err instanceof ApiError && err.errors) {
@@ -134,9 +180,6 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
           if (messages.length > 0) perField[code] = messages[0];
         });
         setFieldErrors(perField);
-        // A field-level error is self-explanatory once it's shown in red next to the
-        // field that caused it - a second, generic banner repeating "validation failed"
-        // above the form would be redundant, not helpful.
         setError(null);
       } else {
         setError(err instanceof ApiError ? err.message : 'Submission failed.');
@@ -158,6 +201,8 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
           field={field}
           value={values[field.code] ?? ''}
           onChange={(v) => setValue(field.code, v)}
+          selectedFileName={attachmentFiles[field.code]?.name}
+          onFileChange={(file) => setAttachmentFile(field.code, file)}
           error={fieldErrors[field.code]}
           options={parseOptions(field.optionsJson)}
           lookupChoices={lookupChoices[field.code]}
@@ -181,6 +226,8 @@ function FieldInput({
   field,
   value,
   onChange,
+  selectedFileName,
+  onFileChange,
   error,
   options,
   lookupChoices,
@@ -188,6 +235,8 @@ function FieldInput({
   field: FieldDefinitionDto;
   value: string;
   onChange: (v: string) => void;
+  selectedFileName?: string;
+  onFileChange: (file: File | null) => void;
   error?: string;
   options: DropdownOption[];
   lookupChoices?: LookupChoice[];
@@ -203,7 +252,15 @@ function FieldInput({
       </label>
 
       {field.fieldType === 'Attachment' ? (
-        <p className="text-sm italic text-ink-muted">File upload isn't wired up yet - no File Management module.</p>
+        <div>
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/heic,image/webp,application/pdf"
+            onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
+            className="text-sm"
+          />
+          {selectedFileName && <p className="mt-1 text-xs text-ink-muted">Selected: {selectedFileName}</p>}
+        </div>
       ) : field.fieldType === 'LongText' ? (
         <textarea className={baseClass} rows={3} value={value} onChange={(e) => onChange(e.target.value)} />
       ) : field.fieldType === 'Boolean' ? (
