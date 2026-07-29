@@ -38,7 +38,7 @@ public class PublishFormVersionCommandHandler : IRequestHandler<PublishFormVersi
         if (formDefinition is null)
             throw new NotFoundException(nameof(Platform.Domain.Forms.FormDefinition), request.FormDefinitionId);
 
-        var draft = formDefinition.GetDraftVersion();
+        var draft = formDefinition.GetDraftVersionOrThrow();
 
         // Domain validation (has active fields, correct status) happens first and is cheap.
         // Only once that passes do we touch the database schema - DDL is expensive to

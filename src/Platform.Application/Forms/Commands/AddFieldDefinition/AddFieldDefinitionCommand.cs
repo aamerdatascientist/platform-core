@@ -40,7 +40,7 @@ public class AddFieldDefinitionCommandHandler : IRequestHandler<AddFieldDefiniti
         if (formDefinition is null)
             throw new NotFoundException(nameof(Platform.Domain.Forms.FormDefinition), request.FormDefinitionId);
 
-        var draft = formDefinition.GetDraftVersion();
+        var draft = formDefinition.GetDraftVersionOrThrow();
 
         var field = draft.AddField(
             request.Code, request.Label, request.FieldType, request.IsRequired,
