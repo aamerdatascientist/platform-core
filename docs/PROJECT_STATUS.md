@@ -29,6 +29,16 @@ where that's true across the board.**
   role-gated approval buttons correctly appear on draft records and correctly disappear on
   final-state (approved) records.
 
+## Built and verified in Code's sandbox - not yet tested by the project owner against the real Azure DB
+
+- **Form Builder UI** (create forms, add/remove fields, publish): built and verified
+  end-to-end against a local SQL Server in Code's sandbox. Doesn't meet the bar above yet -
+  needs a real pass against the Azure DB before it counts as verified.
+- **Confirmed gap while building it**: `FormDefinition.StartNewDraftVersion()` exists only
+  as a domain method - no command, handler, or endpoint anywhere wires it up. Published
+  forms are genuinely read-only in the builder right now, not just an unbuilt frontend
+  affordance. Worth a follow-up round.
+
 ## What just got fixed along the way (worth knowing, not just "it works now")
 
 - **EF Core tracking bug, hit 5 times across Phases 1 and 3** - see `CLAUDE.md`'s "Known
@@ -37,15 +47,32 @@ where that's true across the board.**
 - **Access tokens expire after 30 min with no refresh flow** - hit repeatedly during manual
   testing as spurious-looking 401s. Not a bug each time it happens - just re-login. Fixed:
   the refresh-token flow now handles this, see above.
+- **`GetDraftVersionOrThrow()` pattern.** `FormDefinition.GetDraftVersion()` throws a plain
+  `InvalidOperationException` when a form has no open draft (typically: it's already
+  published) - every caller (`RemoveFieldCommand`, `AddFieldDefinitionCommand`,
+  `PublishFormVersionCommand`) was letting that bubble straight into the generic 500
+  handler, so callers only ever saw a raw `"An unexpected error occurred."` with no useful
+  message - the real text only ever reached the server log, never the HTTP response. Fixed
+  with `FormDefinition.GetDraftVersionOrThrow()` (`Platform.Application/Forms/
+  FormDefinitionExtensions.cs`), used everywhere `GetDraftVersion()` used to be called
+  directly - it translates the domain exception into a proper 400 `ValidationException`
+  with a readable message instead. Same shape of trap as the EF Core tracking bug above: a
+  domain method that can throw on an expected, normal outcome (not a bug) needs every
+  caller to guard against it explicitly, or it becomes an unhelpful 500. Watch for this
+  pattern in any new code that touches `FormDefinition`/`FormVersion`.
 
 ## Immediate next steps, in priority order
 
-The frontend app shell (routing, workflow status/approval UI) is done now too - every item
-from the previous "Immediate next steps" lists is complete.
+The frontend app shell (routing, workflow status/approval UI) is fully done. The Form
+Builder UI is built but not yet fully done - see below.
 
-1. **Decide the next phase of work:** continue the backend roadmap (Dashboards/Reporting is
-   Phase 4, AI Assistant is Phase 5) or keep extending the frontend (e.g. dashboard views,
-   further polish).
+1. **Verify the Form Builder UI against the real Azure DB** - see "Built and verified in
+   Code's sandbox" above. Same bar every other phase has already cleared.
+2. **Wire `StartNewDraftVersion()` up** so published forms stop being permanently read-only
+   in the builder - a command/handler/endpoint, following the same pattern as
+   `PublishFormVersionCommand`.
+3. **After those two:** continue the backend roadmap (Dashboards/Reporting is Phase 4, AI
+   Assistant is Phase 5) or keep extending the frontend (e.g. dashboard views, further polish).
 
 ## Known environment facts specific to this deployment
 
