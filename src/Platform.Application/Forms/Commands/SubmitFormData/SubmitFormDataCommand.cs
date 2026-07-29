@@ -48,15 +48,10 @@ public class SubmitFormDataCommandHandler : IRequestHandler<SubmitFormDataComman
 
         var activeFields = publishedVersion.Fields.Where(f => f.IsActive).ToList();
 
-        var missingRequired = activeFields
-            .Where(f => f.IsRequired)
-            .Where(f => !request.Values.ContainsKey(f.Code) || request.Values[f.Code] is null)
-            .Select(f => f.Code)
-            .ToList();
-
-        if (missingRequired.Count != 0)
-            throw new Platform.Application.Common.Exceptions.ValidationException(missingRequired.Select(code =>
-                new FluentValidation.Results.ValidationFailure(code, $"'{code}' is required.")));
+        var validationErrors = SubmissionValueValidator.Validate(activeFields, request.Values);
+        if (validationErrors.Count != 0)
+            throw new Platform.Application.Common.Exceptions.ValidationException(validationErrors.SelectMany(kv =>
+                kv.Value.Select(msg => new FluentValidation.Results.ValidationFailure(kv.Key, msg))));
 
         var newRecordId = await _dynamicDataRepository.InsertAsync(
             formDefinition.TableName, activeFields, request.Values, request.SubmittedByUserId, cancellationToken);

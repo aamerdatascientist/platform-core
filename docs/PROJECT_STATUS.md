@@ -28,6 +28,9 @@ where that's true across the board.**
   frontend-only work with no backend changes. Confirmed: routing survives a page refresh,
   role-gated approval buttons correctly appear on draft records and correctly disappear on
   final-state (approved) records.
+- **Submission validation** (per-field type and constraint checking): done and verified
+  end-to-end against the real Azure DB by the project owner in the browser. Bad values now
+  show as a red-highlighted field with a specific message instead of a raw error.
 
 ## Built and verified in Code's sandbox - not yet tested by the project owner against the real Azure DB
 
@@ -82,3 +85,9 @@ Builder UI is built but not yet fully done - see below.
 - Azure SQL server: `construction-site-aamer-shah.database.windows.net`, database `test2`.
 - Local frontend dev server: `http://localhost:5173`. Local API: `http://localhost:5080`
   (pinned via `launchSettings.json` - don't let it drift back to the ASP.NET default 5000).
+
+## Before going live
+
+- **Rotate the Azure SQL password and Blob Storage account key.** Both were pasted into
+  chat during setup. Deliberately deferred until active development wraps up, not
+  forgotten - don't ship without doing this.
