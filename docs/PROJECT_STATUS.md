@@ -85,3 +85,9 @@ Builder UI is built but not yet fully done - see below.
 - Azure SQL server: `construction-site-aamer-shah.database.windows.net`, database `test2`.
 - Local frontend dev server: `http://localhost:5173`. Local API: `http://localhost:5080`
   (pinned via `launchSettings.json` - don't let it drift back to the ASP.NET default 5000).
+
+## Before going live
+
+- **Rotate the Azure SQL password and Blob Storage account key.** Both were pasted into
+  chat during setup. Deliberately deferred until active development wraps up, not
+  forgotten - don't ship without doing this.
