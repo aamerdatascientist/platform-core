@@ -28,6 +28,9 @@ where that's true across the board.**
   frontend-only work with no backend changes. Confirmed: routing survives a page refresh,
   role-gated approval buttons correctly appear on draft records and correctly disappear on
   final-state (approved) records.
+- **Submission validation** (per-field type and constraint checking): done and verified
+  end-to-end against the real Azure DB by the project owner in the browser. Bad values now
+  show as a red-highlighted field with a specific message instead of a raw error.
 
 ## Built and verified in Code's sandbox - not yet tested by the project owner against the real Azure DB
 
