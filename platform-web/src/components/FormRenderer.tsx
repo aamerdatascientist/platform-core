@@ -126,7 +126,21 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
       setValues({});
       onSubmitted?.();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Submission failed.');
+      if (err instanceof ApiError && err.errors) {
+        // Backend keys these by field.code exactly (see SubmissionValueValidator) - no
+        // translation needed, just take the first message per field for display.
+        const perField: Record<string, string> = {};
+        Object.entries(err.errors).forEach(([code, messages]) => {
+          if (messages.length > 0) perField[code] = messages[0];
+        });
+        setFieldErrors(perField);
+        // A field-level error is self-explanatory once it's shown in red next to the
+        // field that caused it - a second, generic banner repeating "validation failed"
+        // above the form would be redundant, not helpful.
+        setError(null);
+      } else {
+        setError(err instanceof ApiError ? err.message : 'Submission failed.');
+      }
     } finally {
       setSubmitting(false);
     }
