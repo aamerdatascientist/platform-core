@@ -41,6 +41,22 @@ where that's true across the board.**
   as a domain method - no command, handler, or endpoint anywhere wires it up. Published
   forms are genuinely read-only in the builder right now, not just an unbuilt frontend
   affordance. Worth a follow-up round.
+- **File Management** (upload/list/download/delete attachments via Azure Blob Storage,
+  SAS-secured downloads): built and logic-verified end-to-end against the Azurite local
+  emulator, not the real Azure Storage account - this sandbox's network policy blocks
+  reaching `platformcoreattach2026.blob.core.windows.net` outright (confirmed via the
+  proxy's own rejection log, not just a timeout), same category of restriction that made
+  real Azure SQL unreachable earlier in this project. Every check in
+  `docs/file-management/INTEGRATION.md`'s verification section passed against Azurite:
+  the security boundary (uploading against a `fieldCode` that isn't a real Attachment
+  field correctly fails with `400`, not `500`), upload, list, download (SAS URL opens the
+  image, byte-identical to the source file), delete, and SAS expiry enforced server-side
+  in both directions - a fresh URL works, and a deliberately pre-expired SAS for the same
+  blob was rejected by Storage itself with `403 AuthorizationFailure`, confirming the
+  10-minute expiry is real and not just configured and ignored. Still needs a real pass
+  against the actual Azure Storage account before it meets the bar above - including
+  confirming the `attachments` container is actually set to Private access, which only
+  the project owner can check in the Portal.
 
 ## What just got fixed along the way (worth knowing, not just "it works now")
 
@@ -67,14 +83,19 @@ where that's true across the board.**
 ## Immediate next steps, in priority order
 
 The frontend app shell (routing, workflow status/approval UI) is fully done. The Form
-Builder UI is built but not yet fully done - see below.
+Builder UI and File Management are both built but not yet fully done - see below.
 
 1. **Verify the Form Builder UI against the real Azure DB** - see "Built and verified in
    Code's sandbox" above. Same bar every other phase has already cleared.
-2. **Wire `StartNewDraftVersion()` up** so published forms stop being permanently read-only
+2. **Verify File Management against the real Azure Storage account** - confirm the
+   `attachments` container exists and is Private, then re-run the same upload/list/
+   download/delete/expiry checks already passed against Azurite, this time for real. Needs
+   to happen from a machine that can actually reach `platformcoreattach2026.blob.core.windows.net`
+   - not this sandbox.
+3. **Wire `StartNewDraftVersion()` up** so published forms stop being permanently read-only
    in the builder - a command/handler/endpoint, following the same pattern as
    `PublishFormVersionCommand`.
-3. **After those two:** continue the backend roadmap (Dashboards/Reporting is Phase 4, AI
+4. **After those:** continue the backend roadmap (Dashboards/Reporting is Phase 4, AI
    Assistant is Phase 5) or keep extending the frontend (e.g. dashboard views, further polish).
 
 ## Known environment facts specific to this deployment
