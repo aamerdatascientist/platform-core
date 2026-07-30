@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Platform.Application.Forms.Commands.AddFieldDefinition;
 using Platform.Application.Forms.Commands.CreateFormDefinition;
+using Platform.Application.Forms.Commands.DeleteForm;
 using Platform.Application.Forms.Commands.PublishFormVersion;
 using Platform.Application.Forms.Commands.RemoveField;
+using Platform.Application.Forms.Commands.StartNewFormVersion;
 using Platform.Application.Forms.Dtos;
 using Platform.Application.Forms.Queries.GetFormDefinition;
 using Platform.Application.Forms.Queries.GetFormsList;
@@ -68,6 +70,20 @@ public class FormsController : ControllerBase
     public async Task<IActionResult> RemoveField(Guid id, Guid fieldId, CancellationToken cancellationToken)
     {
         await _sender.Send(new RemoveFieldCommand(id, fieldId), cancellationToken);
+        return NoContent();
+    }
+
+    [HttpPost("{id:guid}/versions")]
+    public async Task<IActionResult> StartNewVersion(Guid id, CancellationToken cancellationToken)
+    {
+        var newVersionId = await _sender.Send(new StartNewFormVersionCommand(id), cancellationToken);
+        return Ok(new { id = newVersionId });
+    }
+
+    [HttpDelete("{id:guid}")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new DeleteFormCommand(id), cancellationToken);
         return NoContent();
     }
 }
