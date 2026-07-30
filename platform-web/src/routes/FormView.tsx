@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
+import { AttachmentsPanel } from '../components/AttachmentsPanel';
 import { FormRenderer } from '../components/FormRenderer';
 import { SubmissionsTable } from '../components/SubmissionsTable';
 import { WorkflowPanel } from '../components/WorkflowPanel';
@@ -64,12 +65,21 @@ export function FormView({ token }: FormViewProps) {
       </div>
 
       {selectedRecordId && (
-        <WorkflowPanel
-          key={selectedRecordId}
-          token={token}
-          recordId={selectedRecordId}
-          onChanged={() => formId && loadSubmissions(formId)}
-        />
+        <>
+          <WorkflowPanel
+            key={`workflow-${selectedRecordId}`}
+            token={token}
+            recordId={selectedRecordId}
+            onChanged={() => formId && loadSubmissions(formId)}
+          />
+          <AttachmentsPanel
+            key={`attachments-${selectedRecordId}`}
+            token={token}
+            formId={formId!}
+            recordId={selectedRecordId}
+            attachmentFields={formDefinition.publishedVersion?.fields.filter((f) => f.isActive && f.fieldType === 'Attachment') ?? []}
+          />
+        </>
       )}
     </div>
   );

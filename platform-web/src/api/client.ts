@@ -1,6 +1,7 @@
 import type {
   CurrentUserDto,
   DynamicRow,
+  FileMetadataDto,
   FormDefinitionDto,
   FormSummaryDto,
   PagedResult,
@@ -159,5 +160,45 @@ export const api = {
         { method: 'POST', body: JSON.stringify({ transitionCode, comment: comment ?? null }) },
         token,
       ),
+  },
+
+  files: {
+    listForRecord: (token: string, recordId: string) =>
+      request<FileMetadataDto[]>(`/api/records/${recordId}/attachments`, {}, token),
+
+    getDownloadUrl: (token: string, fileId: string) =>
+      request<{ url: string }>(`/api/attachments/${fileId}/download-url`, {}, token),
+
+    delete: (token: string, fileId: string) =>
+      request<void>(`/api/attachments/${fileId}`, { method: 'DELETE' }, token),
+
+    // Can't reuse request() here - a multipart body needs the browser to set its own
+    // Content-Type with the correct boundary, which request() always overrides to
+    // application/json. Duplicates the 401-retry logic rather than share it, since sharing
+    // would mean threading a "skip the JSON header" flag through the shared helper for a
+    // single caller - not worth the added complexity for one endpoint.
+    upload: async (token: string, formId: string, recordId: string, fieldCode: string, file: File): Promise<FileMetadataDto> => {
+      const formData = new FormData();
+      formData.append('fieldCode', fieldCode);
+      formData.append('file', file);
+
+      const doUpload = (accessToken: string) =>
+        fetch(`${BASE_URL}/api/forms/${formId}/records/${recordId}/attachments`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${accessToken}` },
+          body: formData,
+        });
+
+      let response = await doUpload(token);
+      if (response.status === 401) {
+        const newToken = await refreshAccessToken();
+        if (newToken) response = await doUpload(newToken);
+      }
+      if (!response.ok) {
+        const problem = await response.json().catch(() => null);
+        throw new ApiError(problem?.detail ?? `Upload failed with status ${response.status}`, response.status, problem?.errors);
+      }
+      return response.json();
+    },
   },
 };

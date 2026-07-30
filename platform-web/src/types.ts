@@ -110,6 +110,15 @@ export interface WorkflowStatusDto {
   history: WorkflowHistoryEntryDto[];
 }
 
+export interface FileMetadataDto {
+  id: string;
+  fieldCode: string;
+  originalFileName: string;
+  contentType: string;
+  sizeBytes: number;
+  createdAtUtc: string;
+}
+
 export interface DropdownOption {
   value: string;
   label: string;
