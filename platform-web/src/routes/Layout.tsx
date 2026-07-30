@@ -2,6 +2,7 @@ import { NavLink, Outlet } from 'react-router-dom';
 import { api } from '../api/client';
 import { getTokens, setTokens } from '../auth/tokenStore';
 import { FormPicker } from '../components/FormPicker';
+import { Logo } from '../components/Logo';
 
 interface LayoutProps {
   token: string;
@@ -17,23 +18,26 @@ export function Layout({ token }: LayoutProps) {
 
   return (
     <div className="flex min-h-screen bg-paper">
-      <aside className="w-64 shrink-0 border-r border-line px-4 py-6">
-        <div className="mb-8 flex items-center justify-between">
-          <h1 className="font-display text-lg font-semibold text-ink">Platform</h1>
+      <aside className="w-56 shrink-0 bg-sidebar px-3 py-5">
+        <div className="mb-5 flex items-center justify-between px-1">
+          <div className="flex items-center gap-2">
+            <Logo size="sm" />
+            <span className="font-mono text-xs font-semibold tracking-wide text-sidebar-text">NEXUS</span>
+          </div>
           <button
             onClick={handleSignOut}
-            className="font-mono text-[11px] uppercase tracking-wide text-ink-muted hover:text-ink"
+            className="font-mono text-[10px] uppercase tracking-wide text-sidebar-muted hover:text-white"
           >
             Sign out
           </button>
         </div>
         <FormPicker token={token} />
 
-        <div className="mt-8 border-t border-line pt-4">
+        <div className="mt-6 border-t border-sidebar-border pt-3">
           <NavLink
             to="/builder"
             className={({ isActive }) =>
-              `font-mono text-[11px] uppercase tracking-wide ${isActive ? 'text-ink' : 'text-ink-muted hover:text-ink'}`
+              `font-mono text-[11px] uppercase tracking-wide ${isActive ? 'text-white' : 'text-sidebar-muted hover:text-white'}`
             }
           >
             + Build forms
@@ -41,7 +45,7 @@ export function Layout({ token }: LayoutProps) {
         </div>
       </aside>
 
-      <main className="flex-1 px-8 py-10">
+      <main className="flex-1 px-6 py-8">
         <Outlet />
       </main>
     </div>

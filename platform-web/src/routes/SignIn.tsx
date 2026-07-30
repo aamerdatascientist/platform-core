@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { setTokens } from '../auth/tokenStore';
+import { Logo } from '../components/Logo';
 
 export function SignIn() {
   const [email, setEmail] = useState('');
@@ -24,15 +25,16 @@ export function SignIn() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-paper px-4">
-      <div className="w-full max-w-sm">
-        <h1 className="mb-1 font-display text-2xl font-semibold text-ink">Platform</h1>
-        <p className="mb-8 text-sm text-ink-muted">Sign in to continue.</p>
-        <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="flex w-full max-w-sm flex-col items-center border border-line px-10 py-12">
+        <Logo size="lg" />
+        <span className="mb-1 mt-4 font-mono text-base font-semibold tracking-wide text-ink">NEXUS</span>
+        <p className="mb-7 text-sm text-ink-muted">Sign in to continue</p>
+        <form onSubmit={handleSubmit} className="w-full space-y-3">
           <input
             type="email"
             placeholder="Email"
             autoComplete="username"
-            className="w-full border border-line bg-white px-3 py-2 text-sm focus:border-ink focus:outline-none"
+            className="w-full border border-line bg-white px-3 py-2 text-sm focus:border-signal focus:outline-none"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -40,7 +42,7 @@ export function SignIn() {
             type="password"
             placeholder="Password"
             autoComplete="current-password"
-            className="w-full border border-line bg-white px-3 py-2 text-sm focus:border-ink focus:outline-none"
+            className="w-full border border-line bg-white px-3 py-2 text-sm focus:border-signal focus:outline-none"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
@@ -48,7 +50,7 @@ export function SignIn() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full bg-ink px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="w-full bg-signal px-4 py-2 text-sm font-medium text-white transition-all hover:-translate-y-px hover:opacity-90 disabled:opacity-50"
           >
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>

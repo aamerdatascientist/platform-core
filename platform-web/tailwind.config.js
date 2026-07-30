@@ -4,13 +4,17 @@ export default {
   theme: {
     extend: {
       colors: {
-        paper: '#F7F7F5',
-        ink: '#1C1C1A',
-        'ink-muted': '#6B6B66',
-        line: '#E4E3DE',
-        signal: { DEFAULT: '#F5A623', dark: '#B8860B' },
+        paper: '#FFFFFF',
+        ink: '#151B2E',
+        'ink-muted': '#6B7280',
+        line: '#E3E6EF',
+        signal: { DEFAULT: '#4361EE', dark: '#2D3FBF', light: '#7B92FF' },
         moss: '#2F7D4F',
         clay: '#B3402C',
+        sidebar: '#0F1729',
+        'sidebar-border': '#1D2C4D',
+        'sidebar-muted': '#6B7590',
+        'sidebar-text': '#E4E8F5',
       },
       fontFamily: {
         display: ['"Space Grotesk"', 'system-ui', 'sans-serif'],
