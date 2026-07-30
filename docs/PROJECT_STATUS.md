@@ -70,6 +70,15 @@ itself stable; this is where the narrative goes.
   caller to guard against it explicitly, or it becomes an unhelpful 500. Watch for this
   pattern in any new code that touches `FormDefinition`/`FormVersion`.
 
+## Known issues
+
+- **"Add more fields to a published form" fails in the real browser/frontend** - clicking
+  the button returns an error. This directly contradicts Code's own SQL-verified test of
+  the same feature (starting a new draft version on Materials, adding a field, publishing)
+  a few messages ago, so it's likely either a frontend-specific bug not covered by that
+  backend-only test, or another Azure SQL cold-start timeout, not a re-break of the actual
+  logic. Deliberately not investigated yet - deprioritized for now.
+
 ## Immediate next steps, in priority order
 
 The frontend app shell (routing, workflow status/approval UI) and File Management are
