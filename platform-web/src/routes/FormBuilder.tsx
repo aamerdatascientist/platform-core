@@ -12,9 +12,13 @@ export function FormBuilder({ token }: { token: string }) {
   const [allForms, setAllForms] = useState<FormSummaryDto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
+  const [startingNewVersion, setStartingNewVersion] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!formId) return;
+    setConfirmingDelete(false);
     load();
     api.forms.list(token).then(setAllForms);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -53,6 +57,35 @@ export function FormBuilder({ token }: { token: string }) {
     }
   }
 
+  async function handleStartNewVersion() {
+    if (!formId) return;
+    setStartingNewVersion(true);
+    setError(null);
+    try {
+      await api.forms.startNewVersion(token, formId);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not start a new draft for this form.');
+    } finally {
+      setStartingNewVersion(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!formId) return;
+    setDeleting(true);
+    setError(null);
+    try {
+      await api.forms.delete(token, formId);
+      navigate('/builder');
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not delete this form.');
+      setConfirmingDelete(false);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (error && !formDefinition) return <p className="text-sm text-clay">{error}</p>;
   if (!formDefinition) return <p className="font-mono text-xs uppercase tracking-wide text-ink-muted">Loading…</p>;
 
@@ -78,9 +111,19 @@ export function FormBuilder({ token }: { token: string }) {
       </div>
 
       {!isDraft && (
-        <p className="border border-line bg-white p-3 text-sm text-ink-muted">
-          This form is published - editing published forms isn't supported yet. Fields below are read-only.
-        </p>
+        <div className="flex items-center justify-between gap-3 border border-line bg-white p-3">
+          <p className="text-sm text-ink-muted">
+            This form is published. To add more fields, start a new draft version - existing fields and submitted
+            data carry forward untouched.
+          </p>
+          <button
+            onClick={handleStartNewVersion}
+            disabled={startingNewVersion}
+            className="shrink-0 bg-ink px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {startingNewVersion ? 'Starting…' : '+ Add more fields'}
+          </button>
+        </div>
       )}
 
       <div>
@@ -133,8 +176,8 @@ export function FormBuilder({ token }: { token: string }) {
               {publishing ? 'Publishing…' : 'Publish form'}
             </button>
             <p className="mt-2 text-xs text-ink-muted">
-              Publishing creates the real database table for this form. Fields can be removed freely until then -
-              not after.
+              Publishing creates or updates the real database table for this form. Fields can be removed freely
+              until then - not after.
             </p>
           </div>
         </>
@@ -148,6 +191,39 @@ export function FormBuilder({ token }: { token: string }) {
           Go fill out this form →
         </button>
       )}
+
+      <div className="border-t border-line pt-6">
+        {error && !confirmingDelete && <p className="mb-2 text-sm text-clay">{error}</p>}
+        {!confirmingDelete ? (
+          <button
+            onClick={() => setConfirmingDelete(true)}
+            className="font-mono text-[11px] uppercase tracking-wide text-clay hover:opacity-70"
+          >
+            Delete this form
+          </button>
+        ) : (
+          <div className="border border-clay bg-white p-3">
+            <p className="mb-2 text-sm text-ink">
+              {formDefinition.status === 'Published'
+                ? "This form has been published - deleting it hides it everywhere, but any submitted data stays intact and isn't deleted. This can't be undone from here."
+                : "This form was never published, so deleting it removes it completely. This can't be undone."}
+            </p>
+            {error && <p className="mb-2 text-sm text-clay">{error}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="bg-clay px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {deleting ? 'Deleting…' : 'Yes, delete it'}
+              </button>
+              <button onClick={() => setConfirmingDelete(false)} className="px-3 py-1.5 text-sm text-ink-muted">
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
