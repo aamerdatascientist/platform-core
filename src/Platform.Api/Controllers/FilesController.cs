@@ -29,11 +29,13 @@ public class FilesController : ControllerBase
     [HttpPost("forms/{formId:guid}/records/{recordId:guid}/attachments")]
     [RequestSizeLimit(25_000_000)]
     public async Task<ActionResult<FileMetadataDto>> Upload(
-        Guid formId, Guid recordId, [FromForm] string fieldCode, [FromForm] IFormFile file, CancellationToken cancellationToken)
+        Guid formId, Guid recordId, [FromForm] UploadFileRequest request, CancellationToken cancellationToken)
     {
-        await using var stream = file.OpenReadStream();
+        await using var stream = request.File.OpenReadStream();
         var result = await _sender.Send(
-            new UploadFileCommand(formId, recordId, fieldCode, stream, file.FileName, file.ContentType, file.Length, _currentUser.UserId!.Value),
+            new UploadFileCommand(
+                formId, recordId, request.FieldCode, stream, request.File.FileName, request.File.ContentType,
+                request.File.Length, _currentUser.UserId!.Value),
             cancellationToken);
         return Ok(result);
     }
@@ -55,4 +57,10 @@ public class FilesController : ControllerBase
         await _sender.Send(new DeleteFileCommand(fileId), cancellationToken);
         return NoContent();
     }
+}
+
+public class UploadFileRequest
+{
+    public string FieldCode { get; set; } = default!;
+    public IFormFile File { get; set; } = default!;
 }
