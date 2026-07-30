@@ -29,5 +29,7 @@ public interface IApplicationDbContext
     DbSet<Platform.Domain.Workflow.WorkflowInstance> WorkflowInstances { get; }
     DbSet<Platform.Domain.Workflow.WorkflowInstanceHistoryEntry> WorkflowInstanceHistoryEntries { get; }
 
+    DbSet<Platform.Domain.Files.FileMetadata> FileMetadataEntries { get; }
+
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }

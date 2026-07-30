@@ -41,6 +41,8 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<Platform.Domain.Workflow.WorkflowInstance> WorkflowInstances => Set<Platform.Domain.Workflow.WorkflowInstance>();
     public DbSet<Platform.Domain.Workflow.WorkflowInstanceHistoryEntry> WorkflowInstanceHistoryEntries => Set<Platform.Domain.Workflow.WorkflowInstanceHistoryEntry>();
 
+    public DbSet<Platform.Domain.Files.FileMetadata> FileMetadataEntries => Set<Platform.Domain.Files.FileMetadata>();
+
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         ApplyAuditInformation();
