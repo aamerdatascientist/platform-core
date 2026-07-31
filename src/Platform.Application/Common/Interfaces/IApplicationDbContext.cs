@@ -17,6 +17,7 @@ public interface IApplicationDbContext
     DbSet<Permission> Permissions { get; }
     DbSet<Department> Departments { get; }
     DbSet<RefreshToken> RefreshTokens { get; }
+    DbSet<Platform.Domain.Identity.UserRole> UserRoles { get; }
 
     DbSet<FormDefinition> FormDefinitions { get; }
     DbSet<FormVersion> FormVersions { get; }
