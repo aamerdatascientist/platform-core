@@ -37,6 +37,11 @@ itself stable; this is where the narrative goes.
   form, not as a separate step afterward). This clears the bar Code's sandbox couldn't
   reach on its own, since the sandbox's network policy blocks the real storage account
   outright - only logic-verified there via the Azurite emulator beforehand.
+- **Design refresh**: done and verified in the browser by the project owner - frontend-only,
+  no backend changes. White content area, dark navy sidebar, indigo accent, sans-serif UI
+  chrome (mono now limited to genuine field codes only, not the whole UI), two-column
+  FormView layout with a sticky Workflow/Attachments panel, and the Nexus placeholder
+  logo/wordmark.
 
 ## Built and verified in Code's sandbox - not yet tested by the project owner against the real Azure DB
 
@@ -69,6 +74,21 @@ itself stable; this is where the narrative goes.
   domain method that can throw on an expected, normal outcome (not a bug) needs every
   caller to guard against it explicitly, or it becomes an unhelpful 500. Watch for this
   pattern in any new code that touches `FormDefinition`/`FormVersion`.
+
+## Known issues
+
+- **"Add more fields to a published form" fails in the real browser/frontend** - root cause
+  identified, not yet fixed. `StartNewFormVersionCommandHandler` creates a new draft
+  `FormVersion` but never updates `FormDefinition.Status` back to `Draft` - only
+  `MarkPublished` sets that field. `GetFormDefinitionQuery` already correctly returns a
+  non-null `draftVersion` in the DTO regardless, but `FormBuilder.tsx`'s `isDraft` check
+  relies on `formDefinition.status === 'Draft'`, which still reads `'Published'` after
+  starting a new version - so the UI keeps showing the "+ Add more fields" button instead
+  of switching to the field-editing view, and repeated clicks correctly get rejected with
+  `400` ("already has an open draft version") since one now exists. Likely fix:
+  `FormBuilder.tsx` should check `draftVersion !== null` instead of `status === 'Draft'`
+  to decide which view to show - more correct anyway, since `Status` reflects
+  last-publish-state, not "is there currently an open draft."
 
 ## Immediate next steps, in priority order
 
