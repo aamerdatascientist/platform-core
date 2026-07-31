@@ -27,6 +27,9 @@ public class FormDefinition : AuditableEntity
     private readonly List<FormVersion> _versions = new();
     public IReadOnlyCollection<FormVersion> Versions => _versions.AsReadOnly();
 
+    private readonly List<FormDefinitionRole> _allowedRoles = new();
+    public IReadOnlyCollection<FormDefinitionRole> AllowedRoles => _allowedRoles.AsReadOnly();
+
     private FormDefinition() { }
 
     public static FormDefinition Create(string code, string name, string moduleName, string? description)
@@ -71,6 +74,27 @@ public class FormDefinition : AuditableEntity
         TableName ??= tableName;
         Status = FormStatus.Published;
         CurrentVersionNumber = version.VersionNumber;
+    }
+
+    /// <summary>
+    /// Empty list means open to everyone - see FormAccessChecker. Returns only the newly
+    /// created rows, same reason every other "parent creates child" method in this codebase
+    /// does this - see CLAUDE.md's tracking gotcha entries, and note below.
+    /// </summary>
+    public IReadOnlyList<FormDefinitionRole> SetAllowedRoles(IEnumerable<Guid> roleIds)
+    {
+        var requested = roleIds.Distinct().ToHashSet();
+        _allowedRoles.RemoveAll(ar => !requested.Contains(ar.RoleId));
+
+        var newlyAdded = new List<FormDefinitionRole>();
+        foreach (var roleId in requested)
+        {
+            if (_allowedRoles.Any(ar => ar.RoleId == roleId)) continue;
+            var entry = FormDefinitionRole.Create(Id, roleId);
+            _allowedRoles.Add(entry);
+            newlyAdded.Add(entry);
+        }
+        return newlyAdded;
     }
 
     private static string NormalizeCode(string code)
