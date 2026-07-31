@@ -37,6 +37,11 @@ itself stable; this is where the narrative goes.
   form, not as a separate step afterward). This clears the bar Code's sandbox couldn't
   reach on its own, since the sandbox's network policy blocks the real storage account
   outright - only logic-verified there via the Azurite emulator beforehand.
+- **Design refresh**: done and verified in the browser by the project owner - frontend-only,
+  no backend changes. White content area, dark navy sidebar, indigo accent, sans-serif UI
+  chrome (mono now limited to genuine field codes only, not the whole UI), two-column
+  FormView layout with a sticky Workflow/Attachments panel, and the Nexus placeholder
+  logo/wordmark.
 
 ## Built and verified in Code's sandbox - not yet tested by the project owner against the real Azure DB
 
