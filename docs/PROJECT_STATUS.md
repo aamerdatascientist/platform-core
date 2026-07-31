@@ -45,13 +45,11 @@ itself stable; this is where the narrative goes.
 
 ## Built and verified in Code's sandbox - not yet tested by the project owner against the real Azure DB
 
-- **Form Builder UI** (create forms, add/remove fields, publish): built and verified
-  end-to-end against a local SQL Server in Code's sandbox. Doesn't meet the bar above yet -
-  needs a real pass against the Azure DB before it counts as verified.
-- **Confirmed gap while building it**: `FormDefinition.StartNewDraftVersion()` exists only
-  as a domain method - no command, handler, or endpoint anywhere wires it up. Published
-  forms are genuinely read-only in the builder right now, not just an unbuilt frontend
-  affordance. Worth a follow-up round.
+- **Form Builder UI** (create forms, add/remove fields, publish, edit a published form's
+  fields via a new draft version): built and verified end-to-end against a local SQL
+  Server in Code's sandbox, including the `StartNewFormVersionCommand`/`DeleteFormCommand`
+  work from PR #15 and the FormBuilder draft-status fix from `16a7d52`. Doesn't meet the
+  bar above yet - needs a real pass against the Azure DB before it counts as verified.
 
 ## What just got fixed along the way (worth knowing, not just "it works now")
 
@@ -74,21 +72,14 @@ itself stable; this is where the narrative goes.
   domain method that can throw on an expected, normal outcome (not a bug) needs every
   caller to guard against it explicitly, or it becomes an unhelpful 500. Watch for this
   pattern in any new code that touches `FormDefinition`/`FormVersion`.
-
-## Known issues
-
-- **"Add more fields to a published form" fails in the real browser/frontend** - root cause
-  identified, not yet fixed. `StartNewFormVersionCommandHandler` creates a new draft
-  `FormVersion` but never updates `FormDefinition.Status` back to `Draft` - only
-  `MarkPublished` sets that field. `GetFormDefinitionQuery` already correctly returns a
-  non-null `draftVersion` in the DTO regardless, but `FormBuilder.tsx`'s `isDraft` check
-  relies on `formDefinition.status === 'Draft'`, which still reads `'Published'` after
-  starting a new version - so the UI keeps showing the "+ Add more fields" button instead
-  of switching to the field-editing view, and repeated clicks correctly get rejected with
-  `400` ("already has an open draft version") since one now exists. Likely fix:
-  `FormBuilder.tsx` should check `draftVersion !== null` instead of `status === 'Draft'`
-  to decide which view to show - more correct anyway, since `Status` reflects
-  last-publish-state, not "is there currently an open draft."
+- **FormBuilder draft-status bug, fixed.** The root cause diagnosed earlier -
+  `FormBuilder.tsx` deciding which view to show off `formDefinition.status === 'Draft'`
+  instead of `draftVersion !== null` - is now fixed and pushed to `main`
+  (`16a7d52`). The same commit also carried the remaining font/layout design-refresh
+  cleanup that had been staged but not yet committed: `font-mono` is now genuinely
+  limited to real field codes across the Form Builder, Form View, Workflow, and
+  Attachments UI too, not just the pages the first design-refresh commit touched. Both
+  are confirmed present in `main`.
 
 ## Immediate next steps, in priority order
 
@@ -97,10 +88,7 @@ fully done. The Form Builder UI is built but not yet fully done - see below.
 
 1. **Verify the Form Builder UI against the real Azure DB** - see "Built and verified in
    Code's sandbox" above. Same bar every other phase has already cleared.
-2. **Wire `StartNewDraftVersion()` up** so published forms stop being permanently read-only
-   in the builder - a command/handler/endpoint, following the same pattern as
-   `PublishFormVersionCommand`.
-3. **After those:** continue the backend roadmap (Dashboards/Reporting is Phase 4, AI
+2. **After that:** continue the backend roadmap (Dashboards/Reporting is Phase 4, AI
    Assistant is Phase 5) or keep extending the frontend (e.g. dashboard views, further polish).
 
 ## Known environment facts specific to this deployment
