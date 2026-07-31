@@ -45,13 +45,11 @@ itself stable; this is where the narrative goes.
 
 ## Built and verified in Code's sandbox - not yet tested by the project owner against the real Azure DB
 
-- **Form Builder UI** (create forms, add/remove fields, publish): built and verified
-  end-to-end against a local SQL Server in Code's sandbox. Doesn't meet the bar above yet -
-  needs a real pass against the Azure DB before it counts as verified.
-- **Confirmed gap while building it**: `FormDefinition.StartNewDraftVersion()` exists only
-  as a domain method - no command, handler, or endpoint anywhere wires it up. Published
-  forms are genuinely read-only in the builder right now, not just an unbuilt frontend
-  affordance. Worth a follow-up round.
+- **Form Builder UI** (create forms, add/remove fields, publish, edit a published form's
+  fields via a new draft version): built and verified end-to-end against a local SQL
+  Server in Code's sandbox, including the `StartNewFormVersionCommand`/`DeleteFormCommand`
+  work from PR #15 and the FormBuilder draft-status fix from `16a7d52`. Doesn't meet the
+  bar above yet - needs a real pass against the Azure DB before it counts as verified.
 
 ## What just got fixed along the way (worth knowing, not just "it works now")
 
@@ -90,10 +88,7 @@ fully done. The Form Builder UI is built but not yet fully done - see below.
 
 1. **Verify the Form Builder UI against the real Azure DB** - see "Built and verified in
    Code's sandbox" above. Same bar every other phase has already cleared.
-2. **Wire `StartNewDraftVersion()` up** so published forms stop being permanently read-only
-   in the builder - a command/handler/endpoint, following the same pattern as
-   `PublishFormVersionCommand`.
-3. **After those:** continue the backend roadmap (Dashboards/Reporting is Phase 4, AI
+2. **After that:** continue the backend roadmap (Dashboards/Reporting is Phase 4, AI
    Assistant is Phase 5) or keep extending the frontend (e.g. dashboard views, further polish).
 
 ## Known environment facts specific to this deployment
