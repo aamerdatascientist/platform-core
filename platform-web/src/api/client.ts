@@ -148,6 +148,9 @@ export const api = {
 
     delete: (token: string, formId: string) =>
       request<void>(`/api/forms/${formId}`, { method: 'DELETE' }, token),
+
+    setAllowedRoles: (token: string, formId: string, roleIds: string[]) =>
+      request<void>(`/api/forms/${formId}/allowed-roles`, { method: 'PUT', body: JSON.stringify({ roleIds }) }, token),
   },
 
   submissions: {

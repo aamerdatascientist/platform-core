@@ -57,6 +57,7 @@ export interface FormDefinitionDto {
   tableName: string | null;
   draftVersion: FormVersionDto | null;
   publishedVersion: FormVersionDto | null;
+  allowedRoleIds: string[];
 }
 
 /** Raw submission row - values are keyed by FieldDefinition.code, same shape the backend returns. */

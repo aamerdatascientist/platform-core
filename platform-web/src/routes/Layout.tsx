@@ -47,13 +47,15 @@ export function Layout({ token }: LayoutProps) {
         <FormPicker token={token} />
 
         <div className="mt-6 space-y-2 border-t border-sidebar-border pt-3">
-          <NavLink to="/builder" className={navLinkClass}>
-            + Build forms
-          </NavLink>
           {isAdmin && (
-            <NavLink to="/admin/users" className={navLinkClass}>
-              Users
-            </NavLink>
+            <>
+              <NavLink to="/builder" className={navLinkClass}>
+                + Build forms
+              </NavLink>
+              <NavLink to="/admin/users" className={navLinkClass}>
+                Users
+              </NavLink>
+            </>
           )}
         </div>
       </aside>

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { AddFieldForm } from '../components/AddFieldForm';
-import type { FormDefinitionDto, FormSummaryDto } from '../types';
+import type { FormDefinitionDto, FormSummaryDto, RoleDto } from '../types';
 
 export function FormBuilder({ token }: { token: string }) {
   const { formId } = useParams<{ formId: string }>();
@@ -10,24 +10,31 @@ export function FormBuilder({ token }: { token: string }) {
 
   const [formDefinition, setFormDefinition] = useState<FormDefinitionDto | null>(null);
   const [allForms, setAllForms] = useState<FormSummaryDto[]>([]);
+  const [roles, setRoles] = useState<RoleDto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [startingNewVersion, setStartingNewVersion] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  const [pendingRoleIds, setPendingRoleIds] = useState<Set<string>>(new Set());
+  const [savingAccess, setSavingAccess] = useState(false);
+
   useEffect(() => {
     if (!formId) return;
     setConfirmingDelete(false);
     load();
     api.forms.list(token).then(setAllForms);
+    api.roles.list(token).then(setRoles).catch(() => setRoles([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formId]);
 
   async function load() {
     if (!formId) return;
     try {
-      setFormDefinition(await api.forms.get(token, formId));
+      const def = await api.forms.get(token, formId);
+      setFormDefinition(def);
+      setPendingRoleIds(new Set(def.allowedRoleIds));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not load this form.');
     }
@@ -92,12 +99,38 @@ export function FormBuilder({ token }: { token: string }) {
     }
   }
 
+  function toggleRoleInEditor(roleId: string) {
+    setPendingRoleIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(roleId)) next.delete(roleId);
+      else next.add(roleId);
+      return next;
+    });
+  }
+
+  async function handleSaveAccess() {
+    if (!formId) return;
+    setSavingAccess(true);
+    setError(null);
+    try {
+      await api.forms.setAllowedRoles(token, formId, [...pendingRoleIds]);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Could not update access for this form.');
+    } finally {
+      setSavingAccess(false);
+    }
+  }
+
   if (error && !formDefinition) return <p className="text-sm text-clay">{error}</p>;
   if (!formDefinition) return <p className="text-xs uppercase tracking-wide text-ink-muted">Loading…</p>;
 
   const hasDraft = formDefinition.draftVersion !== null;
   const isPublished = formDefinition.status === 'Published';
   const fields = (hasDraft ? formDefinition.draftVersion : formDefinition.publishedVersion)?.fields ?? [];
+  const accessChanged =
+    pendingRoleIds.size !== formDefinition.allowedRoleIds.length ||
+    formDefinition.allowedRoleIds.some((id) => !pendingRoleIds.has(id));
 
   return (
     <div className="max-w-3xl space-y-8">
@@ -120,6 +153,34 @@ export function FormBuilder({ token }: { token: string }) {
         <p className="mt-1 font-mono text-xs text-ink-muted">
           {formDefinition.code} · {formDefinition.moduleName}
         </p>
+      </div>
+
+      <div className="border border-line bg-white p-4">
+        <h3 className="mb-1 text-[11px] font-medium uppercase tracking-wider text-ink-muted">Access</h3>
+        <p className="mb-3 text-sm text-ink-muted">
+          {formDefinition.allowedRoleIds.length === 0
+            ? 'Visible to everyone. Check a role below to restrict access to only that role.'
+            : 'Restricted - only users with a checked role can see or submit to this form.'}
+        </p>
+        <div className="mb-3 flex flex-wrap gap-3">
+          {roles.length === 0 ? (
+            <span className="text-sm text-ink-muted">No roles exist yet - create one from the Users page first.</span>
+          ) : (
+            roles.map((r) => (
+              <label key={r.id} className="flex items-center gap-1.5 text-sm text-ink">
+                <input type="checkbox" checked={pendingRoleIds.has(r.id)} onChange={() => toggleRoleInEditor(r.id)} />
+                {r.name}
+              </label>
+            ))
+          )}
+        </div>
+        <button
+          onClick={handleSaveAccess}
+          disabled={savingAccess || !accessChanged}
+          className="bg-ink px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {savingAccess ? 'Saving…' : 'Save access'}
+        </button>
       </div>
 
       {isPublished && !hasDraft && (
