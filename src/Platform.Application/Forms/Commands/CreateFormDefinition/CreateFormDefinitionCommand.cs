@@ -35,7 +35,18 @@ public class CreateFormDefinitionCommandHandler : IRequestHandler<CreateFormDefi
                     nameof(request.Code), $"A form with code '{request.Code}' already exists.")
             });
 
-        var formDefinition = FormDefinition.Create(request.Code, request.Name, request.ModuleName, request.Description);
+        FormDefinition formDefinition;
+        try
+        {
+            formDefinition = FormDefinition.Create(request.Code, request.Name, request.ModuleName, request.Description);
+        }
+        catch (ArgumentException ex)
+        {
+            throw new Common.Exceptions.ValidationException(new[]
+            {
+                new FluentValidation.Results.ValidationFailure(nameof(request.Code), ex.Message)
+            });
+        }
 
         _db.FormDefinitions.Add(formDefinition);
         // The initial draft FormVersion is created inside FormDefinition.Create() but EF Core
