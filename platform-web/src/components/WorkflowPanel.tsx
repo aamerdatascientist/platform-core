@@ -57,12 +57,12 @@ export function WorkflowPanel({ token, recordId, onChanged }: WorkflowPanelProps
 
   if (!hasWorkflow) return null;
   if (error) return <p className="text-sm text-clay">{error}</p>;
-  if (!status) return <p className="font-mono text-xs uppercase tracking-wide text-ink-muted">Loading status…</p>;
+  if (!status) return <p className="text-xs uppercase tracking-wide text-ink-muted">Loading status…</p>;
 
   return (
     <div className="border border-line bg-white p-4">
       <div className="mb-3 flex items-center justify-between">
-        <span className="font-mono text-[11px] uppercase tracking-wider text-ink-muted">Workflow status</span>
+        <span className="text-[11px] uppercase tracking-wider text-ink-muted">Workflow status</span>
         <StatusBadge label={status.currentStateLabel} isFinal={status.isFinal} />
       </div>
 
@@ -98,7 +98,7 @@ export function WorkflowPanel({ token, recordId, onChanged }: WorkflowPanelProps
 
       {status.history.length > 0 && (
         <details className="mt-3 border-t border-line pt-3">
-          <summary className="cursor-pointer font-mono text-[11px] uppercase tracking-wider text-ink-muted">
+          <summary className="cursor-pointer text-[11px] uppercase tracking-wider text-ink-muted">
             History ({status.history.length})
           </summary>
           <ul className="mt-2 space-y-1.5">
@@ -120,7 +120,7 @@ function StatusBadge({ label, isFinal }: { label: string; isFinal: boolean }) {
   const color = isFinal ? 'text-moss border-moss' : 'text-signal-dark border-signal-dark';
   const dot = isFinal ? 'bg-moss' : 'bg-signal-dark';
   return (
-    <span className={`inline-flex items-center gap-1.5 border px-2 py-0.5 font-mono text-[11px] uppercase tracking-wider ${color}`}>
+    <span className={`inline-flex items-center gap-1.5 border px-2 py-0.5 text-[11px] uppercase tracking-wider ${color}`}>
       <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
       {label}
     </span>

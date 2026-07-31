@@ -54,7 +54,7 @@ export function BuilderHome({ token }: { token: string }) {
   const inputClass = 'w-full border border-line px-2 py-1.5 text-sm focus:border-ink focus:outline-none';
 
   return (
-    <div className="max-w-2xl space-y-8">
+    <div className="max-w-3xl space-y-8">
       <div>
         <h2 className="font-display text-xl font-semibold text-ink">Build forms</h2>
         <p className="text-sm text-ink-muted">Define a new form, or open an existing one to add fields.</p>
@@ -118,9 +118,9 @@ export function BuilderHome({ token }: { token: string }) {
       )}
 
       <div>
-        <h3 className="mb-3 font-mono text-[11px] font-medium uppercase tracking-wider text-ink-muted">Existing forms</h3>
+        <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">Existing forms</h3>
         {!forms ? (
-          <p className="font-mono text-xs uppercase tracking-wide text-ink-muted">Loading…</p>
+          <p className="text-xs uppercase tracking-wide text-ink-muted">Loading…</p>
         ) : forms.length === 0 ? (
           <p className="text-sm text-ink-muted">No forms yet - create the first one above.</p>
         ) : (
@@ -133,9 +133,9 @@ export function BuilderHome({ token }: { token: string }) {
               >
                 <span>
                   <span className="font-medium text-ink">{f.name}</span>
-                  <span className="ml-2 font-mono text-xs text-ink-muted">{f.moduleName}</span>
+                  <span className="ml-2 text-xs text-ink-muted">{f.moduleName}</span>
                 </span>
-                <span className="font-mono text-[11px] uppercase tracking-wide text-ink-muted">{f.status}</span>
+                <span className="text-[11px] uppercase tracking-wide text-ink-muted">{f.status}</span>
               </button>
             ))}
           </div>

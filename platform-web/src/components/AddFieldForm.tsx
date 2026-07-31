@@ -150,7 +150,7 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
           <button
             type="button"
             onClick={() => setOptions((prev) => [...prev, { value: '', label: '' }])}
-            className="mt-2 font-mono text-[11px] uppercase tracking-wide text-ink-muted hover:text-ink"
+            className="mt-2 text-[11px] uppercase tracking-wide text-ink-muted hover:text-ink"
           >
             + Add option
           </button>

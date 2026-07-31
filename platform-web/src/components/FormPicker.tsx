@@ -60,7 +60,7 @@ export function FormPicker({ token }: FormPickerProps) {
       )}
       {Object.entries(byModule).map(([moduleName, moduleForms]) => (
         <div key={moduleName}>
-          <h3 className="mb-1.5 font-mono text-[10px] font-medium uppercase tracking-wider text-sidebar-muted">
+          <h3 className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-sidebar-muted">
             {moduleName}
           </h3>
           <ul className="space-y-0.5">
@@ -85,7 +85,7 @@ export function FormPicker({ token }: FormPickerProps) {
                     }`}
                   >
                     {form.name}
-                    {!isPublished && <span className="ml-2 font-mono text-[10px] uppercase">draft</span>}
+                    {!isPublished && <span className="ml-2 text-[10px] uppercase">draft</span>}
                   </button>
                 </li>
               );

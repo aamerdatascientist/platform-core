@@ -22,11 +22,11 @@ export function Layout({ token }: LayoutProps) {
         <div className="mb-5 flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
             <Logo size="sm" />
-            <span className="font-mono text-xs font-semibold tracking-wide text-sidebar-text">NEXUS</span>
+            <span className="font-display text-sm font-semibold tracking-wide text-sidebar-text">NEXUS</span>
           </div>
           <button
             onClick={handleSignOut}
-            className="font-mono text-[10px] uppercase tracking-wide text-sidebar-muted hover:text-white"
+            className="text-[11px] uppercase tracking-wide text-sidebar-muted hover:text-white"
           >
             Sign out
           </button>
@@ -37,7 +37,7 @@ export function Layout({ token }: LayoutProps) {
           <NavLink
             to="/builder"
             className={({ isActive }) =>
-              `font-mono text-[11px] uppercase tracking-wide ${isActive ? 'text-white' : 'text-sidebar-muted hover:text-white'}`
+              `text-[11px] uppercase tracking-wide ${isActive ? 'text-white' : 'text-sidebar-muted hover:text-white'}`
             }
           >
             + Build forms

@@ -20,7 +20,7 @@ export function SubmissionsTable({ fields, rows, onRowClick, selectedRecordId }:
         <thead>
           <tr className="border-b border-line bg-paper">
             {columns.map((c) => (
-              <th key={c.id} className="px-3 py-2 font-mono text-[11px] font-medium uppercase tracking-wider text-ink-muted">
+              <th key={c.id} className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-ink-muted">
                 {c.label}
               </th>
             ))}

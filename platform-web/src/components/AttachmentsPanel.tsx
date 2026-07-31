@@ -68,7 +68,7 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
 
   return (
     <div className="border border-line bg-white p-4">
-      <span className="mb-3 block font-mono text-[11px] uppercase tracking-wider text-ink-muted">Attachments</span>
+      <span className="mb-3 block text-[11px] uppercase tracking-wider text-ink-muted">Attachments</span>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {attachmentFields.length > 1 && (
@@ -85,13 +85,13 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
           </select>
         )}
         <input ref={fileInputRef} type="file" accept="image/*,application/pdf" onChange={handleFileSelected} disabled={uploading} className="text-sm" />
-        {uploading && <span className="font-mono text-xs text-ink-muted">Uploading…</span>}
+        {uploading && <span className="text-xs text-ink-muted">Uploading…</span>}
       </div>
 
       {error && <p className="mb-2 text-sm text-clay">{error}</p>}
 
       {!files ? (
-        <p className="font-mono text-xs uppercase tracking-wide text-ink-muted">Loading…</p>
+        <p className="text-xs uppercase tracking-wide text-ink-muted">Loading…</p>
       ) : files.length === 0 ? (
         <p className="text-sm text-ink-muted">No files attached yet.</p>
       ) : (
@@ -102,8 +102,8 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
                 {f.originalFileName}
               </button>
               <span className="ml-3 flex shrink-0 items-center gap-3">
-                <span className="font-mono text-xs text-ink-muted">{formatSize(f.sizeBytes)}</span>
-                <button onClick={() => handleDelete(f.id)} className="font-mono text-[11px] uppercase tracking-wide text-clay hover:opacity-70">
+                <span className="text-xs text-ink-muted">{formatSize(f.sizeBytes)}</span>
+                <button onClick={() => handleDelete(f.id)} className="text-[11px] uppercase tracking-wide text-clay hover:opacity-70">
                   Remove
                 </button>
               </span>

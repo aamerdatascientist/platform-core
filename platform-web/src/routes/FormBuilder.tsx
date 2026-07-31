@@ -65,7 +65,13 @@ export function FormBuilder({ token }: { token: string }) {
       await api.forms.startNewVersion(token, formId);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not start a new draft for this form.');
+      if (err instanceof ApiError && err.message.includes('already has an open draft')) {
+        // Not a real failure - someone else (or another tab) already started one.
+        // Reload so the field editor shows it, rather than surfacing an alarming error.
+        await load();
+      } else {
+        setError(err instanceof ApiError ? err.message : 'Could not start a new draft for this form.');
+      }
     } finally {
       setStartingNewVersion(false);
     }
@@ -87,30 +93,36 @@ export function FormBuilder({ token }: { token: string }) {
   }
 
   if (error && !formDefinition) return <p className="text-sm text-clay">{error}</p>;
-  if (!formDefinition) return <p className="font-mono text-xs uppercase tracking-wide text-ink-muted">Loading…</p>;
+  if (!formDefinition) return <p className="text-xs uppercase tracking-wide text-ink-muted">Loading…</p>;
 
-  const isDraft = formDefinition.status === 'Draft';
-  const fields = (isDraft ? formDefinition.draftVersion?.fields : formDefinition.publishedVersion?.fields) ?? [];
+  const hasDraft = formDefinition.draftVersion !== null;
+  const isPublished = formDefinition.status === 'Published';
+  const fields = (hasDraft ? formDefinition.draftVersion : formDefinition.publishedVersion)?.fields ?? [];
 
   return (
-    <div className="max-w-2xl space-y-8">
+    <div className="max-w-3xl space-y-8">
       <div>
         <div className="flex items-center gap-3">
           <h2 className="font-display text-xl font-semibold text-ink">{formDefinition.name}</h2>
           <span
-            className={`border px-2 py-0.5 font-mono text-[11px] uppercase tracking-wider ${
-              isDraft ? 'border-signal-dark text-signal-dark' : 'border-moss text-moss'
+            className={`border px-2 py-0.5 text-[11px] uppercase tracking-wider ${
+              isPublished ? 'border-moss text-moss' : 'border-signal-dark text-signal-dark'
             }`}
           >
             {formDefinition.status}
           </span>
+          {isPublished && hasDraft && (
+            <span className="border border-signal-dark px-2 py-0.5 text-[11px] uppercase tracking-wider text-signal-dark">
+              Editing new version
+            </span>
+          )}
         </div>
         <p className="mt-1 font-mono text-xs text-ink-muted">
           {formDefinition.code} · {formDefinition.moduleName}
         </p>
       </div>
 
-      {!isDraft && (
+      {isPublished && !hasDraft && (
         <div className="flex items-center justify-between gap-3 border border-line bg-white p-3">
           <p className="text-sm text-ink-muted">
             This form is published. To add more fields, start a new draft version - existing fields and submitted
@@ -126,8 +138,15 @@ export function FormBuilder({ token }: { token: string }) {
         </div>
       )}
 
+      {isPublished && hasDraft && (
+        <p className="border border-line bg-white p-3 text-sm text-ink-muted">
+          You're editing a new version of this published form. The currently live version keeps working exactly as
+          it is until you publish these changes.
+        </p>
+      )}
+
       <div>
-        <h3 className="mb-3 font-mono text-[11px] font-medium uppercase tracking-wider text-ink-muted">
+        <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">
           Fields ({fields.length})
         </h3>
         <div className="space-y-1">
@@ -140,10 +159,10 @@ export function FormBuilder({ token }: { token: string }) {
                   {f.isRequired ? ' · required' : ''}
                 </span>
               </span>
-              {isDraft && (
+              {hasDraft && (
                 <button
                   onClick={() => handleRemoveField(f.id)}
-                  className="font-mono text-[11px] uppercase tracking-wide text-clay hover:opacity-70"
+                  className="text-[11px] uppercase tracking-wide text-clay hover:opacity-70"
                 >
                   Remove
                 </button>
@@ -154,10 +173,10 @@ export function FormBuilder({ token }: { token: string }) {
         </div>
       </div>
 
-      {isDraft && (
+      {hasDraft && (
         <>
           <div>
-            <h3 className="mb-3 font-mono text-[11px] font-medium uppercase tracking-wider text-ink-muted">Add a field</h3>
+            <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">Add a field</h3>
             <AddFieldForm
               token={token}
               formId={formId!}
@@ -183,10 +202,10 @@ export function FormBuilder({ token }: { token: string }) {
         </>
       )}
 
-      {!isDraft && (
+      {isPublished && (
         <button
           onClick={() => navigate(`/forms/${formId}`)}
-          className="font-mono text-xs uppercase tracking-wide text-ink-muted hover:text-ink"
+          className="text-xs uppercase tracking-wide text-ink-muted hover:text-ink"
         >
           Go fill out this form →
         </button>
@@ -197,7 +216,7 @@ export function FormBuilder({ token }: { token: string }) {
         {!confirmingDelete ? (
           <button
             onClick={() => setConfirmingDelete(true)}
-            className="font-mono text-[11px] uppercase tracking-wide text-clay hover:opacity-70"
+            className="text-[11px] uppercase tracking-wide text-clay hover:opacity-70"
           >
             Delete this form
           </button>
