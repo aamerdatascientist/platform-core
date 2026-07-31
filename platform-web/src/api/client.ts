@@ -5,7 +5,9 @@ import type {
   FormDefinitionDto,
   FormSummaryDto,
   PagedResult,
+  RoleDto,
   TokenPair,
+  UserSummaryDto,
   WorkflowStatusDto,
 } from '../types';
 import { getTokens, setTokens } from '../auth/tokenStore';
@@ -96,8 +98,8 @@ export const api = {
     login: (email: string, password: string) =>
       request<TokenPair>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
 
-    register: (input: { email: string; displayName: string; password: string; departmentId?: string | null; defaultRoleId: string }) =>
-      request<{ id: string }>('/api/auth/register', { method: 'POST', body: JSON.stringify(input) }),
+    register: (token: string, input: { email: string; displayName: string; password: string; departmentId?: string | null; defaultRoleId: string }) =>
+      request<{ id: string }>('/api/auth/register', { method: 'POST', body: JSON.stringify(input) }, token),
 
     me: (token: string) => request<CurrentUserDto>('/api/auth/me', {}, token),
 
@@ -206,5 +208,22 @@ export const api = {
       }
       return response.json();
     },
+  },
+
+  users: {
+    list: (token: string) => request<UserSummaryDto[]>('/api/users', {}, token),
+
+    setRoles: (token: string, userId: string, roleIds: string[]) =>
+      request<void>(`/api/users/${userId}/roles`, { method: 'PUT', body: JSON.stringify({ roleIds }) }, token),
+
+    setActiveStatus: (token: string, userId: string, isActive: boolean) =>
+      request<void>(`/api/users/${userId}/active-status`, { method: 'PUT', body: JSON.stringify({ isActive }) }, token),
+  },
+
+  roles: {
+    list: (token: string) => request<RoleDto[]>('/api/roles', {}, token),
+
+    create: (token: string, name: string, description?: string) =>
+      request<{ id: string }>('/api/roles', { method: 'POST', body: JSON.stringify({ name, description: description ?? null }) }, token),
   },
 };

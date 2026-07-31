@@ -6,6 +6,7 @@ import { FormBuilder } from './routes/FormBuilder';
 import { FormView } from './routes/FormView';
 import { Layout } from './routes/Layout';
 import { SignIn } from './routes/SignIn';
+import { UserManagement } from './routes/UserManagement';
 import { Welcome } from './routes/Welcome';
 
 /**
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="forms/:formId" element={<FormView token={accessToken} />} />
         <Route path="builder" element={<BuilderHome token={accessToken} />} />
         <Route path="builder/:formId" element={<FormBuilder token={accessToken} />} />
+        <Route path="admin/users" element={<UserManagement token={accessToken} />} />
       </Route>
     </Routes>
   );

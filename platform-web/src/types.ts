@@ -119,6 +119,26 @@ export interface FileMetadataDto {
   createdAtUtc: string;
 }
 
+export interface UserRoleSummary {
+  id: string;
+  name: string;
+}
+
+export interface UserSummaryDto {
+  id: string;
+  email: string;
+  displayName: string;
+  isActive: boolean;
+  roles: UserRoleSummary[];
+}
+
+export interface RoleDto {
+  id: string;
+  name: string;
+  description: string | null;
+  isSystemRole: boolean;
+}
+
 export interface DropdownOption {
   value: string;
   label: string;
