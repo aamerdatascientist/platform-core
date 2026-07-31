@@ -31,11 +31,17 @@ public class User : AuditableEntity
         };
     }
 
-    public void AssignRole(Guid roleId)
+    public UserRole? AssignRole(Guid roleId)
     {
-        if (_userRoles.Any(ur => ur.RoleId == roleId)) return;
-        _userRoles.Add(UserRole.Create(Id, roleId));
+        if (_userRoles.Any(ur => ur.RoleId == roleId)) return null;
+        var userRole = UserRole.Create(Id, roleId);
+        _userRoles.Add(userRole);
+        return userRole;
     }
+
+    public void RemoveRole(Guid roleId) => _userRoles.RemoveAll(ur => ur.RoleId == roleId);
+
+    public void Activate() => IsActive = true;
 
     public void Deactivate() => IsActive = false;
 

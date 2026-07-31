@@ -29,6 +29,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<Permission> Permissions => Set<Permission>();
     public DbSet<Department> Departments => Set<Department>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<Platform.Domain.Identity.UserRole> UserRoles => Set<Platform.Domain.Identity.UserRole>();
 
     public DbSet<FormDefinition> FormDefinitions => Set<FormDefinition>();
     public DbSet<FormVersion> FormVersions => Set<FormVersion>();

@@ -21,6 +21,7 @@ public class AuthController : ControllerBase
     public record RegisterRequest(string Email, string DisplayName, string Password, Guid? DepartmentId, Guid DefaultRoleId);
 
     [HttpPost("register")]
+    [Authorize(Roles = "Administrator")]
     public async Task<IActionResult> Register(RegisterRequest request, CancellationToken cancellationToken)
     {
         var userId = await _sender.Send(
