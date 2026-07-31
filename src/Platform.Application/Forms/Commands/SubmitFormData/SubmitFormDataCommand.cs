@@ -22,21 +22,31 @@ public class SubmitFormDataCommandHandler : IRequestHandler<SubmitFormDataComman
 {
     private readonly IApplicationDbContext _db;
     private readonly IDynamicDataRepository _dynamicDataRepository;
+    private readonly ICurrentUserService _currentUser;
 
-    public SubmitFormDataCommandHandler(IApplicationDbContext db, IDynamicDataRepository dynamicDataRepository)
+    public SubmitFormDataCommandHandler(
+        IApplicationDbContext db, IDynamicDataRepository dynamicDataRepository, ICurrentUserService currentUser)
     {
         _db = db;
         _dynamicDataRepository = dynamicDataRepository;
+        _currentUser = currentUser;
     }
 
     public async Task<Guid> Handle(SubmitFormDataCommand request, CancellationToken cancellationToken)
     {
         var formDefinition = await _db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.AllowedRoles)
             .SingleOrDefaultAsync(f => f.Id == request.FormDefinitionId, cancellationToken);
 
         if (formDefinition is null)
             throw new NotFoundException(nameof(Platform.Domain.Forms.FormDefinition), request.FormDefinitionId);
+
+        var roleNamesById = await _db.Roles.ToDictionaryAsync(r => r.Id, r => r.Name, cancellationToken);
+        var allowedNames = formDefinition.AllowedRoles
+            .Select(ar => roleNamesById.GetValueOrDefault(ar.RoleId)).Where(n => n is not null).Select(n => n!).ToList();
+        if (!FormAccessChecker.HasAccess(allowedNames, _currentUser.Roles))
+            throw new ForbiddenAccessException($"You don't have access to form '{formDefinition.Name}'.");
 
         var publishedVersion = formDefinition.GetPublishedVersion();
         if (publishedVersion is null || formDefinition.TableName is null)

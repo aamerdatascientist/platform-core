@@ -6,6 +6,7 @@ using Platform.Application.Forms.Commands.CreateFormDefinition;
 using Platform.Application.Forms.Commands.DeleteForm;
 using Platform.Application.Forms.Commands.PublishFormVersion;
 using Platform.Application.Forms.Commands.RemoveField;
+using Platform.Application.Forms.Commands.SetFormAllowedRoles;
 using Platform.Application.Forms.Commands.StartNewFormVersion;
 using Platform.Application.Forms.Dtos;
 using Platform.Application.Forms.Queries.GetFormDefinition;
@@ -30,6 +31,7 @@ public class FormsController : ControllerBase
     public record CreateFormRequest(string Code, string Name, string ModuleName, string? Description);
 
     [HttpPost]
+    [Authorize(Roles = "Administrator")]
     public async Task<IActionResult> Create(CreateFormRequest request, CancellationToken cancellationToken)
     {
         var id = await _sender.Send(
@@ -53,6 +55,7 @@ public class FormsController : ControllerBase
         string? OptionsJson, Guid? LookupFormDefinitionId, string? ValidationRulesJson);
 
     [HttpPost("{id:guid}/fields")]
+    [Authorize(Roles = "Administrator")]
     public async Task<IActionResult> AddField(Guid id, AddFieldRequest request, CancellationToken cancellationToken)
     {
         var fieldId = await _sender.Send(new AddFieldDefinitionCommand(
@@ -63,10 +66,12 @@ public class FormsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/publish")]
+    [Authorize(Roles = "Administrator")]
     public async Task<ActionResult<PublishFormVersionResult>> Publish(Guid id, CancellationToken cancellationToken) =>
         Ok(await _sender.Send(new PublishFormVersionCommand(id), cancellationToken));
 
     [HttpDelete("{id:guid}/fields/{fieldId:guid}")]
+    [Authorize(Roles = "Administrator")]
     public async Task<IActionResult> RemoveField(Guid id, Guid fieldId, CancellationToken cancellationToken)
     {
         await _sender.Send(new RemoveFieldCommand(id, fieldId), cancellationToken);
@@ -74,6 +79,7 @@ public class FormsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/versions")]
+    [Authorize(Roles = "Administrator")]
     public async Task<IActionResult> StartNewVersion(Guid id, CancellationToken cancellationToken)
     {
         var newVersionId = await _sender.Send(new StartNewFormVersionCommand(id), cancellationToken);
@@ -81,9 +87,20 @@ public class FormsController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Roles = "Administrator")]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
     {
         await _sender.Send(new DeleteFormCommand(id), cancellationToken);
+        return NoContent();
+    }
+
+    public record SetAllowedRolesRequest(IReadOnlyList<Guid> RoleIds);
+
+    [HttpPut("{id:guid}/allowed-roles")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> SetAllowedRoles(Guid id, SetAllowedRolesRequest request, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new SetFormAllowedRolesCommand(id, request.RoleIds), cancellationToken);
         return NoContent();
     }
 }
