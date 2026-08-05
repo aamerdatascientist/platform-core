@@ -37,6 +37,7 @@ public class SubmitFormDataCommandHandler : IRequestHandler<SubmitFormDataComman
         var formDefinition = await _db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
             .Include(f => f.AllowedRoles)
+            .Include(f => f.AllowedUsers)
             .SingleOrDefaultAsync(f => f.Id == request.FormDefinitionId, cancellationToken);
 
         if (formDefinition is null)
@@ -45,7 +46,11 @@ public class SubmitFormDataCommandHandler : IRequestHandler<SubmitFormDataComman
         var roleNamesById = await _db.Roles.ToDictionaryAsync(r => r.Id, r => r.Name, cancellationToken);
         var allowedNames = formDefinition.AllowedRoles
             .Select(ar => roleNamesById.GetValueOrDefault(ar.RoleId)).Where(n => n is not null).Select(n => n!).ToList();
-        if (!FormAccessChecker.HasAccess(allowedNames, _currentUser.Roles))
+        if (!FormAccessChecker.HasAccess(
+                allowedNames,
+                formDefinition.AllowedUsers.Select(au => au.UserId).ToList(),
+                _currentUser.Roles,
+                _currentUser.UserId))
             throw new ForbiddenAccessException($"You don't have access to form '{formDefinition.Name}'.");
 
         var publishedVersion = formDefinition.GetPublishedVersion();

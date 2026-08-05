@@ -7,6 +7,7 @@ using Platform.Application.Forms.Commands.DeleteForm;
 using Platform.Application.Forms.Commands.PublishFormVersion;
 using Platform.Application.Forms.Commands.RemoveField;
 using Platform.Application.Forms.Commands.SetFormAllowedRoles;
+using Platform.Application.Forms.Commands.SetFormAllowedUsers;
 using Platform.Application.Forms.Commands.StartNewFormVersion;
 using Platform.Application.Forms.Dtos;
 using Platform.Application.Forms.Queries.GetFormDefinition;
@@ -101,6 +102,16 @@ public class FormsController : ControllerBase
     public async Task<IActionResult> SetAllowedRoles(Guid id, SetAllowedRolesRequest request, CancellationToken cancellationToken)
     {
         await _sender.Send(new SetFormAllowedRolesCommand(id, request.RoleIds), cancellationToken);
+        return NoContent();
+    }
+
+    public record SetAllowedUsersRequest(IReadOnlyList<Guid> UserIds);
+
+    [HttpPut("{id:guid}/allowed-users")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> SetAllowedUsers(Guid id, SetAllowedUsersRequest request, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new SetFormAllowedUsersCommand(id, request.UserIds), cancellationToken);
         return NoContent();
     }
 }

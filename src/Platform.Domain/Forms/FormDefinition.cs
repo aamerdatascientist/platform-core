@@ -30,6 +30,9 @@ public class FormDefinition : AuditableEntity
     private readonly List<FormDefinitionRole> _allowedRoles = new();
     public IReadOnlyCollection<FormDefinitionRole> AllowedRoles => _allowedRoles.AsReadOnly();
 
+    private readonly List<FormDefinitionUser> _allowedUsers = new();
+    public IReadOnlyCollection<FormDefinitionUser> AllowedUsers => _allowedUsers.AsReadOnly();
+
     private FormDefinition() { }
 
     public static FormDefinition Create(string code, string name, string moduleName, string? description)
@@ -92,6 +95,22 @@ public class FormDefinition : AuditableEntity
             if (_allowedRoles.Any(ar => ar.RoleId == roleId)) continue;
             var entry = FormDefinitionRole.Create(Id, roleId);
             _allowedRoles.Add(entry);
+            newlyAdded.Add(entry);
+        }
+        return newlyAdded;
+    }
+
+    public IReadOnlyList<FormDefinitionUser> SetAllowedUsers(IEnumerable<Guid> userIds)
+    {
+        var requested = userIds.Distinct().ToHashSet();
+        _allowedUsers.RemoveAll(au => !requested.Contains(au.UserId));
+
+        var newlyAdded = new List<FormDefinitionUser>();
+        foreach (var userId in requested)
+        {
+            if (_allowedUsers.Any(au => au.UserId == userId)) continue;
+            var entry = FormDefinitionUser.Create(Id, userId);
+            _allowedUsers.Add(entry);
             newlyAdded.Add(entry);
         }
         return newlyAdded;
