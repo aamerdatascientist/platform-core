@@ -50,12 +50,18 @@ itself stable; this is where the narrative goes.
   Server in Code's sandbox, including the `StartNewFormVersionCommand`/`DeleteFormCommand`
   work from PR #15 and the FormBuilder draft-status fix from `16a7d52`. Doesn't meet the
   bar above yet - needs a real pass against the Azure DB before it counts as verified.
-- **Form access control** (restrict which roles can see/use each form): done and verified
-  via SQL/API in Code's sandbox - restriction, unrestriction, the "open to everyone by
-  default" rule (confirmed by diffing `GET /api/forms` before and after the migration:
-  same 16 forms, unchanged), and admin-only form building (`Create`/`AddField`/`Publish`/
-  `RemoveField`/`StartNewVersion`/`Delete` all correctly `403` for non-admins) all
-  confirmed working. Not yet tested in the actual browser UI.
+- **Form access control** (restrict which roles AND/OR individual users can see/use each
+  form): done and verified via SQL/API in Code's sandbox. Role-based: restriction,
+  unrestriction, the "open to everyone by default" rule (confirmed by diffing
+  `GET /api/forms` before and after the migration: same 16 forms, unchanged), and
+  admin-only form building (`Create`/`AddField`/`Publish`/`RemoveField`/`StartNewVersion`/
+  `Delete` all correctly `403` for non-admins) all confirmed working. Per-user, layered on
+  top: confirmed role-based and user-based access work independently in both directions -
+  a direct grant gives access with no matching role at all, and revoking a direct grant
+  doesn't touch anyone's role-based access (verified via SQL: revoking one user's
+  `FormDefinitionUsers` row left `FormDefinitionRoles` completely untouched, and a
+  different user's role-based access kept working the whole time). Not yet tested in the
+  actual browser UI.
 
 ## What just got fixed along the way (worth knowing, not just "it works now")
 
@@ -94,10 +100,11 @@ fully done. The Form Builder UI is built but not yet fully done - see below.
 
 1. **Verify the Form Builder UI against the real Azure DB** - see "Built and verified in
    Code's sandbox" above. Same bar every other phase has already cleared.
-2. **Verify form access control in the actual browser UI** - SQL/API-verified only so far;
-   needs a real pass confirming restricted forms actually disappear from navigation and
-   the admin-only actions are hidden or gated correctly in the Form Builder UI, not just
-   blocked server-side.
+2. **Verify form access control in the actual browser UI** - SQL/API-verified only so far
+   (both role-based and per-user); needs a real pass confirming restricted forms actually
+   disappear from navigation, the admin-only actions are hidden or gated correctly in the
+   Form Builder UI, and there's a real way for an admin to manage per-user grants, not
+   just blocked server-side.
 3. **After those:** continue the backend roadmap (Dashboards/Reporting is Phase 4, AI
    Assistant is Phase 5) or keep extending the frontend (e.g. dashboard views, further polish).
 
