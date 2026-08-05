@@ -35,6 +35,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<FormVersion> FormVersions => Set<FormVersion>();
     public DbSet<FieldDefinition> FieldDefinitions => Set<FieldDefinition>();
     public DbSet<Platform.Domain.Forms.FormDefinitionRole> FormDefinitionRoles => Set<Platform.Domain.Forms.FormDefinitionRole>();
+    public DbSet<Platform.Domain.Forms.FormDefinitionUser> FormDefinitionUsers => Set<Platform.Domain.Forms.FormDefinitionUser>();
 
     public DbSet<Platform.Domain.Workflow.WorkflowDefinition> WorkflowDefinitions => Set<Platform.Domain.Workflow.WorkflowDefinition>();
     public DbSet<Platform.Domain.Workflow.WorkflowState> WorkflowStates => Set<Platform.Domain.Workflow.WorkflowState>();

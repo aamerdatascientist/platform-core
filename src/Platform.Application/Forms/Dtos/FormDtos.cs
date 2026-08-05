@@ -12,7 +12,7 @@ public record FormVersionDto(Guid Id, int VersionNumber, FormStatus Status, Date
 public record FormDefinitionDto(
     Guid Id, string Code, string Name, string? Description, string ModuleName,
     FormStatus Status, string? TableName, FormVersionDto? DraftVersion, FormVersionDto? PublishedVersion,
-    IReadOnlyList<Guid> AllowedRoleIds);
+    IReadOnlyList<Guid> AllowedRoleIds, IReadOnlyList<Guid> AllowedUserIds);
 
 public record NewFieldDto(
     string Code, string Label, FieldType FieldType, bool IsRequired,

@@ -25,7 +25,7 @@ public class GetFormsListQueryHandler : IRequestHandler<GetFormsListQuery, IRead
 
     public async Task<IReadOnlyList<FormSummaryDto>> Handle(GetFormsListQuery request, CancellationToken cancellationToken)
     {
-        var query = _db.FormDefinitions.Include(f => f.AllowedRoles).AsQueryable();
+        var query = _db.FormDefinitions.Include(f => f.AllowedRoles).Include(f => f.AllowedUsers).AsQueryable();
 
         if (!string.IsNullOrWhiteSpace(request.ModuleName))
             query = query.Where(f => f.ModuleName == request.ModuleName);
@@ -37,7 +37,11 @@ public class GetFormsListQueryHandler : IRequestHandler<GetFormsListQuery, IRead
             .Where(f =>
             {
                 var allowedNames = f.AllowedRoles.Select(ar => roleNamesById.GetValueOrDefault(ar.RoleId)).Where(n => n is not null).Select(n => n!).ToList();
-                return FormAccessChecker.HasAccess(allowedNames, _currentUser.Roles);
+                return FormAccessChecker.HasAccess(
+                    allowedNames,
+                    f.AllowedUsers.Select(au => au.UserId).ToList(),
+                    _currentUser.Roles,
+                    _currentUser.UserId);
             })
             .Select(f => new FormSummaryDto(f.Id, f.Code, f.Name, f.ModuleName, f.Status))
             .ToList();

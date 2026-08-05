@@ -27,6 +27,7 @@ public class GetFormDefinitionQueryHandler : IRequestHandler<GetFormDefinitionQu
         var formDefinition = await _db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
             .Include(f => f.AllowedRoles)
+            .Include(f => f.AllowedUsers)
             .SingleOrDefaultAsync(f => f.Id == request.FormDefinitionId, cancellationToken);
 
         if (formDefinition is null)
@@ -35,7 +36,11 @@ public class GetFormDefinitionQueryHandler : IRequestHandler<GetFormDefinitionQu
         var roleNamesById = await _db.Roles.ToDictionaryAsync(r => r.Id, r => r.Name, cancellationToken);
         var allowedNames = formDefinition.AllowedRoles
             .Select(ar => roleNamesById.GetValueOrDefault(ar.RoleId)).Where(n => n is not null).Select(n => n!).ToList();
-        if (!FormAccessChecker.HasAccess(allowedNames, _currentUser.Roles))
+        if (!FormAccessChecker.HasAccess(
+                allowedNames,
+                formDefinition.AllowedUsers.Select(au => au.UserId).ToList(),
+                _currentUser.Roles,
+                _currentUser.UserId))
             throw new ForbiddenAccessException($"You don't have access to form '{formDefinition.Name}'.");
 
         var draft = formDefinition.Versions.SingleOrDefault(v => v.Status == FormStatus.Draft);
@@ -44,7 +49,8 @@ public class GetFormDefinitionQueryHandler : IRequestHandler<GetFormDefinitionQu
         return new FormDefinitionDto(
             formDefinition.Id, formDefinition.Code, formDefinition.Name, formDefinition.Description,
             formDefinition.ModuleName, formDefinition.Status, formDefinition.TableName,
-            ToDto(draft), ToDto(published), formDefinition.AllowedRoles.Select(ar => ar.RoleId).ToList());
+            ToDto(draft), ToDto(published), formDefinition.AllowedRoles.Select(ar => ar.RoleId).ToList(),
+            formDefinition.AllowedUsers.Select(au => au.UserId).ToList());
     }
 
     private static FormVersionDto? ToDto(FormVersion? version)
