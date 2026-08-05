@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { AddFieldForm } from '../components/AddFieldForm';
-import type { FormDefinitionDto, FormSummaryDto, RoleDto } from '../types';
+import type { FormDefinitionDto, FormSummaryDto, RoleDto, UserSummaryDto } from '../types';
 
 export function FormBuilder({ token }: { token: string }) {
   const { formId } = useParams<{ formId: string }>();
@@ -11,6 +11,7 @@ export function FormBuilder({ token }: { token: string }) {
   const [formDefinition, setFormDefinition] = useState<FormDefinitionDto | null>(null);
   const [allForms, setAllForms] = useState<FormSummaryDto[]>([]);
   const [roles, setRoles] = useState<RoleDto[]>([]);
+  const [users, setUsers] = useState<UserSummaryDto[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [startingNewVersion, setStartingNewVersion] = useState(false);
@@ -18,6 +19,7 @@ export function FormBuilder({ token }: { token: string }) {
   const [deleting, setDeleting] = useState(false);
 
   const [pendingRoleIds, setPendingRoleIds] = useState<Set<string>>(new Set());
+  const [pendingUserIds, setPendingUserIds] = useState<Set<string>>(new Set());
   const [savingAccess, setSavingAccess] = useState(false);
 
   useEffect(() => {
@@ -26,6 +28,7 @@ export function FormBuilder({ token }: { token: string }) {
     load();
     api.forms.list(token).then(setAllForms);
     api.roles.list(token).then(setRoles).catch(() => setRoles([]));
+    api.users.list(token).then(setUsers).catch(() => setUsers([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formId]);
 
@@ -35,6 +38,7 @@ export function FormBuilder({ token }: { token: string }) {
       const def = await api.forms.get(token, formId);
       setFormDefinition(def);
       setPendingRoleIds(new Set(def.allowedRoleIds));
+      setPendingUserIds(new Set(def.allowedUserIds));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not load this form.');
     }
@@ -108,12 +112,24 @@ export function FormBuilder({ token }: { token: string }) {
     });
   }
 
+  function toggleUserInEditor(userId: string) {
+    setPendingUserIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  }
+
   async function handleSaveAccess() {
     if (!formId) return;
     setSavingAccess(true);
     setError(null);
     try {
-      await api.forms.setAllowedRoles(token, formId, [...pendingRoleIds]);
+      await Promise.all([
+        api.forms.setAllowedRoles(token, formId, [...pendingRoleIds]),
+        api.forms.setAllowedUsers(token, formId, [...pendingUserIds]),
+      ]);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Could not update access for this form.');
@@ -130,7 +146,9 @@ export function FormBuilder({ token }: { token: string }) {
   const fields = (hasDraft ? formDefinition.draftVersion : formDefinition.publishedVersion)?.fields ?? [];
   const accessChanged =
     pendingRoleIds.size !== formDefinition.allowedRoleIds.length ||
-    formDefinition.allowedRoleIds.some((id) => !pendingRoleIds.has(id));
+    formDefinition.allowedRoleIds.some((id) => !pendingRoleIds.has(id)) ||
+    pendingUserIds.size !== formDefinition.allowedUserIds.length ||
+    formDefinition.allowedUserIds.some((id) => !pendingUserIds.has(id));
 
   return (
     <div className="max-w-3xl space-y-8">
@@ -158,11 +176,13 @@ export function FormBuilder({ token }: { token: string }) {
       <div className="border border-line bg-white p-4">
         <h3 className="mb-1 text-[11px] font-medium uppercase tracking-wider text-ink-muted">Access</h3>
         <p className="mb-3 text-sm text-ink-muted">
-          {formDefinition.allowedRoleIds.length === 0
-            ? 'Visible to everyone. Check a role below to restrict access to only that role.'
-            : 'Restricted - only users with a checked role can see or submit to this form.'}
+          {formDefinition.allowedRoleIds.length === 0 && formDefinition.allowedUserIds.length === 0
+            ? 'Visible to everyone. Check a role or specific user below to restrict access.'
+            : 'Restricted - access is allowed by role, by specific user, or both, below.'}
         </p>
-        <div className="mb-3 flex flex-wrap gap-3">
+
+        <p className="mb-1 text-xs font-medium text-ink-muted">By role</p>
+        <div className="mb-4 flex flex-wrap gap-3">
           {roles.length === 0 ? (
             <span className="text-sm text-ink-muted">No roles exist yet - create one from the Users page first.</span>
           ) : (
@@ -174,6 +194,21 @@ export function FormBuilder({ token }: { token: string }) {
             ))
           )}
         </div>
+
+        <p className="mb-1 text-xs font-medium text-ink-muted">By specific user (in addition to any role above)</p>
+        <div className="mb-3 flex flex-wrap gap-3">
+          {users.length === 0 ? (
+            <span className="text-sm text-ink-muted">No users exist yet.</span>
+          ) : (
+            users.map((u) => (
+              <label key={u.id} className="flex items-center gap-1.5 text-sm text-ink">
+                <input type="checkbox" checked={pendingUserIds.has(u.id)} onChange={() => toggleUserInEditor(u.id)} />
+                {u.displayName}
+              </label>
+            ))
+          )}
+        </div>
+
         <button
           onClick={handleSaveAccess}
           disabled={savingAccess || !accessChanged}

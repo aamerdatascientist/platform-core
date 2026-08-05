@@ -151,6 +151,9 @@ export const api = {
 
     setAllowedRoles: (token: string, formId: string, roleIds: string[]) =>
       request<void>(`/api/forms/${formId}/allowed-roles`, { method: 'PUT', body: JSON.stringify({ roleIds }) }, token),
+
+    setAllowedUsers: (token: string, formId: string, userIds: string[]) =>
+      request<void>(`/api/forms/${formId}/allowed-users`, { method: 'PUT', body: JSON.stringify({ userIds }) }, token),
   },
 
   submissions: {
