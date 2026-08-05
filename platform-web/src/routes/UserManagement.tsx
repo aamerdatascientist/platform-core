@@ -135,16 +135,64 @@ export function UserManagement({ token }: UserManagementProps) {
   return (
     <div className="max-w-3xl space-y-10">
       <div>
-        <h2 className="font-display text-xl font-semibold text-ink">Users</h2>
+        <h2 className="font-display text-xl font-semibold text-ink">Users &amp; roles</h2>
         <p className="text-sm text-ink-muted">
           Create accounts and assign roles - this is the only way to create a user now, Swagger's public
-          registration is closed.
+          registration is closed. Set up the roles you need first, then create users against them.
         </p>
       </div>
 
       {error && <p className="text-sm text-clay">{error}</p>}
 
       <div>
+        <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">Roles</h3>
+        <div className="mb-3 space-y-1">
+          {(roles ?? []).map((r) => (
+            <div key={r.id} className="flex items-center justify-between border border-line bg-white px-3 py-2 text-sm">
+              <span>
+                <span className="font-medium text-ink">{r.name}</span>
+                {r.description && <span className="ml-2 text-xs text-ink-muted">{r.description}</span>}
+              </span>
+              {r.isSystemRole && <span className="text-[10px] uppercase tracking-wide text-ink-muted">System</span>}
+            </div>
+          ))}
+        </div>
+
+        {!creatingRole ? (
+          <button
+            onClick={() => setCreatingRole(true)}
+            className="border border-line bg-white px-3 py-1.5 text-sm text-ink hover:border-ink"
+          >
+            + New role
+          </button>
+        ) : (
+          <form onSubmit={handleCreateRole} className="space-y-3 border border-line bg-white p-4">
+            <div>
+              <label className="mb-1 block text-xs text-ink-muted">Role name</label>
+              <input className={inputClass} value={newRoleName} onChange={(e) => setNewRoleName(e.target.value)} placeholder="Site Manager" />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs text-ink-muted">Description (optional)</label>
+              <input className={inputClass} value={newRoleDescription} onChange={(e) => setNewRoleDescription(e.target.value)} />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                disabled={submittingRole}
+                className="bg-signal px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {submittingRole ? 'Creating…' : 'Create role'}
+              </button>
+              <button type="button" onClick={() => setCreatingRole(false)} className="px-3 py-1.5 text-sm text-ink-muted">
+                Cancel
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+
+      <div className="border-t border-line pt-6">
+        <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">Users</h3>
         {!creatingUser ? (
           <button
             onClick={() => setCreatingUser(true)}
@@ -179,6 +227,11 @@ export function UserManagement({ token }: UserManagementProps) {
                     </option>
                   ))}
                 </select>
+                {(roles?.length ?? 0) <= 1 && (
+                  <p className="mt-1 text-xs text-ink-muted">
+                    Only Administrator exists so far - add a role above first if you need something else.
+                  </p>
+                )}
               </div>
             </div>
             <p className="text-xs text-ink-muted">You can add more roles after the account is created.</p>
@@ -267,53 +320,6 @@ export function UserManagement({ token }: UserManagementProps) {
               </div>
             ))}
           </div>
-        )}
-      </div>
-
-      <div className="border-t border-line pt-6">
-        <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">Roles</h3>
-        <div className="mb-3 space-y-1">
-          {(roles ?? []).map((r) => (
-            <div key={r.id} className="flex items-center justify-between border border-line bg-white px-3 py-2 text-sm">
-              <span>
-                <span className="font-medium text-ink">{r.name}</span>
-                {r.description && <span className="ml-2 text-xs text-ink-muted">{r.description}</span>}
-              </span>
-              {r.isSystemRole && <span className="text-[10px] uppercase tracking-wide text-ink-muted">System</span>}
-            </div>
-          ))}
-        </div>
-
-        {!creatingRole ? (
-          <button
-            onClick={() => setCreatingRole(true)}
-            className="border border-line bg-white px-3 py-1.5 text-sm text-ink hover:border-ink"
-          >
-            + New role
-          </button>
-        ) : (
-          <form onSubmit={handleCreateRole} className="space-y-3 border border-line bg-white p-4">
-            <div>
-              <label className="mb-1 block text-xs text-ink-muted">Role name</label>
-              <input className={inputClass} value={newRoleName} onChange={(e) => setNewRoleName(e.target.value)} placeholder="Site Manager" />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-ink-muted">Description (optional)</label>
-              <input className={inputClass} value={newRoleDescription} onChange={(e) => setNewRoleDescription(e.target.value)} />
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={submittingRole}
-                className="bg-signal px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                {submittingRole ? 'Creating…' : 'Create role'}
-              </button>
-              <button type="button" onClick={() => setCreatingRole(false)} className="px-3 py-1.5 text-sm text-ink-muted">
-                Cancel
-              </button>
-            </div>
-          </form>
         )}
       </div>
     </div>
