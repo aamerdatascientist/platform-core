@@ -90,7 +90,7 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3 border border-line bg-white p-4">
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label className="mb-1 block text-xs text-ink-muted">Field name</label>
           <input className={inputClass} value={label} onChange={(e) => handleLabelChange(e.target.value)} placeholder="Quantity received" />
@@ -109,7 +109,7 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label className="mb-1 block text-xs text-ink-muted">Type</label>
           <select className={inputClass} value={fieldType} onChange={(e) => setFieldType(e.target.value as FieldType)}>

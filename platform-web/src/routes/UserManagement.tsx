@@ -202,7 +202,7 @@ export function UserManagement({ token }: UserManagementProps) {
           </button>
         ) : (
           <form onSubmit={handleCreateUser} className="space-y-3 border border-line bg-white p-4">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs text-ink-muted">Email</label>
                 <input className={inputClass} type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
@@ -212,7 +212,7 @@ export function UserManagement({ token }: UserManagementProps) {
                 <input className={inputClass} value={newDisplayName} onChange={(e) => setNewDisplayName(e.target.value)} />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1 block text-xs text-ink-muted">Password (min. 10 characters)</label>
                 <input className={inputClass} type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />

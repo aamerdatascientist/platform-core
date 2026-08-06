@@ -73,7 +73,7 @@ export function BuilderHome({ token }: { token: string }) {
             <label className="mb-1 block text-xs text-ink-muted">Form name</label>
             <input className={inputClass} value={name} onChange={(e) => handleNameChange(e.target.value)} placeholder="Delivery inspection" />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
               <label className="mb-1 block text-xs text-ink-muted">Code</label>
               <input
