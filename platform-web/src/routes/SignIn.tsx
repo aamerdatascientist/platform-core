@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { setTokens } from '../auth/tokenStore';
 import { Logo } from '../components/Logo';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 
 export function SignIn() {
   const [email, setEmail] = useState('');
@@ -50,8 +51,9 @@ export function SignIn() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full bg-signal px-4 py-2 text-sm font-medium text-white transition-all hover:-translate-y-px hover:opacity-90 disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 bg-signal px-4 py-2 text-sm font-medium text-white transition-all hover:-translate-y-px hover:opacity-90 disabled:opacity-50"
           >
+            {submitting && <LoadingSpinner size="sm" tone="light" />}
             {submitting ? 'Signing in…' : 'Sign in'}
           </button>
         </form>

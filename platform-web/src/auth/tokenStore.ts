@@ -15,7 +15,7 @@ type Listener = (tokens: StoredTokens | null) => void;
 let listeners: Listener[] = [];
 
 export function getTokens(): StoredTokens | null {
-  const raw = localStorage.getItem(STORAGE_KEY);
+  const raw = sessionStorage.getItem(STORAGE_KEY);
   if (!raw) return null;
   try {
     return JSON.parse(raw) as StoredTokens;
@@ -25,8 +25,8 @@ export function getTokens(): StoredTokens | null {
 }
 
 export function setTokens(tokens: StoredTokens | null): void {
-  if (tokens) localStorage.setItem(STORAGE_KEY, JSON.stringify(tokens));
-  else localStorage.removeItem(STORAGE_KEY);
+  if (tokens) sessionStorage.setItem(STORAGE_KEY, JSON.stringify(tokens));
+  else sessionStorage.removeItem(STORAGE_KEY);
   listeners.forEach((listener) => listener(tokens));
 }
 
