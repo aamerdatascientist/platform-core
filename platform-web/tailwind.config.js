@@ -21,6 +21,17 @@ export default {
         sans: ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
         mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
       },
+      keyframes: {
+        layerBuild: {
+          '0%': { opacity: '0', transform: 'translateY(22px) scale(0.85)' },
+          '28%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+          '72%': { opacity: '1', transform: 'translateY(0) scale(1)' },
+          '100%': { opacity: '0', transform: 'translateY(-10px) scale(0.92)' },
+        },
+      },
+      animation: {
+        'layer-build': 'layerBuild 1.8s cubic-bezier(0.4,0,0.2,1) infinite',
+      },
     },
   },
   plugins: [],

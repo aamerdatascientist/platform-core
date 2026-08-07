@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import type { RoleDto, UserSummaryDto } from '../types';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 
 interface UserManagementProps {
   token: string;
@@ -253,7 +254,10 @@ export function UserManagement({ token }: UserManagementProps) {
 
       <div>
         {!users ? (
-          <p className="text-xs uppercase tracking-wide text-ink-muted">Loading…</p>
+          <div className="flex items-center gap-2">
+            <LoadingSpinner size="sm" />
+            <span className="text-xs uppercase tracking-wide text-ink-muted">Loading…</span>
+          </div>
         ) : (
           <div className="space-y-1">
             {users.map((u) => (

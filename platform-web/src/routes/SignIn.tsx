@@ -27,7 +27,7 @@ export function SignIn() {
     <div className="flex min-h-screen items-center justify-center bg-paper px-4">
       <div className="flex w-full max-w-sm flex-col items-center border border-line px-10 py-12">
         <Logo size="lg" />
-        <span className="mb-1 mt-4 font-display text-lg font-semibold tracking-wide text-ink">NEXUS</span>
+        <span className="mb-1 mt-4 font-display text-lg font-semibold tracking-wide text-ink">ASAS</span>
         <p className="mb-7 text-sm text-ink-muted">Sign in to continue</p>
         <form onSubmit={handleSubmit} className="w-full space-y-3">
           <input

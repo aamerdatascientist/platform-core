@@ -46,7 +46,7 @@ export function Layout({ token }: LayoutProps) {
       <div className="fixed inset-x-0 top-0 z-20 flex items-center justify-between border-b border-sidebar-border bg-sidebar px-3 py-3 lg:hidden">
         <div className="flex items-center gap-2">
           <Logo size="sm" />
-          <span className="font-display text-sm font-semibold text-sidebar-text">NEXUS</span>
+          <span className="font-display text-sm font-semibold text-sidebar-text">ASAS</span>
         </div>
         <button
           onClick={() => setMobileMenuOpen(true)}
@@ -69,7 +69,7 @@ export function Layout({ token }: LayoutProps) {
         <div className="mb-5 flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
             <Logo size="sm" />
-            <span className="font-display text-sm font-semibold tracking-wide text-sidebar-text">NEXUS</span>
+            <span className="font-display text-sm font-semibold tracking-wide text-sidebar-text">ASAS</span>
           </div>
           <button
             onClick={handleSignOut}

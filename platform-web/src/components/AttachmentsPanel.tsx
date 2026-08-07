@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, ApiError } from '../api/client';
 import type { FieldDefinitionDto, FileMetadataDto } from '../types';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface AttachmentsPanelProps {
   token: string;
@@ -91,7 +92,10 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
       {error && <p className="mb-2 text-sm text-clay">{error}</p>}
 
       {!files ? (
-        <p className="text-xs uppercase tracking-wide text-ink-muted">Loading…</p>
+        <div className="flex items-center gap-2">
+          <LoadingSpinner size="sm" />
+          <span className="text-xs uppercase tracking-wide text-ink-muted">Loading…</span>
+        </div>
       ) : files.length === 0 ? (
         <p className="text-sm text-ink-muted">No files attached yet.</p>
       ) : (

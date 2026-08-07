@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import type { FormSummaryDto } from '../types';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 
 function slugify(input: string): string {
   return input.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -120,7 +121,10 @@ export function BuilderHome({ token }: { token: string }) {
       <div>
         <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">Existing forms</h3>
         {!forms ? (
-          <p className="text-xs uppercase tracking-wide text-ink-muted">Loading…</p>
+          <div className="flex items-center gap-2">
+            <LoadingSpinner size="sm" />
+            <span className="text-xs uppercase tracking-wide text-ink-muted">Loading…</span>
+          </div>
         ) : forms.length === 0 ? (
           <p className="text-sm text-ink-muted">No forms yet - create the first one above.</p>
         ) : (

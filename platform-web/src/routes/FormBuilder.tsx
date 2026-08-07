@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { AddFieldForm } from '../components/AddFieldForm';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 import type { FormDefinitionDto, FormSummaryDto, RoleDto, UserSummaryDto } from '../types';
 
 export function FormBuilder({ token }: { token: string }) {
@@ -139,7 +140,13 @@ export function FormBuilder({ token }: { token: string }) {
   }
 
   if (error && !formDefinition) return <p className="text-sm text-clay">{error}</p>;
-  if (!formDefinition) return <p className="text-xs uppercase tracking-wide text-ink-muted">Loading…</p>;
+  if (!formDefinition)
+    return (
+      <div className="flex items-center gap-2">
+        <LoadingSpinner size="sm" />
+        <span className="text-xs uppercase tracking-wide text-ink-muted">Loading…</span>
+      </div>
+    );
 
   const hasDraft = formDefinition.draftVersion !== null;
   const isPublished = formDefinition.status === 'Published';

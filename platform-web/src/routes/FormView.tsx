@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { AttachmentsPanel } from '../components/AttachmentsPanel';
+import { LoadingSpinner } from '../components/LoadingSpinner';
 import { FormRenderer } from '../components/FormRenderer';
 import { SubmissionsTable } from '../components/SubmissionsTable';
 import { WorkflowPanel } from '../components/WorkflowPanel';
@@ -40,7 +41,13 @@ export function FormView({ token }: FormViewProps) {
   }
 
   if (error) return <p className="text-sm text-clay">{error}</p>;
-  if (!formDefinition) return <p className="text-xs uppercase tracking-wide text-ink-muted">Loading…</p>;
+  if (!formDefinition)
+    return (
+      <div className="flex items-center gap-2">
+        <LoadingSpinner size="sm" />
+        <span className="text-xs uppercase tracking-wide text-ink-muted">Loading…</span>
+      </div>
+    );
 
   const attachmentFields = formDefinition.publishedVersion?.fields.filter((f) => f.isActive && f.fieldType === 'Attachment') ?? [];
 

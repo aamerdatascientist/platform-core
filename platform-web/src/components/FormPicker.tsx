@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import type { FormSummaryDto } from '../types';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface FormPickerProps {
   token: string;
@@ -42,7 +43,13 @@ export function FormPicker({ token }: FormPickerProps) {
   }, [selectedFormId, forms]);
 
   if (error) return <p className="text-sm text-clay">{error}</p>;
-  if (!forms) return <p className="font-mono text-xs uppercase tracking-wide text-sidebar-muted">Loading…</p>;
+  if (!forms)
+    return (
+      <div className="flex items-center gap-2">
+        <LoadingSpinner size="sm" />
+        <span className="font-mono text-xs uppercase tracking-wide text-sidebar-muted">Loading…</span>
+      </div>
+    );
   if (forms.length === 0) return <p className="text-sm text-sidebar-muted">No forms exist yet.</p>;
 
   const byModule = forms.reduce<Record<string, FormSummaryDto[]>>((acc, form) => {

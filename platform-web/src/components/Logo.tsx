@@ -3,24 +3,28 @@ interface LogoProps {
 }
 
 /**
- * Placeholder brand mark - three ascending bars. Deliberately simple flat shapes, not a
- * finished asset, so replacing it later means swapping this one file, not hunting through
- * the app. "Nexus" is a placeholder product name too, not the real one.
+ * Three rounded bars, staggered and rotated together as one group. Two color
+ * treatments, not one - the "lg" set uses the full dark-to-light brand range
+ * (#0F1729 -> #4361EE -> #7B92FF) since it's only ever shown on a light
+ * surface (the sign-in page). The "sm" set skips that darkest tone entirely
+ * and uses a lighter three-tone range instead, because #0F1729 is nearly the
+ * sidebar's own background color - using it there would make that bar
+ * disappear, the same contrast bug already found and fixed once during
+ * design exploration. Not a container/badge anymore, by design - stands
+ * directly on whatever background it's placed on.
  */
 export function Logo({ size = 'sm' }: LogoProps) {
-  const badge = size === 'lg' ? 56 : 22;
-  const icon = size === 'lg' ? 32 : 13;
+  const px = size === 'lg' ? 56 : 22;
+  const colors =
+    size === 'lg' ? ['#0F1729', '#4361EE', '#7B92FF'] : ['#4361EE', '#6C7EF0', '#C3CEFF'];
 
   return (
-    <div
-      style={{ width: badge, height: badge }}
-      className="flex shrink-0 items-center justify-center rounded border border-sidebar-border bg-sidebar"
-    >
-      <svg viewBox="0 0 24 24" width={icon} height={icon} fill="none" aria-hidden="true">
-        <rect x="3" y="13" width="4" height="8" className="fill-signal" />
-        <rect x="10" y="8" width="4" height="13" className="fill-signal" />
-        <rect x="17" y="3" width="4" height="18" className="fill-signal-light" />
-      </svg>
-    </div>
+    <svg viewBox="0 0 120 120" width={px} height={px} className="shrink-0" aria-hidden="true">
+      <g transform="rotate(-8 60 60)">
+        <rect x="18" y="66" width="80" height="22" rx="3" fill={colors[0]} />
+        <rect x="26" y="42" width="80" height="22" rx="3" fill={colors[1]} />
+        <rect x="34" y="18" width="80" height="22" rx="3" fill={colors[2]} />
+      </g>
+    </svg>
   );
 }
