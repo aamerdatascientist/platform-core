@@ -46,6 +46,60 @@ separate from the Form Engine.
 - Local dev DB is **Azure SQL** (free tier), not Docker/local SQL Server - Docker doesn't
   work on this machine (corporate-locked virtualization). Don't suggest Docker again.
 
+## Known environment gotchas - Metabase analytics deployment (Railway + Azure Postgres)
+
+1. **Azure Database for PostgreSQL Flexible Server blocks common extensions by default.**
+   `citext` (and others) must be explicitly added to the server's `azure.extensions`
+   allow-list under Server Parameters before any tool that depends on it (e.g. Metabase's
+   own first migration) can run `CREATE EXTENSION`.
+
+2. **Azure Postgres Flexible Server can default to Microsoft Entra-only authentication.**
+   Check the "Authentication method" dropdown on the server's Connect page explicitly -
+   if it only offers Entra, plain password logins will hang/timeout rather than fail
+   cleanly, which looks identical to a firewall or network problem.
+
+3. **Metabase no longer parses `MB_DB_CONNECTION_URI` as a generic Postgres URI.**
+   It's passed directly to Java's JDBC driver, which requires the `jdbc:` prefix and
+   user/password as query parameters - not embedded before an `@`. Correct format:
+   ```
+   jdbc:postgresql://host:port/dbname?user=<user>&password=<pass>&sslmode=require
+   ```
+   A malformed string here doesn't fail fast - it hangs until a connection-pool timeout,
+   which is easy to misdiagnose as a network/firewall issue.
+
+4. **Azure SQL Database's default "Redirect" connection policy breaks connections from
+   outside Azure** (e.g. Railway, or any non-Azure host). The client's second, redirected
+   connection on a high port (11000-11999) typically never reaches the server. Fix:
+   ```
+   az sql server conn-policy update --resource-group <rg> --server <server> --connection-type Proxy
+   ```
+   This is a server-wide setting - it affects every client connecting to that SQL server,
+   not just the one that prompted the change.
+
+5. **Metabase (JVM-based) needs real memory headroom to survive first boot** - plugin
+   loading + ~1200 database migrations. Under ~1.2GB total container memory, it silently
+   OOM-kills and restarts in a loop with no error in its own log (only visible from the
+   platform's own crash/metrics view). 1.5-2GB is a safe floor; give the JVM heap
+   (`-Xmx`) real room below the container ceiling, not right up against it.
+
+6. **On high-core-count hosts, Metabase's startup (Java 25) can hang deterministically**
+   mid-way through parsing migration changelog files, with the process alive but doing
+   nothing (confirmed via flat CPU). Constraining apparent parallelism resolved it:
+   ```
+   JAVA_TOOL_OPTIONS=-XX:ActiveProcessorCount=2
+   ```
+   Distinguishing this from a memory-driven crash loop: this failure mode has the
+   service still reporting "Online" (not crashed/restarted), and CPU usage flat during
+   the stall rather than a GC-pause spike.
+
+7. **A container killed mid-migration can leave Liquibase's tracking tables in a
+   genuinely inconsistent state** (e.g. `databasechangelog` present, its paired
+   `databasechangeloglock` table missing entirely) - not just a stale lock row to
+   clear. If migrations were still in the "reading/parsing changelog files" phase
+   (before the "Running N migrations..." log line) when the crash happened, there's
+   nothing to preserve - `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` and a
+   clean restart is more reliable than trying to hand-patch the partial state.
+
 ## Known gaps - deliberate, not oversights (check `docs/PROJECT_STATUS.md` for current priority)
 
 - No `GET /api/forms` list endpoint - frontend can't show real navigation yet.
