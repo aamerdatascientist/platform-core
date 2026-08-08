@@ -108,6 +108,73 @@ fully done. The Form Builder UI is built but not yet fully done - see below.
 3. **After those:** continue the backend roadmap (Dashboards/Reporting is Phase 4, AI
    Assistant is Phase 5) or keep extending the frontend (e.g. dashboard views, further polish).
 
+## Analytics — Metabase (LIVE)
+
+### Current architecture
+- **Metabase itself**: self-hosted on **Railway** (`metabase-production-ebca.up.railway.app`),
+  Hobby plan ($5/mo minimum usage credits)
+- **Metabase's own app-database**: Railway-managed Postgres, provisioned in the same
+  Railway project — internal-only, stores Metabase's own settings/dashboards/users,
+  not business data
+- **Business data source**: unchanged — Azure SQL `test2` database, connected via
+  the `Report_*` views
+- **Connection**: `jdbc:postgresql://${{Postgres.PGHOST}}:${{Postgres.PGPORT}}/${{Postgres.PGDATABASE}}?user=${{Postgres.PGUSER}}&password=${{Postgres.PGPASSWORD}}`
+  — Railway's variable-reference syntax pulls credentials directly from the paired
+  Postgres service, nothing hand-copied
+- **Working environment variables on the Metabase service**:
+  - `JAVA_OPTS=-Xmx1400m` (heap ceiling; container memory set to 8GB, real usage is
+    ~1.5–2GB — see CLAUDE.md's Metabase/Railway gotcha #5)
+  - `JAVA_TOOL_OPTIONS=-XX:ActiveProcessorCount=2` (see CLAUDE.md's Metabase/Railway gotcha #6)
+
+### Superseded: Azure App Service + Azure Postgres Flexible Server
+This was the original plan and is now abandoned, not paused. Root causes across
+multiple real, distinct failures (memory ceiling, connection string format, Postgres
+auth mode, blocked extensions, App Service's own container start-timeout behavior,
+and at least one still-unexplained silent hang) made this combination specifically
+unreliable. See CLAUDE.md's Metabase/Railway gotchas #1–#7 for the individual lessons;
+Railway avoids the platform-specific ones entirely (no extension allow-listing, no
+Entra-auth default, no App Service container-timeout behavior).
+**Follow-up**: the abandoned Azure Postgres Flexible Server resource (`metabase-appdb`)
+is no longer used by anything — worth deleting to stop incurring cost, once confirmed
+nothing else depends on it.
+
+### Azure SQL side-effect (server-wide, not Metabase-specific)
+`construction-site-aamer-shah`'s connection policy was changed from **Redirect** to
+**Proxy** to allow Railway (a non-Azure host) to connect at all. This is a server-wide
+setting — it now applies to every client connecting to this SQL server, not just Metabase.
+
+### Current connection credentials — TEMPORARY
+Metabase is currently connected to `test2` using the **full admin SQL login**, not the
+read-only `PowerBIReader` account that was set up earlier. This was a deliberate
+short-term choice to unblock testing. **Follow-up**: switch the connection in
+Metabase (Admin → Databases → Asas Reports → edit) to `PowerBIReader` once convenient
+— low effort, same screen, no rebuild needed. Until then, a Metabase compromise would
+expose full read/write access to `test2`, not just read access to the `Report_*` views.
+
+### Dummy/demo data
+`test2` was seeded with ~113 rows of realistic construction-industry demo data across
+all 14 real business form tables (Materials, Locations, Equipment, Trades, Projects,
+GoodsReceipt, MaterialIssue, StockAdjustment, StockTransfer, PhysicalStockCount,
+LaborLog, EquipmentLog, DailySiteReport, TaskTracking) — Lookup fields (material,
+location, project, trade, equipment) are internally consistent, referencing real
+generated rows in their parent tables. `Data_Q`, `Data_Q1`, `Data_Testing` (leftover
+scratch forms) were intentionally left empty. The seed script used is a one-off,
+transaction-wrapped SQL file — not currently committed to the repo; worth adding to
+`/scripts` if it'll be reused (e.g. re-seeding after a schema change).
+
+### What's built and working
+- First real Metabase dashboard created manually via the UI (Questions → Dashboard
+  workflow), pulling live from `test2` — proof the full pipeline works end to end
+- Pattern established for building further Questions: `Summarize` → aggregate + group
+  by → pick chart type → save; use `Report_*` views (not raw `Data_*` tables) whenever
+  a field is a Lookup, so it resolves to a real name instead of a GUID
+
+### Deliberate gaps / not yet done
+- No dashboards built beyond the first manual walkthrough example
+- No scheduled reports/alerts configured in Metabase
+- `PowerBIReader` credential switch (see above)
+- Old Azure Postgres resource cleanup (see above)
+
 ## Known environment facts specific to this deployment
 
 - GitHub repo: `aamerdatascientist/platform-core`.
