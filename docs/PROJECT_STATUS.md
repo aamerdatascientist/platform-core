@@ -175,6 +175,73 @@ transaction-wrapped SQL file — not currently committed to the repo; worth addi
 - `PowerBIReader` credential switch (see above)
 - Old Azure Postgres resource cleanup (see above)
 
+## Analytics — status update (reconsidered from previous session)
+
+Metabase-on-Railway (documented above) is still deployed and was working, with one
+dashboard built manually as a proof of concept. However, **the direction has since
+shifted toward Power BI instead** — Metabase was judged too limited/immature for the
+team's needs.
+
+**Decision made**: Power BI, Import mode with frequent scheduled refresh (up to 8x/day
+on Pro) — the lower-effort middle ground between a fully live DirectQuery setup and a
+one-time static import. A more ambitious pre-aggregated-KPI-table + DirectQuery
+approach was considered and rejected for now due to build time, not ruled out
+permanently.
+
+**Not yet built**: no Power BI Desktop work has started yet. `PowerBIReader` (the
+read-only SQL account created during the Metabase troubleshooting) is still unused and
+ready for this purpose.
+
+**Open question, not yet decided**: whether to keep the working Metabase/Railway setup
+running in parallel, or wind it down once Power BI is functional. Worth a deliberate
+decision rather than letting both quietly exist indefinitely — Railway is a real, small
+ongoing cost either way.
+
+## Custom Domain, Email & Live App Access (LIVE)
+
+### Domain
+**`asasksa.co`** — not `asas.com`, which was unavailable. Registered through
+whois.com (registrar: PDR Ltd. / PublicDomainRegistry). Chosen specifically because it
+reads as "Asas" + "KSA" (Saudi Arabia), a reasonable fallback naming pattern given the
+`.com` was taken.
+
+### DNS
+Authoritative DNS for `asasksa.co` is hosted on **Azure DNS** (zone name `asasksa.co`,
+resource group `aamer_shah_test`) — not whois.com's own DNS, and not Microsoft 365's.
+This was a deliberate migration, not the original plan: both whois.com's and Microsoft
+365's DNS panels lack ALIAS record support, which Azure Static Web Apps requires for a
+bare apex domain (see CLAUDE.md gotcha #11). Nameservers at whois.com point to Azure's
+4 (`ns1-08.azure-dns.com`, `.net`, `.org`, `.info`).
+**Every DNS record for this domain — email and app both — now lives in this one Azure
+DNS zone.** Nothing should be added back on whois.com's own DNS panel going forward;
+it's no longer authoritative.
+
+### Email — Microsoft 365 Business Basic
+Hosted Exchange email is live for `@asasksa.co` addresses (aamer + a few colleagues).
+MX, CNAME (autodiscover), and TXT (SPF) records are all in the Azure DNS zone above.
+**Known constraint hit during setup**: Microsoft 365's business signup flow requires a
+ZATCA Tax Identification Number for Saudi-registered businesses. Ascend was not
+VAT-registered at the time of signup; a TIN was ultimately provided directly by the
+user to complete signup. Zoho Mail (free tier, no TIN requirement) was evaluated as an
+alternative and is a viable fallback if ever needed, but was not the path taken.
+
+### Web app custom domain
+The existing Azure Static Web App (`black-field-04a8cb300...`) is now also reachable
+at **`https://asasksa.co`** directly (apex domain, SSL auto-provisioned by Azure). The
+original `azurestaticapps.net` URL still works as well.
+**Backend CORS was updated** (`Cors__AllowedOrigins`) to allow `https://asasksa.co` —
+required for login/API calls to work from the new domain; without it the site loads
+but every API call fails silently.
+
+### Two bugs found and fixed post-launch
+1. **404 on page refresh / direct navigation to any route** — fixed by adding
+   `platform-web/public/staticwebapp.config.json` with a `navigationFallback` rule
+   (see CLAUDE.md gotcha #8 for the Vite-specific placement detail). Confirmed fixed.
+2. **Enter key didn't submit the sign-in form** — investigated at length (source
+   review, live local test, deploy-bundle content-hash comparison — see CLAUDE.md
+   gotcha #12). Root cause was **a browser extension on the user's own machine**, not
+   a code bug. No code change was needed or made.
+
 ## Known environment facts specific to this deployment
 
 - GitHub repo: `aamerdatascientist/platform-core`.

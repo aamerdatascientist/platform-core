@@ -100,6 +100,52 @@ separate from the Form Engine.
    nothing to preserve - `DROP SCHEMA public CASCADE; CREATE SCHEMA public;` and a
    clean restart is more reliable than trying to hand-patch the partial state.
 
+## Known environment gotchas - custom domain, DNS & Vite/Static Web Apps deployment
+
+8. **Vite + Azure Static Web Apps: `staticwebapp.config.json` must live in
+   `public/`, not the app root.** Vite only copies the contents of `public/`
+   into the `dist/` build output - since the SWA workflow's `output_location`
+   is `dist`, a config file placed anywhere else silently never reaches the
+   deployed app. Verify with a real `npm run build` and check the file
+   actually landed in `dist/`, don't just trust the source tree.
+
+9. **Azure Static Web Apps' "Custom Domain on Azure DNS" option doesn't
+   always fully automate verification**, even when the domain's DNS
+   genuinely is hosted on Azure DNS. Be ready for the standard manual
+   TXT-record verification step regardless of which "add domain" path is
+   offered.
+
+10. **Azure DNS groups multiple TXT values under one record set at the same
+    host/name** - unlike some registrar DNS panels (e.g. whois.com's
+    myorderbox-based one) that let you add visually separate TXT rows at the
+    same name. If a service says "add a TXT record" and one already exists
+    at that host, add the new value as an *additional value inside the
+    existing record*, not a new record set - Azure will reject a duplicate
+    record set at the same name/type with a clear error if you try.
+
+11. **Not every DNS panel supports the ALIAS/ANAME record type needed for
+    apex/root-domain custom domains on Azure Static Web Apps.** Confirmed
+    both Microsoft 365's own DNS management *and* whois.com's (myorderbox)
+    panel lack it - only standard record types (A, CNAME, MX, TXT, etc.).
+    Azure DNS does support it. If a bare apex domain (not a subdomain) is a
+    hard requirement, plan on migrating the domain's authoritative
+    nameservers to Azure DNS - which also means re-adding every other
+    existing record (email, etc.) into the new zone, not just the new one.
+
+12. **When a reported bug can't be reproduced in local dev, and the deployed
+    production bundle is confirmed content-hash-identical (via Vite's
+    filename hashing) to a version already verified working locally, the
+    reporter's own browser is a real, common remaining cause** - specifically
+    extensions (password managers, Grammarly-style tools, etc.) intercepting
+    keyboard/form events before the page's own JS ever sees them. Testing in
+    an incognito/private window (which disables extensions by default) is a
+    fast way to isolate "real site bug" from "local browser interference."
+    In this case: full source inspection (no global keydown listeners, no
+    CSP/headers in `staticwebapp.config.json`, no code-splitting) plus a
+    content-hash match on the deployed bundle ruled out every code-level
+    explanation - the actual cause was a browser extension on the tester's
+    machine, confirmed by toggling all extensions off.
+
 ## Known gaps - deliberate, not oversights (check `docs/PROJECT_STATUS.md` for current priority)
 
 - No `GET /api/forms` list endpoint - frontend can't show real navigation yet.
