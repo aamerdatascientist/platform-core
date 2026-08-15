@@ -1,0 +1,12 @@
+{
+  "sidebar": {
+    "signOut": "Sign out",
+    "openMenu": "Open menu",
+    "buildForms": "+ Build forms",
+    "users": "Users",
+    "loading": "Loading…",
+    "noForms": "No forms exist yet.",
+    "notPublished": "Not published yet",
+    "draft": "draft"
+  }
+}

@@ -5,3 +5,10 @@
 body {
   @apply bg-paper text-ink font-sans;
 }
+
+/* Arabic mode: Calibri per spec, with a fallback chain for non-Windows devices that
+   don't have it installed - Segoe UI/Tahoma are the closest common substitutes. */
+html[dir='rtl'] body {
+  font-family: Calibri, 'Segoe UI', Tahoma, Arial, sans-serif;
+  font-weight: bold;
+}

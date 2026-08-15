@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import type { FormSummaryDto } from '../types';
@@ -9,6 +10,7 @@ interface FormPickerProps {
 }
 
 export function FormPicker({ token }: FormPickerProps) {
+  const { t } = useTranslation();
   const [forms, setForms] = useState<FormSummaryDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [indicator, setIndicator] = useState<{ top: number; height: number } | null>(null);
@@ -47,10 +49,10 @@ export function FormPicker({ token }: FormPickerProps) {
     return (
       <div className="flex items-center gap-2">
         <LoadingSpinner size="sm" />
-        <span className="font-mono text-xs uppercase tracking-wide text-sidebar-muted">Loading…</span>
+        <span className="font-mono text-xs uppercase tracking-wide text-sidebar-muted">{t('sidebar.loading')}</span>
       </div>
     );
-  if (forms.length === 0) return <p className="text-sm text-sidebar-muted">No forms exist yet.</p>;
+  if (forms.length === 0) return <p className="text-sm text-sidebar-muted">{t('sidebar.noForms')}</p>;
 
   const byModule = forms.reduce<Record<string, FormSummaryDto[]>>((acc, form) => {
     (acc[form.moduleName] ??= []).push(form);
@@ -61,7 +63,7 @@ export function FormPicker({ token }: FormPickerProps) {
     <nav ref={navRef} className="relative space-y-5">
       {indicator && (
         <div
-          className="absolute left-0 w-[3px] bg-signal transition-all duration-200 ease-out"
+          className="absolute start-0 w-[3px] bg-signal transition-all duration-200 ease-out"
           style={{ top: indicator.top, height: indicator.height }}
         />
       )}
@@ -82,8 +84,8 @@ export function FormPicker({ token }: FormPickerProps) {
                     }}
                     onClick={() => navigate(`/forms/${form.id}`)}
                     disabled={!isPublished}
-                    title={!isPublished ? 'Not published yet' : undefined}
-                    className={`w-full px-3 py-1.5 text-left text-sm transition-colors ${
+                    title={!isPublished ? t('sidebar.notPublished') : undefined}
+                    className={`w-full px-3 py-1.5 text-start text-sm transition-colors ${
                       isSelected
                         ? 'font-medium text-white'
                         : isPublished
@@ -92,7 +94,7 @@ export function FormPicker({ token }: FormPickerProps) {
                     }`}
                   >
                     {form.name}
-                    {!isPublished && <span className="ml-2 text-[10px] uppercase">draft</span>}
+                    {!isPublished && <span className="ms-2 text-[10px] uppercase">{t('sidebar.draft')}</span>}
                   </button>
                 </li>
               );
