@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api, ApiError } from '../api/client';
 import { setTokens } from '../auth/tokenStore';
+import { LanguageToggle } from '../components/LanguageToggle';
 import { Logo } from '../components/Logo';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 
@@ -25,7 +26,10 @@ export function SignIn() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-paper px-4">
+    <div className="relative flex min-h-screen items-center justify-center bg-paper px-4">
+      <div className="absolute top-4 end-4">
+        <LanguageToggle tone="light" />
+      </div>
       <div className="flex w-full max-w-sm flex-col items-center border border-line px-10 py-12">
         <Logo size="lg" />
         <span className="mb-1 mt-4 font-display text-lg font-semibold tracking-wide text-ink">ASAS</span>
