@@ -7,15 +7,17 @@ interface LanguageToggleProps {
 }
 
 const TONE_CLASSES = {
-  dark: { active: 'font-medium text-white', inactive: 'text-sidebar-muted hover:text-white', divider: 'text-sidebar-border' },
-  light: { active: 'font-medium text-ink', inactive: 'text-ink-muted hover:text-ink', divider: 'text-line' },
+  dark: { active: 'font-medium text-white', inactive: 'text-sidebar-muted', track: 'bg-white/20' },
+  light: { active: 'font-medium text-ink', inactive: 'text-ink-muted', track: 'bg-ink/15' },
 };
 
 /**
- * Always shows both language options ("EN / عربي") with the active one highlighted,
- * rather than a single label that changes - makes the current language and the fact
- * that it's a toggle both obvious at a glance. Shared i18n instance means switching
- * here or from the sidebar's copy of this component stays in sync everywhere.
+ * iOS-style pill switch. Deliberately does NOT use logical (rtl-aware) positioning
+ * anywhere in here, unlike the rest of this app's RTL work - "EN" always sits on the
+ * physical left and "عربي" always on the physical right, and the knob always slides
+ * left-to-right for Arabic, right-to-left for English, regardless of the active
+ * direction. A language switcher needs to look and behave the same way no matter which
+ * language is currently selected, or it stops being findable/usable as a control.
  */
 export function LanguageToggle({ tone = 'dark' }: LanguageToggleProps) {
   const { i18n } = useTranslation();
@@ -29,11 +31,17 @@ export function LanguageToggle({ tone = 'dark' }: LanguageToggleProps) {
   return (
     <button
       onClick={toggle}
-      className="flex items-center gap-1 text-[11px] uppercase tracking-wide"
+      className="flex items-center gap-2 text-[11px] uppercase tracking-wide"
       aria-label="Toggle language"
     >
       <span className={isArabic ? classes.inactive : classes.active}>EN</span>
-      <span className={classes.divider}>/</span>
+      <span className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full ${classes.track}`}>
+        <span
+          className={`absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${
+            isArabic ? 'translate-x-4' : 'translate-x-0'
+          }`}
+        />
+      </span>
       <span className={isArabic ? classes.active : classes.inactive}>عربي</span>
     </button>
   );
