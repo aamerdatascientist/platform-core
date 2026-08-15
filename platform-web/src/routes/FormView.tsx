@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { AttachmentsPanel } from '../components/AttachmentsPanel';
@@ -13,6 +14,7 @@ interface FormViewProps {
 }
 
 export function FormView({ token }: FormViewProps) {
+  const { t } = useTranslation();
   const { formId } = useParams<{ formId: string }>();
 
   const [formDefinition, setFormDefinition] = useState<FormDefinitionDto | null>(null);
@@ -29,7 +31,7 @@ export function FormView({ token }: FormViewProps) {
       .then(setFormDefinition)
       .catch((err) => {
         setFormDefinition(null);
-        setError(err instanceof ApiError ? err.message : 'Could not load that form.');
+        setError(err instanceof ApiError ? err.message : t('formView.loadError'));
       });
     loadSubmissions(formId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -45,7 +47,7 @@ export function FormView({ token }: FormViewProps) {
     return (
       <div className="flex items-center gap-2">
         <LoadingSpinner size="sm" />
-        <span className="text-xs uppercase tracking-wide text-ink-muted">Loading…</span>
+        <span className="text-xs uppercase tracking-wide text-ink-muted">{t('common.loading')}</span>
       </div>
     );
 
@@ -64,7 +66,7 @@ export function FormView({ token }: FormViewProps) {
 
         <div>
           <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">
-            Records - select one for workflow status
+            {t('formView.recordsHeading')}
           </h3>
           <SubmissionsTable
             fields={formDefinition.publishedVersion?.fields ?? []}
@@ -94,7 +96,8 @@ export function FormView({ token }: FormViewProps) {
           </>
         ) : (
           <div className="border border-dashed border-line p-4 text-sm text-ink-muted">
-            Select a record to see its workflow status{attachmentFields.length > 0 ? ' and attachments' : ''}.
+            {t('formView.selectRecordPrompt')}
+            {attachmentFields.length > 0 ? t('formView.andAttachments') : ''}.
           </div>
         )}
       </div>
