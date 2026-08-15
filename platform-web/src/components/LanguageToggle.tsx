@@ -18,6 +18,13 @@ const TONE_CLASSES = {
  * left-to-right for Arabic, right-to-left for English, regardless of the active
  * direction. A language switcher needs to look and behave the same way no matter which
  * language is currently selected, or it stops being findable/usable as a control.
+ *
+ * dir="ltr" on the button itself is load-bearing, not decoration: with no rtl:/ltr:
+ * classes anywhere in here, this element still inherits dir="rtl" from <html> once
+ * Arabic is active, and the browser's own default flex-direction:row is direction-aware
+ * independent of Tailwind - it silently reverses child paint order under an inherited
+ * RTL context. Setting dir explicitly breaks that inheritance for this subtree, which is
+ * exactly what "physical, not logical" requires here.
  */
 export function LanguageToggle({ tone = 'dark' }: LanguageToggleProps) {
   const { i18n } = useTranslation();
@@ -31,14 +38,15 @@ export function LanguageToggle({ tone = 'dark' }: LanguageToggleProps) {
   return (
     <button
       onClick={toggle}
-      className="flex items-center gap-2 text-[11px] uppercase tracking-wide"
+      dir="ltr"
+      className="flex items-center gap-2.5 text-xs uppercase tracking-wide"
       aria-label="Toggle language"
     >
       <span className={isArabic ? classes.inactive : classes.active}>EN</span>
-      <span className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full ${classes.track}`}>
+      <span className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full ${classes.track}`}>
         <span
-          className={`absolute left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-200 ${
-            isArabic ? 'translate-x-4' : 'translate-x-0'
+          className={`absolute left-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
+            isArabic ? 'translate-x-5' : 'translate-x-0'
           }`}
         />
       </span>
