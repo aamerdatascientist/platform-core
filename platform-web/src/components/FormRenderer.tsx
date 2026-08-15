@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
 import type { DropdownOption, FieldDefinitionDto, FormDefinitionDto } from '../types';
 
@@ -33,6 +34,7 @@ interface LookupChoice {
  * FormDefinition (backend change) would remove the guesswork.
  */
 export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendererProps) {
+  const { t } = useTranslation();
   const activeFields = useMemo(
     () => formDefinition.publishedVersion?.fields.filter((f) => f.isActive) ?? [],
     [formDefinition],
@@ -116,7 +118,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
     activeFields.forEach((f) => {
       if (!f.isRequired) return;
       const isMissing = f.fieldType === 'Attachment' ? !attachmentFiles[f.code] : !values[f.code];
-      if (isMissing) missing[f.code] = 'Required';
+      if (isMissing) missing[f.code] = t('formRenderer.fieldRequired');
     });
     if (Object.keys(missing).length > 0) {
       setFieldErrors(missing);
@@ -161,9 +163,10 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
           // The record itself saved fine - only the file(s) failed. Say so plainly rather
           // than implying the whole submission failed, since the data wasn't lost.
           setError(
-            `Record saved, but couldn't upload: ${failedLabels.join(', ')}. You can add ${
-              failedLabels.length > 1 ? 'them' : 'it'
-            } again by selecting this record below.`,
+            t('formRenderer.partialUploadFailure', {
+              count: failedLabels.length,
+              files: failedLabels.join(', '),
+            }),
           );
         }
       }
@@ -182,7 +185,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
         setFieldErrors(perField);
         setError(null);
       } else {
-        setError(err instanceof ApiError ? err.message : 'Submission failed.');
+        setError(err instanceof ApiError ? err.message : t('formRenderer.submitFailed'));
       }
     } finally {
       setSubmitting(false);
@@ -190,7 +193,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
   }
 
   if (!formDefinition.publishedVersion) {
-    return <p className="text-sm text-ink-muted">This form has no published version yet.</p>;
+    return <p className="text-sm text-ink-muted">{t('formRenderer.noPublishedVersion')}</p>;
   }
 
   return (
@@ -216,7 +219,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
         disabled={submitting}
         className="w-full bg-ink px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
       >
-        {submitting ? 'Submitting…' : 'Submit'}
+        {submitting ? t('formRenderer.submitting') : t('formRenderer.submit')}
       </button>
     </form>
   );
@@ -241,6 +244,7 @@ function FieldInput({
   options: DropdownOption[];
   lookupChoices?: LookupChoice[];
 }) {
+  const { t } = useTranslation();
   const baseClass =
     'w-full border border-line px-3 py-2 text-sm focus:border-ink focus:outline-none';
 
@@ -259,19 +263,21 @@ function FieldInput({
             onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
             className="text-sm"
           />
-          {selectedFileName && <p className="mt-1 text-xs text-ink-muted">Selected: {selectedFileName}</p>}
+          {selectedFileName && (
+            <p className="mt-1 text-xs text-ink-muted">{t('formRenderer.selected', { name: selectedFileName })}</p>
+          )}
         </div>
       ) : field.fieldType === 'LongText' ? (
         <textarea className={baseClass} rows={3} value={value} onChange={(e) => onChange(e.target.value)} />
       ) : field.fieldType === 'Boolean' ? (
         <select className={baseClass} value={value} onChange={(e) => onChange(e.target.value)}>
-          <option value="">Select…</option>
-          <option value="true">Yes</option>
-          <option value="false">No</option>
+          <option value="">{t('common.select')}</option>
+          <option value="true">{t('common.yes')}</option>
+          <option value="false">{t('common.no')}</option>
         </select>
       ) : field.fieldType === 'Dropdown' ? (
         <select className={baseClass} value={value} onChange={(e) => onChange(e.target.value)}>
-          <option value="">Select…</option>
+          <option value="">{t('common.select')}</option>
           {options.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
@@ -280,7 +286,7 @@ function FieldInput({
         </select>
       ) : field.fieldType === 'Lookup' ? (
         <select className={baseClass} value={value} onChange={(e) => onChange(e.target.value)}>
-          <option value="">{lookupChoices ? 'Select…' : 'Loading…'}</option>
+          <option value="">{lookupChoices ? t('common.select') : t('formRenderer.loadingOptions')}</option>
           {(lookupChoices ?? []).map((c) => (
             <option key={c.id} value={c.id}>
               {c.label}

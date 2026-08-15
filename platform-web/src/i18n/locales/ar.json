@@ -126,6 +126,7 @@
     "noRecords": "لا توجد سجلات بعد - ستظهر هنا أول عملية إرسال أعلاه."
   },
   "formRenderer": {
+    "fieldRequired": "مطلوب",
     "loadingOptions": "جارٍ التحميل…",
     "selected": "المحدد: {{name}}",
     "submit": "إرسال",

@@ -126,6 +126,7 @@
     "noRecords": "No records yet - the first submission above will appear here."
   },
   "formRenderer": {
+    "fieldRequired": "Required",
     "loadingOptions": "Loading…",
     "selected": "Selected: {{name}}",
     "submit": "Submit",
