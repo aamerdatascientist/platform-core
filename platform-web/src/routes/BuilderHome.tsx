@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import type { FormSummaryDto } from '../types';
@@ -9,6 +10,7 @@ function slugify(input: string): string {
 }
 
 export function BuilderHome({ token }: { token: string }) {
+  const { t } = useTranslation();
   const [forms, setForms] = useState<FormSummaryDto[] | null>(null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
@@ -37,7 +39,7 @@ export function BuilderHome({ token }: { token: string }) {
     e.preventDefault();
     setError(null);
     if (!name.trim() || !code.trim() || !moduleName.trim()) {
-      setError('Name, code, and module are all required.');
+      setError(t('builderHome.requiredError'));
       return;
     }
     setSubmitting(true);
@@ -45,7 +47,7 @@ export function BuilderHome({ token }: { token: string }) {
       const result = await api.forms.create(token, { code, name, moduleName });
       navigate(`/builder/${result.id}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not create that form.');
+      setError(err instanceof ApiError ? err.message : t('builderHome.createError'));
     } finally {
       setSubmitting(false);
     }
@@ -57,8 +59,8 @@ export function BuilderHome({ token }: { token: string }) {
   return (
     <div className="max-w-3xl space-y-8">
       <div>
-        <h2 className="font-display text-xl font-semibold text-ink">Build forms</h2>
-        <p className="text-sm text-ink-muted">Define a new form, or open an existing one to add fields.</p>
+        <h2 className="font-display text-xl font-semibold text-ink">{t('builderHome.title')}</h2>
+        <p className="text-sm text-ink-muted">{t('builderHome.subtitle')}</p>
       </div>
 
       {!creating ? (
@@ -66,17 +68,22 @@ export function BuilderHome({ token }: { token: string }) {
           onClick={() => setCreating(true)}
           className="border border-line bg-white px-3 py-1.5 text-sm text-ink hover:border-ink"
         >
-          + New form
+          {t('builderHome.newForm')}
         </button>
       ) : (
         <form onSubmit={handleCreate} className="space-y-3 border border-line bg-white p-4">
           <div>
-            <label className="mb-1 block text-xs text-ink-muted">Form name</label>
-            <input className={inputClass} value={name} onChange={(e) => handleNameChange(e.target.value)} placeholder="Delivery inspection" />
+            <label className="mb-1 block text-xs text-ink-muted">{t('builderHome.formName')}</label>
+            <input
+              className={inputClass}
+              value={name}
+              onChange={(e) => handleNameChange(e.target.value)}
+              placeholder={t('builderHome.formNamePlaceholder')}
+            />
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs text-ink-muted">Code</label>
+              <label className="mb-1 block text-xs text-ink-muted">{t('builderHome.code')}</label>
               <input
                 className={`${inputClass} font-mono`}
                 value={code}
@@ -87,13 +94,13 @@ export function BuilderHome({ token }: { token: string }) {
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-ink-muted">Module</label>
+              <label className="mb-1 block text-xs text-ink-muted">{t('builderHome.module')}</label>
               <input
                 className={inputClass}
                 list="module-suggestions"
                 value={moduleName}
                 onChange={(e) => setModuleName(e.target.value)}
-                placeholder="StockManagement"
+                placeholder={t('builderHome.modulePlaceholder')}
               />
               <datalist id="module-suggestions">
                 {existingModules.map((m) => (
@@ -109,37 +116,41 @@ export function BuilderHome({ token }: { token: string }) {
               disabled={submitting}
               className="bg-ink px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
             >
-              {submitting ? 'Creating…' : 'Create and add fields'}
+              {submitting ? t('builderHome.creating') : t('builderHome.createAndAddFields')}
             </button>
             <button type="button" onClick={() => setCreating(false)} className="px-3 py-1.5 text-sm text-ink-muted">
-              Cancel
+              {t('common.cancel')}
             </button>
           </div>
         </form>
       )}
 
       <div>
-        <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">Existing forms</h3>
+        <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">
+          {t('builderHome.existingForms')}
+        </h3>
         {!forms ? (
           <div className="flex items-center gap-2">
             <LoadingSpinner size="sm" />
-            <span className="text-xs uppercase tracking-wide text-ink-muted">Loading…</span>
+            <span className="text-xs uppercase tracking-wide text-ink-muted">{t('common.loading')}</span>
           </div>
         ) : forms.length === 0 ? (
-          <p className="text-sm text-ink-muted">No forms yet - create the first one above.</p>
+          <p className="text-sm text-ink-muted">{t('builderHome.noForms')}</p>
         ) : (
           <div className="space-y-1">
             {forms.map((f) => (
               <button
                 key={f.id}
                 onClick={() => navigate(`/builder/${f.id}`)}
-                className="flex w-full items-center justify-between border border-line bg-white px-3 py-2 text-left text-sm hover:border-ink"
+                className="flex w-full items-center justify-between border border-line bg-white px-3 py-2 text-start text-sm hover:border-ink"
               >
                 <span>
                   <span className="font-medium text-ink">{f.name}</span>
-                  <span className="ml-2 text-xs text-ink-muted">{f.moduleName}</span>
+                  <span className="ms-2 text-xs text-ink-muted">{f.moduleName}</span>
                 </span>
-                <span className="text-[11px] uppercase tracking-wide text-ink-muted">{f.status}</span>
+                <span className="text-[11px] uppercase tracking-wide text-ink-muted">
+                  {t(`formStatus.${f.status}`)}
+                </span>
               </button>
             ))}
           </div>

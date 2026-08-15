@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
 import type { FieldType, FormSummaryDto } from '../types';
 
@@ -22,6 +23,7 @@ function slugify(input: string): string {
 }
 
 export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddFieldFormProps) {
+  const { t } = useTranslation();
   const [label, setLabel] = useState('');
   const [code, setCode] = useState('');
   const [codeTouched, setCodeTouched] = useState(false);
@@ -46,15 +48,15 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
     setError(null);
 
     if (!label.trim() || !code.trim()) {
-      setError('Field name and code are both required.');
+      setError(t('addField.requiredError'));
       return;
     }
     if (fieldType === 'Dropdown' && !options.some((o) => o.value.trim() && o.label.trim())) {
-      setError('Add at least one option for a dropdown field.');
+      setError(t('addField.dropdownOptionError'));
       return;
     }
     if (fieldType === 'Lookup' && !lookupTargetId) {
-      setError('Pick which form this field looks up.');
+      setError(t('addField.lookupTargetError'));
       return;
     }
 
@@ -80,7 +82,7 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
       setLookupTargetId('');
       onAdded();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not add that field.');
+      setError(err instanceof ApiError ? err.message : t('addField.addFieldError'));
     } finally {
       setSubmitting(false);
     }
@@ -92,11 +94,16 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
     <form onSubmit={handleSubmit} className="space-y-3 border border-line bg-white p-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-xs text-ink-muted">Field name</label>
-          <input className={inputClass} value={label} onChange={(e) => handleLabelChange(e.target.value)} placeholder="Quantity received" />
+          <label className="mb-1 block text-xs text-ink-muted">{t('addField.fieldName')}</label>
+          <input
+            className={inputClass}
+            value={label}
+            onChange={(e) => handleLabelChange(e.target.value)}
+            placeholder={t('addField.fieldNamePlaceholder')}
+          />
         </div>
         <div>
-          <label className="mb-1 block text-xs text-ink-muted">Code</label>
+          <label className="mb-1 block text-xs text-ink-muted">{t('addField.code')}</label>
           <input
             className={`${inputClass} font-mono`}
             value={code}
@@ -104,43 +111,43 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
               setCode(e.target.value);
               setCodeTouched(true);
             }}
-            placeholder="quantity_received"
+            placeholder={t('addField.codePlaceholder')}
           />
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-xs text-ink-muted">Type</label>
+          <label className="mb-1 block text-xs text-ink-muted">{t('addField.type')}</label>
           <select className={inputClass} value={fieldType} onChange={(e) => setFieldType(e.target.value as FieldType)}>
-            {FIELD_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {t}
+            {FIELD_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {t(`fieldType.${type}`)}
               </option>
             ))}
           </select>
         </div>
         <label className="flex items-end gap-2 pb-2 text-sm text-ink">
           <input type="checkbox" checked={isRequired} onChange={(e) => setIsRequired(e.target.checked)} />
-          Required
+          {t('addField.required')}
         </label>
       </div>
 
       {fieldType === 'Dropdown' && (
         <div>
-          <label className="mb-1 block text-xs text-ink-muted">Options</label>
+          <label className="mb-1 block text-xs text-ink-muted">{t('addField.options')}</label>
           <div className="space-y-1.5">
             {options.map((opt, i) => (
               <div key={i} className="flex gap-2">
                 <input
                   className={inputClass}
-                  placeholder="Stored value (e.g. good)"
+                  placeholder={t('addField.optionValuePlaceholder')}
                   value={opt.value}
                   onChange={(e) => updateOption(i, 'value', e.target.value)}
                 />
                 <input
                   className={inputClass}
-                  placeholder="Shown label (e.g. Good)"
+                  placeholder={t('addField.optionLabelPlaceholder')}
                   value={opt.label}
                   onChange={(e) => updateOption(i, 'label', e.target.value)}
                 />
@@ -152,16 +159,16 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
             onClick={() => setOptions((prev) => [...prev, { value: '', label: '' }])}
             className="mt-2 text-[11px] uppercase tracking-wide text-ink-muted hover:text-ink"
           >
-            + Add option
+            {t('addField.addOption')}
           </button>
         </div>
       )}
 
       {fieldType === 'Lookup' && (
         <div>
-          <label className="mb-1 block text-xs text-ink-muted">Looks up records from</label>
+          <label className="mb-1 block text-xs text-ink-muted">{t('addField.looksUpFrom')}</label>
           <select className={inputClass} value={lookupTargetId} onChange={(e) => setLookupTargetId(e.target.value)}>
-            <option value="">Select a form…</option>
+            <option value="">{t('addField.selectForm')}</option>
             {lookupTargets.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.name} ({f.moduleName})
@@ -178,7 +185,7 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
         disabled={submitting}
         className="bg-ink px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
       >
-        {submitting ? 'Adding…' : 'Add field'}
+        {submitting ? t('addField.adding') : t('addField.addField')}
       </button>
     </form>
   );
