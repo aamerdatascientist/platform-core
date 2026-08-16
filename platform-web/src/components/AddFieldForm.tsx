@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api, ApiError } from '../api/client';
+import { api } from '../api/client';
+import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { FieldType, FormSummaryDto } from '../types';
 
 interface AddFieldFormProps {
@@ -32,7 +33,7 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
   const [options, setOptions] = useState<{ value: string; label: string }[]>([{ value: '', label: '' }]);
   const [lookupTargetId, setLookupTargetId] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useErrorMessage();
 
   function handleLabelChange(value: string) {
     setLabel(value);
@@ -48,15 +49,15 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
     setError(null);
 
     if (!label.trim() || !code.trim()) {
-      setError(t('addField.requiredError'));
+      setError({ key: 'addField.requiredError' });
       return;
     }
     if (fieldType === 'Dropdown' && !options.some((o) => o.value.trim() && o.label.trim())) {
-      setError(t('addField.dropdownOptionError'));
+      setError({ key: 'addField.dropdownOptionError' });
       return;
     }
     if (fieldType === 'Lookup' && !lookupTargetId) {
-      setError(t('addField.lookupTargetError'));
+      setError({ key: 'addField.lookupTargetError' });
       return;
     }
 
@@ -82,7 +83,7 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
       setLookupTargetId('');
       onAdded();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('addField.addFieldError'));
+      setError({ err, fallbackKey: 'addField.addFieldError' });
     } finally {
       setSubmitting(false);
     }

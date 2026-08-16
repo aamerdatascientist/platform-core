@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api, ApiError } from '../api/client';
+import { api } from '../api/client';
 import { setTokens } from '../auth/tokenStore';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { Logo } from '../components/Logo';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { useErrorMessage } from '../hooks/useErrorMessage';
 
 export function SignIn() {
   const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useErrorMessage();
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -21,7 +22,7 @@ export function SignIn() {
       const tokens = await api.auth.login(email, password);
       setTokens(tokens);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('signIn.genericError'));
+      setError({ err, fallbackKey: 'signIn.genericError' });
     } finally {
       setSubmitting(false);
     }

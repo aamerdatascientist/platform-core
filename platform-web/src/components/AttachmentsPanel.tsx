@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api, ApiError } from '../api/client';
+import { api } from '../api/client';
+import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { FieldDefinitionDto, FileMetadataDto } from '../types';
 import { LoadingSpinner } from './LoadingSpinner';
 
@@ -16,7 +17,7 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
   const [files, setFiles] = useState<FileMetadataDto[] | null>(null);
   const [selectedField, setSelectedField] = useState(attachmentFields[0]?.code ?? '');
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useErrorMessage();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -28,7 +29,7 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
     try {
       setFiles(await api.files.listForRecord(token, recordId));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('attachmentsPanel.loadError'));
+      setError({ err, fallbackKey: 'attachmentsPanel.loadError' });
     }
   }
 
@@ -42,7 +43,7 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
       await api.files.upload(token, formId, recordId, selectedField, file);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('attachmentsPanel.uploadError'));
+      setError({ err, fallbackKey: 'attachmentsPanel.uploadError' });
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -54,7 +55,7 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
       const { url } = await api.files.getDownloadUrl(token, fileId);
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('attachmentsPanel.openError'));
+      setError({ err, fallbackKey: 'attachmentsPanel.openError' });
     }
   }
 
@@ -63,7 +64,7 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
       await api.files.delete(token, fileId);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('attachmentsPanel.deleteError'));
+      setError({ err, fallbackKey: 'attachmentsPanel.deleteError' });
     }
   }
 

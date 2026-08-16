@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
-import { api, ApiError } from '../api/client';
+import { api } from '../api/client';
 import type { FormSummaryDto } from '../types';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { useErrorMessage } from '../hooks/useErrorMessage';
 
 function slugify(input: string): string {
   return input.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
@@ -17,7 +18,7 @@ export function BuilderHome({ token }: { token: string }) {
   const [code, setCode] = useState('');
   const [codeTouched, setCodeTouched] = useState(false);
   const [moduleName, setModuleName] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useErrorMessage();
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
 
@@ -39,7 +40,7 @@ export function BuilderHome({ token }: { token: string }) {
     e.preventDefault();
     setError(null);
     if (!name.trim() || !code.trim() || !moduleName.trim()) {
-      setError(t('builderHome.requiredError'));
+      setError({ key: 'builderHome.requiredError' });
       return;
     }
     setSubmitting(true);
@@ -47,7 +48,7 @@ export function BuilderHome({ token }: { token: string }) {
       const result = await api.forms.create(token, { code, name, moduleName });
       navigate(`/builder/${result.id}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('builderHome.createError'));
+      setError({ err, fallbackKey: 'builderHome.createError' });
     } finally {
       setSubmitting(false);
     }

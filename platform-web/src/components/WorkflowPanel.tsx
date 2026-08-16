@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
+import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { WorkflowStatusDto } from '../types';
 
 interface WorkflowPanelProps {
@@ -20,7 +21,7 @@ export function WorkflowPanel({ token, recordId, onChanged }: WorkflowPanelProps
   const [hasWorkflow, setHasWorkflow] = useState(true);
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useErrorMessage();
 
   useEffect(() => {
     load();
@@ -37,7 +38,7 @@ export function WorkflowPanel({ token, recordId, onChanged }: WorkflowPanelProps
       if (err instanceof ApiError && err.status === 404) {
         setHasWorkflow(false);
       } else {
-        setError(err instanceof ApiError ? err.message : t('workflowPanel.loadError'));
+        setError({ err, fallbackKey: 'workflowPanel.loadError' });
       }
     }
   }
@@ -51,7 +52,7 @@ export function WorkflowPanel({ token, recordId, onChanged }: WorkflowPanelProps
       await load();
       onChanged?.();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('workflowPanel.actionError'));
+      setError({ err, fallbackKey: 'workflowPanel.actionError' });
     } finally {
       setBusy(false);
     }

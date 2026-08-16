@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api, ApiError } from '../api/client';
+import { api } from '../api/client';
+import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { FormSummaryDto } from '../types';
 import { LoadingSpinner } from './LoadingSpinner';
 
@@ -12,7 +13,7 @@ interface FormPickerProps {
 export function FormPicker({ token }: FormPickerProps) {
   const { t } = useTranslation();
   const [forms, setForms] = useState<FormSummaryDto[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useErrorMessage();
   const [indicator, setIndicator] = useState<{ top: number; height: number } | null>(null);
   const navigate = useNavigate();
   const { formId: selectedFormId } = useParams<{ formId: string }>();
@@ -23,7 +24,7 @@ export function FormPicker({ token }: FormPickerProps) {
     api.forms
       .list(token)
       .then(setForms)
-      .catch((err) => setError(err instanceof ApiError ? err.message : 'Could not load forms.'));
+      .catch((err) => setError({ err, fallbackKey: 'sidebar.loadFormsError' }));
   }, [token]);
 
   // Measures the actual DOM position of the active item rather than computing it

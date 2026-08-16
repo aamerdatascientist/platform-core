@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api, ApiError } from '../api/client';
+import { api } from '../api/client';
 import type { RoleDto, UserSummaryDto } from '../types';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { useErrorMessage } from '../hooks/useErrorMessage';
 
 interface UserManagementProps {
   token: string;
@@ -12,7 +13,7 @@ export function UserManagement({ token }: UserManagementProps) {
   const { t } = useTranslation();
   const [users, setUsers] = useState<UserSummaryDto[] | null>(null);
   const [roles, setRoles] = useState<RoleDto[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useErrorMessage();
 
   const [creatingUser, setCreatingUser] = useState(false);
   const [newEmail, setNewEmail] = useState('');
@@ -41,7 +42,7 @@ export function UserManagement({ token }: UserManagementProps) {
       setUsers(u);
       setRoles(r);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('userManagement.loadError'));
+      setError({ err, fallbackKey: 'userManagement.loadError' });
     }
   }
 
@@ -49,7 +50,7 @@ export function UserManagement({ token }: UserManagementProps) {
     e.preventDefault();
     setError(null);
     if (!newEmail.trim() || !newDisplayName.trim() || newPassword.length < 10 || !newUserRoleId) {
-      setError(t('userManagement.createUserRequiredError'));
+      setError({ key: 'userManagement.createUserRequiredError' });
       return;
     }
     setSubmittingUser(true);
@@ -68,7 +69,7 @@ export function UserManagement({ token }: UserManagementProps) {
       setCreatingUser(false);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('userManagement.createUserError'));
+      setError({ err, fallbackKey: 'userManagement.createUserError' });
     } finally {
       setSubmittingUser(false);
     }
@@ -80,7 +81,7 @@ export function UserManagement({ token }: UserManagementProps) {
       await api.users.setActiveStatus(token, user.id, !user.isActive);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('userManagement.toggleActiveError'));
+      setError({ err, fallbackKey: 'userManagement.toggleActiveError' });
     }
   }
 
@@ -106,7 +107,7 @@ export function UserManagement({ token }: UserManagementProps) {
       setEditingRolesFor(null);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('userManagement.saveRolesError'));
+      setError({ err, fallbackKey: 'userManagement.saveRolesError' });
     } finally {
       setSavingRoles(false);
     }
@@ -116,7 +117,7 @@ export function UserManagement({ token }: UserManagementProps) {
     e.preventDefault();
     setError(null);
     if (!newRoleName.trim()) {
-      setError(t('userManagement.roleNameRequired'));
+      setError({ key: 'userManagement.roleNameRequired' });
       return;
     }
     setSubmittingRole(true);
@@ -127,7 +128,7 @@ export function UserManagement({ token }: UserManagementProps) {
       setCreatingRole(false);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('userManagement.createRoleError'));
+      setError({ err, fallbackKey: 'userManagement.createRoleError' });
     } finally {
       setSubmittingRole(false);
     }

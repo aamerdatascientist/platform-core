@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import { api, ApiError } from '../api/client';
+import { api } from '../api/client';
 import { AttachmentsPanel } from '../components/AttachmentsPanel';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { FormRenderer } from '../components/FormRenderer';
 import { SubmissionsTable } from '../components/SubmissionsTable';
 import { WorkflowPanel } from '../components/WorkflowPanel';
+import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { DynamicRow, FormDefinitionDto } from '../types';
 
 interface FormViewProps {
@@ -20,7 +21,7 @@ export function FormView({ token }: FormViewProps) {
   const [formDefinition, setFormDefinition] = useState<FormDefinitionDto | null>(null);
   const [submissions, setSubmissions] = useState<DynamicRow[]>([]);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useErrorMessage();
 
   useEffect(() => {
     if (!formId) return;
@@ -31,7 +32,7 @@ export function FormView({ token }: FormViewProps) {
       .then(setFormDefinition)
       .catch((err) => {
         setFormDefinition(null);
-        setError(err instanceof ApiError ? err.message : t('formView.loadError'));
+        setError({ err, fallbackKey: 'formView.loadError' });
       });
     loadSubmissions(formId);
     // eslint-disable-next-line react-hooks/exhaustive-deps

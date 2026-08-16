@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
+import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { DropdownOption, FieldDefinitionDto, FormDefinitionDto } from '../types';
 
 interface FormRendererProps {
@@ -13,6 +14,13 @@ interface LookupChoice {
   id: string;
   label: string;
 }
+
+// A sentinel (rather than the resolved text) for the one per-field message this component
+// itself generates, so FieldInput can re-translate it live on a language switch - unlike
+// the other values fieldErrors can hold, which come from the backend's SubmissionValueValidator
+// already resolved to English text and (per FormRenderer's own submit handler) intentionally
+// left untranslated.
+const FIELD_REQUIRED_SENTINEL = '__FIELD_REQUIRED__';
 
 /**
  * Renders a submission form for ANY published form, driven entirely by its field
@@ -44,7 +52,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
   const [attachmentFiles, setAttachmentFiles] = useState<Record<string, File>>({});
   const [lookupChoices, setLookupChoices] = useState<Record<string, LookupChoice[]>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useErrorMessage();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -118,7 +126,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
     activeFields.forEach((f) => {
       if (!f.isRequired) return;
       const isMissing = f.fieldType === 'Attachment' ? !attachmentFiles[f.code] : !values[f.code];
-      if (isMissing) missing[f.code] = t('formRenderer.fieldRequired');
+      if (isMissing) missing[f.code] = FIELD_REQUIRED_SENTINEL;
     });
     if (Object.keys(missing).length > 0) {
       setFieldErrors(missing);
@@ -162,12 +170,10 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
         if (failedLabels.length > 0) {
           // The record itself saved fine - only the file(s) failed. Say so plainly rather
           // than implying the whole submission failed, since the data wasn't lost.
-          setError(
-            t('formRenderer.partialUploadFailure', {
-              count: failedLabels.length,
-              files: failedLabels.join(', '),
-            }),
-          );
+          setError({
+            key: 'formRenderer.partialUploadFailure',
+            params: { count: failedLabels.length, files: failedLabels.join(', ') },
+          });
         }
       }
 
@@ -185,7 +191,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
         setFieldErrors(perField);
         setError(null);
       } else {
-        setError(err instanceof ApiError ? err.message : t('formRenderer.submitFailed'));
+        setError({ err, fallbackKey: 'formRenderer.submitFailed' });
       }
     } finally {
       setSubmitting(false);
@@ -307,7 +313,11 @@ function FieldInput({
         <input type="text" className={baseClass} value={value} onChange={(e) => onChange(e.target.value)} />
       )}
 
-      {error && <p className="mt-1 text-xs text-clay">{error}</p>}
+      {error && (
+        <p className="mt-1 text-xs text-clay">
+          {error === FIELD_REQUIRED_SENTINEL ? t('formRenderer.fieldRequired') : error}
+        </p>
+      )}
     </div>
   );
 }

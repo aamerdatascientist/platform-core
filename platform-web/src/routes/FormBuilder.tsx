@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { AddFieldForm } from '../components/AddFieldForm';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { FormDefinitionDto, FormSummaryDto, RoleDto, UserSummaryDto } from '../types';
 
 export function FormBuilder({ token }: { token: string }) {
@@ -15,7 +16,7 @@ export function FormBuilder({ token }: { token: string }) {
   const [allForms, setAllForms] = useState<FormSummaryDto[]>([]);
   const [roles, setRoles] = useState<RoleDto[]>([]);
   const [users, setUsers] = useState<UserSummaryDto[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useErrorMessage();
   const [publishing, setPublishing] = useState(false);
   const [startingNewVersion, setStartingNewVersion] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -43,7 +44,7 @@ export function FormBuilder({ token }: { token: string }) {
       setPendingRoleIds(new Set(def.allowedRoleIds));
       setPendingUserIds(new Set(def.allowedUserIds));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('formBuilder.loadError'));
+      setError({ err, fallbackKey: 'formBuilder.loadError' });
     }
   }
 
@@ -53,7 +54,7 @@ export function FormBuilder({ token }: { token: string }) {
       await api.forms.removeField(token, formId, fieldId);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('formBuilder.removeFieldError'));
+      setError({ err, fallbackKey: 'formBuilder.removeFieldError' });
     }
   }
 
@@ -65,7 +66,7 @@ export function FormBuilder({ token }: { token: string }) {
       await api.forms.publish(token, formId);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('formBuilder.publishError'));
+      setError({ err, fallbackKey: 'formBuilder.publishError' });
     } finally {
       setPublishing(false);
     }
@@ -79,12 +80,12 @@ export function FormBuilder({ token }: { token: string }) {
       await api.forms.startNewVersion(token, formId);
       await load();
     } catch (err) {
-      if (err instanceof ApiError && err.message.includes('already has an open draft')) {
+      if (err instanceof ApiError && err.code === 'form.startVersion.draftAlreadyOpen') {
         // Not a real failure - someone else (or another tab) already started one.
         // Reload so the field editor shows it, rather than surfacing an alarming error.
         await load();
       } else {
-        setError(err instanceof ApiError ? err.message : t('formBuilder.startVersionError'));
+        setError({ err, fallbackKey: 'formBuilder.startVersionError' });
       }
     } finally {
       setStartingNewVersion(false);
@@ -99,7 +100,7 @@ export function FormBuilder({ token }: { token: string }) {
       await api.forms.delete(token, formId);
       navigate('/builder');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('formBuilder.deleteError'));
+      setError({ err, fallbackKey: 'formBuilder.deleteError' });
       setConfirmingDelete(false);
     } finally {
       setDeleting(false);
@@ -135,7 +136,7 @@ export function FormBuilder({ token }: { token: string }) {
       ]);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : t('formBuilder.accessError'));
+      setError({ err, fallbackKey: 'formBuilder.accessError' });
     } finally {
       setSavingAccess(false);
     }
