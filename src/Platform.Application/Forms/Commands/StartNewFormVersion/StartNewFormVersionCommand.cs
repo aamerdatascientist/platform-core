@@ -42,6 +42,15 @@ public class StartNewFormVersionCommandHandler : IRequestHandler<StartNewFormVer
         {
             newVersion = formDefinition.StartNewDraftVersion();
         }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("already has an open draft"))
+        {
+            // Given a stable code (rather than relying on the frontend string-matching this
+            // English message) since FormBuilder treats this specific case as "not a real
+            // failure" - someone else already started the draft - and just reloads instead
+            // of showing an error. A raw string match would silently stop working the moment
+            // this message is translated or reworded.
+            throw new Common.Exceptions.ValidationException("form.startVersion.draftAlreadyOpen", ex.Message);
+        }
         catch (InvalidOperationException ex)
         {
             throw new Common.Exceptions.ValidationException(new[]

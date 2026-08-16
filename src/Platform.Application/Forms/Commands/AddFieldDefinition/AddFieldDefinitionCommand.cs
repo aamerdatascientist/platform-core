@@ -57,13 +57,14 @@ public class AddFieldDefinitionCommandHandler : IRequestHandler<AddFieldDefiniti
             // column name and can't be. The other ArgumentExceptions AddField/Create can
             // throw (missing OptionsJson/LookupFormDefinitionId) always set ParamName, so
             // this guard is what keeps this catch scoped to the Code case specifically.
-            throw new Common.Exceptions.ValidationException(new[]
-            {
-                new FluentValidation.Results.ValidationFailure(nameof(request.Code),
-                    "Code must be Latin letters, digits, and underscores only, starting with a letter " +
-                    "(e.g. 'quantity_received') - it becomes a database column name. Use 'Field name' for " +
-                    "the human-readable label shown on the form, which can be in any language.")
-            });
+            // Code is given a stable identity ("form.field.codeMustBeLatin") rather than
+            // just a message so the frontend can show this fully localized, not just in
+            // whatever language the backend happens to write English strings in.
+            throw new Common.Exceptions.ValidationException(
+                "form.field.codeMustBeLatin",
+                "Code must be Latin letters, digits, and underscores only, starting with a letter " +
+                "(e.g. 'quantity_received') - it becomes a database column name. Use 'Field name' for " +
+                "the human-readable label shown on the form, which can be in any language.");
         }
 
         _db.FieldDefinitions.Add(field);
