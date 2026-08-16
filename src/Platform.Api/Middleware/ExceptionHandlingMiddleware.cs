@@ -30,7 +30,7 @@ public class ExceptionHandlingMiddleware
         }
         catch (ValidationException ex)
         {
-            await WriteProblemAsync(context, HttpStatusCode.BadRequest, "Validation Failed", ex.Message, ex.Errors);
+            await WriteProblemAsync(context, HttpStatusCode.BadRequest, "Validation Failed", ex.Message, ex.Errors, ex.Code);
         }
         catch (NotFoundException ex)
         {
@@ -49,12 +49,12 @@ public class ExceptionHandlingMiddleware
     }
 
     private static async Task WriteProblemAsync(
-        HttpContext context, HttpStatusCode statusCode, string title, string detail, object? errors = null)
+        HttpContext context, HttpStatusCode statusCode, string title, string detail, object? errors = null, string? code = null)
     {
         context.Response.ContentType = "application/problem+json";
         context.Response.StatusCode = (int)statusCode;
 
-        var payload = new { title, status = (int)statusCode, detail, errors };
+        var payload = new { title, status = (int)statusCode, detail, errors, code };
         await context.Response.WriteAsync(JsonSerializer.Serialize(payload));
     }
 }
