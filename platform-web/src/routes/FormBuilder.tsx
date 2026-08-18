@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { AddFieldForm } from '../components/AddFieldForm';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { FormDefinitionDto, FormSummaryDto, RoleDto, UserSummaryDto } from '../types';
 
 export function FormBuilder({ token }: { token: string }) {
+  const { t } = useTranslation();
   const { formId } = useParams<{ formId: string }>();
   const navigate = useNavigate();
 
@@ -13,7 +16,7 @@ export function FormBuilder({ token }: { token: string }) {
   const [allForms, setAllForms] = useState<FormSummaryDto[]>([]);
   const [roles, setRoles] = useState<RoleDto[]>([]);
   const [users, setUsers] = useState<UserSummaryDto[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useErrorMessage();
   const [publishing, setPublishing] = useState(false);
   const [startingNewVersion, setStartingNewVersion] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
@@ -41,7 +44,7 @@ export function FormBuilder({ token }: { token: string }) {
       setPendingRoleIds(new Set(def.allowedRoleIds));
       setPendingUserIds(new Set(def.allowedUserIds));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not load this form.');
+      setError({ err, fallbackKey: 'formBuilder.loadError' });
     }
   }
 
@@ -51,7 +54,7 @@ export function FormBuilder({ token }: { token: string }) {
       await api.forms.removeField(token, formId, fieldId);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not remove that field.');
+      setError({ err, fallbackKey: 'formBuilder.removeFieldError' });
     }
   }
 
@@ -63,7 +66,7 @@ export function FormBuilder({ token }: { token: string }) {
       await api.forms.publish(token, formId);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not publish this form.');
+      setError({ err, fallbackKey: 'formBuilder.publishError' });
     } finally {
       setPublishing(false);
     }
@@ -77,12 +80,12 @@ export function FormBuilder({ token }: { token: string }) {
       await api.forms.startNewVersion(token, formId);
       await load();
     } catch (err) {
-      if (err instanceof ApiError && err.message.includes('already has an open draft')) {
+      if (err instanceof ApiError && err.code === 'form.startVersion.draftAlreadyOpen') {
         // Not a real failure - someone else (or another tab) already started one.
         // Reload so the field editor shows it, rather than surfacing an alarming error.
         await load();
       } else {
-        setError(err instanceof ApiError ? err.message : 'Could not start a new draft for this form.');
+        setError({ err, fallbackKey: 'formBuilder.startVersionError' });
       }
     } finally {
       setStartingNewVersion(false);
@@ -97,7 +100,7 @@ export function FormBuilder({ token }: { token: string }) {
       await api.forms.delete(token, formId);
       navigate('/builder');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not delete this form.');
+      setError({ err, fallbackKey: 'formBuilder.deleteError' });
       setConfirmingDelete(false);
     } finally {
       setDeleting(false);
@@ -133,7 +136,7 @@ export function FormBuilder({ token }: { token: string }) {
       ]);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not update access for this form.');
+      setError({ err, fallbackKey: 'formBuilder.accessError' });
     } finally {
       setSavingAccess(false);
     }
@@ -144,7 +147,7 @@ export function FormBuilder({ token }: { token: string }) {
     return (
       <div className="flex items-center gap-2">
         <LoadingSpinner size="sm" />
-        <span className="text-xs uppercase tracking-wide text-ink-muted">Loading…</span>
+        <span className="text-xs uppercase tracking-wide text-ink-muted">{t('common.loading')}</span>
       </div>
     );
 
@@ -167,11 +170,11 @@ export function FormBuilder({ token }: { token: string }) {
               isPublished ? 'border-moss text-moss' : 'border-signal-dark text-signal-dark'
             }`}
           >
-            {formDefinition.status}
+            {t(`formStatus.${formDefinition.status}`)}
           </span>
           {isPublished && hasDraft && (
             <span className="border border-signal-dark px-2 py-0.5 text-[11px] uppercase tracking-wider text-signal-dark">
-              Editing new version
+              {t('formBuilder.editingNewVersion')}
             </span>
           )}
         </div>
@@ -181,17 +184,17 @@ export function FormBuilder({ token }: { token: string }) {
       </div>
 
       <div className="border border-line bg-white p-4">
-        <h3 className="mb-1 text-[11px] font-medium uppercase tracking-wider text-ink-muted">Access</h3>
+        <h3 className="mb-1 text-[11px] font-medium uppercase tracking-wider text-ink-muted">{t('formBuilder.access')}</h3>
         <p className="mb-3 text-sm text-ink-muted">
           {formDefinition.allowedRoleIds.length === 0 && formDefinition.allowedUserIds.length === 0
-            ? 'Visible to everyone. Check a role or specific user below to restrict access.'
-            : 'Restricted - access is allowed by role, by specific user, or both, below.'}
+            ? t('formBuilder.accessOpenDescription')
+            : t('formBuilder.accessRestrictedDescription')}
         </p>
 
-        <p className="mb-1 text-xs font-medium text-ink-muted">By role</p>
+        <p className="mb-1 text-xs font-medium text-ink-muted">{t('formBuilder.byRole')}</p>
         <div className="mb-4 flex flex-wrap gap-3">
           {roles.length === 0 ? (
-            <span className="text-sm text-ink-muted">No roles exist yet - create one from the Users page first.</span>
+            <span className="text-sm text-ink-muted">{t('formBuilder.noRolesYet')}</span>
           ) : (
             roles.map((r) => (
               <label key={r.id} className="flex items-center gap-1.5 text-sm text-ink">
@@ -202,10 +205,10 @@ export function FormBuilder({ token }: { token: string }) {
           )}
         </div>
 
-        <p className="mb-1 text-xs font-medium text-ink-muted">By specific user (in addition to any role above)</p>
+        <p className="mb-1 text-xs font-medium text-ink-muted">{t('formBuilder.byUser')}</p>
         <div className="mb-3 flex flex-wrap gap-3">
           {users.length === 0 ? (
-            <span className="text-sm text-ink-muted">No users exist yet.</span>
+            <span className="text-sm text-ink-muted">{t('formBuilder.noUsersYet')}</span>
           ) : (
             users.map((u) => (
               <label key={u.id} className="flex items-center gap-1.5 text-sm text-ink">
@@ -221,45 +224,39 @@ export function FormBuilder({ token }: { token: string }) {
           disabled={savingAccess || !accessChanged}
           className="bg-ink px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
         >
-          {savingAccess ? 'Saving…' : 'Save access'}
+          {savingAccess ? t('formBuilder.savingAccess') : t('formBuilder.saveAccess')}
         </button>
       </div>
 
       {isPublished && !hasDraft && (
         <div className="flex items-center justify-between gap-3 border border-line bg-white p-3">
-          <p className="text-sm text-ink-muted">
-            This form is published. To add more fields, start a new draft version - existing fields and submitted
-            data carry forward untouched.
-          </p>
+          <p className="text-sm text-ink-muted">{t('formBuilder.publishedNoDraftPrompt')}</p>
           <button
             onClick={handleStartNewVersion}
             disabled={startingNewVersion}
             className="shrink-0 bg-ink px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
           >
-            {startingNewVersion ? 'Starting…' : '+ Add more fields'}
+            {startingNewVersion ? t('formBuilder.startingNewVersion') : t('formBuilder.addMoreFields')}
           </button>
         </div>
       )}
 
       {isPublished && hasDraft && (
-        <p className="border border-line bg-white p-3 text-sm text-ink-muted">
-          You're editing a new version of this published form. The currently live version keeps working exactly as
-          it is until you publish these changes.
-        </p>
+        <p className="border border-line bg-white p-3 text-sm text-ink-muted">{t('formBuilder.editingPublishedNote')}</p>
       )}
 
       <div>
         <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">
-          Fields ({fields.length})
+          {t('formBuilder.fieldsCount', { count: fields.length })}
         </h3>
         <div className="space-y-1">
           {fields.map((f) => (
             <div key={f.id} className="flex items-center justify-between border border-line bg-white px-3 py-2 text-sm">
               <span>
                 <span className="font-medium text-ink">{f.label}</span>
-                <span className="ml-2 font-mono text-xs text-ink-muted">
-                  {f.code} · {f.fieldType}
-                  {f.isRequired ? ' · required' : ''}
+                <span className="ms-2 font-mono text-xs text-ink-muted">
+                  {f.code} · {t(`fieldType.${f.fieldType}`)}
+                  {f.isRequired ? ` · ${t('formBuilder.required')}` : ''}
                 </span>
               </span>
               {hasDraft && (
@@ -267,19 +264,21 @@ export function FormBuilder({ token }: { token: string }) {
                   onClick={() => handleRemoveField(f.id)}
                   className="text-[11px] uppercase tracking-wide text-clay hover:opacity-70"
                 >
-                  Remove
+                  {t('common.remove')}
                 </button>
               )}
             </div>
           ))}
-          {fields.length === 0 && <p className="text-sm text-ink-muted">No fields yet - add one below.</p>}
+          {fields.length === 0 && <p className="text-sm text-ink-muted">{t('formBuilder.noFieldsYet')}</p>}
         </div>
       </div>
 
       {hasDraft && (
         <>
           <div>
-            <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">Add a field</h3>
+            <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">
+              {t('formBuilder.addAField')}
+            </h3>
             <AddFieldForm
               token={token}
               formId={formId!}
@@ -295,12 +294,9 @@ export function FormBuilder({ token }: { token: string }) {
               disabled={publishing || fields.length === 0}
               className="bg-ink px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
             >
-              {publishing ? 'Publishing…' : 'Publish form'}
+              {publishing ? t('formBuilder.publishing') : t('formBuilder.publishForm')}
             </button>
-            <p className="mt-2 text-xs text-ink-muted">
-              Publishing creates or updates the real database table for this form. Fields can be removed freely
-              until then - not after.
-            </p>
+            <p className="mt-2 text-xs text-ink-muted">{t('formBuilder.publishNote')}</p>
           </div>
         </>
       )}
@@ -310,7 +306,7 @@ export function FormBuilder({ token }: { token: string }) {
           onClick={() => navigate(`/forms/${formId}`)}
           className="text-xs uppercase tracking-wide text-ink-muted hover:text-ink"
         >
-          Go fill out this form →
+          {t('formBuilder.goFillOutForm')}
         </button>
       )}
 
@@ -321,14 +317,14 @@ export function FormBuilder({ token }: { token: string }) {
             onClick={() => setConfirmingDelete(true)}
             className="text-[11px] uppercase tracking-wide text-clay hover:opacity-70"
           >
-            Delete this form
+            {t('formBuilder.deleteThisForm')}
           </button>
         ) : (
           <div className="border border-clay bg-white p-3">
             <p className="mb-2 text-sm text-ink">
               {formDefinition.status === 'Published'
-                ? "This form has been published - deleting it hides it everywhere, but any submitted data stays intact and isn't deleted. This can't be undone from here."
-                : "This form was never published, so deleting it removes it completely. This can't be undone."}
+                ? t('formBuilder.deleteConfirmPublished')
+                : t('formBuilder.deleteConfirmDraft')}
             </p>
             {error && <p className="mb-2 text-sm text-clay">{error}</p>}
             <div className="flex gap-2">
@@ -337,10 +333,10 @@ export function FormBuilder({ token }: { token: string }) {
                 disabled={deleting}
                 className="bg-clay px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
               >
-                {deleting ? 'Deleting…' : 'Yes, delete it'}
+                {deleting ? t('formBuilder.deleting') : t('formBuilder.yesDeleteIt')}
               </button>
               <button onClick={() => setConfirmingDelete(false)} className="px-3 py-1.5 text-sm text-ink-muted">
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>

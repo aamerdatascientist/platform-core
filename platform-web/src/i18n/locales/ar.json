@@ -1,0 +1,202 @@
+{
+  "sidebar": {
+    "signOut": "تسجيل الخروج",
+    "openMenu": "فتح القائمة",
+    "buildForms": "+ إنشاء نموذج",
+    "users": "المستخدمون",
+    "loading": "جارٍ التحميل…",
+    "noForms": "لا توجد نماذج بعد.",
+    "notPublished": "لم يُنشر بعد",
+    "draft": "مسودة",
+    "loadFormsError": "تعذر تحميل النماذج."
+  },
+  "common": {
+    "cancel": "إلغاء",
+    "loading": "جارٍ التحميل…",
+    "select": "اختر…",
+    "yes": "نعم",
+    "no": "لا",
+    "remove": "إزالة",
+    "empty": "—"
+  },
+  "signIn": {
+    "subtitle": "سجّل الدخول للمتابعة",
+    "emailPlaceholder": "البريد الإلكتروني",
+    "passwordPlaceholder": "كلمة المرور",
+    "signIn": "تسجيل الدخول",
+    "signingIn": "جارٍ تسجيل الدخول…",
+    "genericError": "تحقق من البريد الإلكتروني وكلمة المرور وحاول مرة أخرى."
+  },
+  "welcome": {
+    "title": "اختر نموذجًا للبدء",
+    "subtitle": "اختر واحدًا من القائمة على اليسار."
+  },
+  "formStatus": {
+    "Draft": "مسودة",
+    "Published": "منشور"
+  },
+  "fieldType": {
+    "ShortText": "نص قصير",
+    "LongText": "نص طويل",
+    "Number": "رقم",
+    "Decimal": "رقم عشري",
+    "Boolean": "منطقي (نعم/لا)",
+    "DateTime": "تاريخ/وقت",
+    "Dropdown": "قائمة منسدلة",
+    "Lookup": "بحث مرجعي",
+    "Attachment": "مرفق"
+  },
+  "builderHome": {
+    "title": "إنشاء النماذج",
+    "subtitle": "عرّف نموذجًا جديدًا، أو افتح نموذجًا موجودًا لإضافة حقول.",
+    "newForm": "+ نموذج جديد",
+    "formName": "اسم النموذج",
+    "formNamePlaceholder": "فحص التسليم",
+    "code": "الرمز",
+    "module": "الوحدة",
+    "modulePlaceholder": "إدارة المخزون",
+    "requiredError": "الاسم والرمز والوحدة كلها مطلوبة.",
+    "createError": "تعذر إنشاء هذا النموذج.",
+    "creating": "جارٍ الإنشاء…",
+    "createAndAddFields": "إنشاء وإضافة الحقول",
+    "existingForms": "النماذج الحالية",
+    "noForms": "لا توجد نماذج بعد - أنشئ أول نموذج أعلاه."
+  },
+  "addField": {
+    "fieldName": "اسم الحقل",
+    "fieldNamePlaceholder": "الكمية المستلمة",
+    "code": "الرمز",
+    "codePlaceholder": "quantity_received",
+    "type": "النوع",
+    "required": "مطلوب",
+    "options": "الخيارات",
+    "optionValuePlaceholder": "القيمة المخزنة (مثال: good)",
+    "optionLabelPlaceholder": "التسمية المعروضة (مثال: جيد)",
+    "addOption": "+ إضافة خيار",
+    "looksUpFrom": "يبحث عن سجلات من",
+    "selectForm": "اختر نموذجًا…",
+    "requiredError": "اسم الحقل والرمز كلاهما مطلوب.",
+    "dropdownOptionError": "أضف خيارًا واحدًا على الأقل لحقل القائمة المنسدلة.",
+    "lookupTargetError": "اختر النموذج الذي يبحث فيه هذا الحقل.",
+    "addFieldError": "تعذرت إضافة هذا الحقل.",
+    "adding": "جارٍ الإضافة…",
+    "addField": "إضافة حقل"
+  },
+  "formBuilder": {
+    "editingNewVersion": "جارٍ تعديل نسخة جديدة",
+    "access": "الوصول",
+    "accessOpenDescription": "مرئي للجميع. حدد دورًا أو مستخدمًا معينًا أدناه لتقييد الوصول.",
+    "accessRestrictedDescription": "مقيّد - الوصول مسموح حسب الدور، أو مستخدم معين، أو كلاهما أدناه.",
+    "byRole": "حسب الدور",
+    "noRolesYet": "لا توجد أدوار بعد - أنشئ واحدًا من صفحة المستخدمين أولًا.",
+    "byUser": "حسب مستخدم معين (بالإضافة إلى أي دور أعلاه)",
+    "noUsersYet": "لا يوجد مستخدمون بعد.",
+    "saveAccess": "حفظ الوصول",
+    "savingAccess": "جارٍ الحفظ…",
+    "publishedNoDraftPrompt": "هذا النموذج منشور. لإضافة المزيد من الحقول، ابدأ نسخة مسودة جديدة - الحقول الحالية والبيانات المُرسلة تُنقل دون تغيير.",
+    "addMoreFields": "+ إضافة المزيد من الحقول",
+    "startingNewVersion": "جارٍ البدء…",
+    "editingPublishedNote": "أنت تعدّل نسخة جديدة من هذا النموذج المنشور. النسخة المباشرة الحالية تستمر بالعمل كما هي حتى تنشر هذه التغييرات.",
+    "fieldsCount": "الحقول ({{count}})",
+    "required": "مطلوب",
+    "noFieldsYet": "لا توجد حقول بعد - أضف واحدًا أدناه.",
+    "addAField": "إضافة حقل",
+    "publishForm": "نشر النموذج",
+    "publishing": "جارٍ النشر…",
+    "publishNote": "النشر ينشئ أو يحدّث جدول قاعدة البيانات الفعلي لهذا النموذج. يمكن إزالة الحقول بحرية حتى ذلك الحين - وليس بعده.",
+    "goFillOutForm": "← اذهب لملء هذا النموذج",
+    "deleteThisForm": "حذف هذا النموذج",
+    "deleteConfirmPublished": "هذا النموذج منشور - حذفه يخفيه في كل مكان، لكن أي بيانات مُرسلة تبقى سليمة ولا تُحذف. لا يمكن التراجع عن هذا من هنا.",
+    "deleteConfirmDraft": "هذا النموذج لم يُنشر مطلقًا، لذا حذفه يزيله بالكامل. لا يمكن التراجع عن هذا.",
+    "yesDeleteIt": "نعم، احذفه",
+    "deleting": "جارٍ الحذف…",
+    "loadError": "تعذر تحميل هذا النموذج.",
+    "removeFieldError": "تعذرت إزالة هذا الحقل.",
+    "publishError": "تعذر نشر هذا النموذج.",
+    "startVersionError": "تعذر بدء مسودة جديدة لهذا النموذج.",
+    "deleteError": "تعذر حذف هذا النموذج.",
+    "accessError": "تعذر تحديث الوصول لهذا النموذج."
+  },
+  "formView": {
+    "recordsHeading": "السجلات - اختر واحدًا لعرض حالة سير العمل",
+    "selectRecordPrompt": "اختر سجلًا لعرض حالة سير العمل الخاصة به",
+    "andAttachments": " والمرفقات",
+    "loadError": "تعذر تحميل هذا النموذج."
+  },
+  "submissionsTable": {
+    "noRecords": "لا توجد سجلات بعد - ستظهر هنا أول عملية إرسال أعلاه."
+  },
+  "formRenderer": {
+    "fieldRequired": "مطلوب",
+    "loadingOptions": "جارٍ التحميل…",
+    "selected": "المحدد: {{name}}",
+    "submit": "إرسال",
+    "submitting": "جارٍ الإرسال…",
+    "submitFailed": "فشل الإرسال.",
+    "partialUploadFailure_one": "تم حفظ السجل، لكن تعذر رفع: {{files}}. يمكنك إضافته مرة أخرى باختيار هذا السجل أدناه.",
+    "partialUploadFailure_other": "تم حفظ السجل، لكن تعذر رفع: {{files}}. يمكنك إضافتها مرة أخرى باختيار هذا السجل أدناه.",
+    "noPublishedVersion": "هذا النموذج ليس له نسخة منشورة بعد."
+  },
+  "workflowPanel": {
+    "loadingStatus": "جارٍ تحميل الحالة…",
+    "status": "حالة سير العمل",
+    "commentPlaceholder": "أضف تعليقًا (اختياري)",
+    "noActionAvailable": "لا يوجد إجراء متاح لك في هذه المرحلة - قد لا تملك الدور المطلوب للتصرف بشأنها.",
+    "history": "السجل التاريخي ({{count}})",
+    "started": "بدأ",
+    "loadError": "تعذر تحميل حالة سير العمل.",
+    "actionError": "تعذر إكمال هذا الإجراء."
+  },
+  "attachmentsPanel": {
+    "title": "المرفقات",
+    "uploading": "جارٍ الرفع…",
+    "noFiles": "لا توجد ملفات مرفقة بعد.",
+    "loadError": "تعذر تحميل المرفقات.",
+    "uploadError": "فشل الرفع.",
+    "openError": "تعذر فتح هذا الملف.",
+    "deleteError": "تعذر حذف هذا الملف."
+  },
+  "apiErrors": {
+    "form": {
+      "field": {
+        "codeMustBeLatin": "يجب أن يتكون الرمز من حروف لاتينية وأرقام وشرطات سفلية فقط، ويبدأ بحرف (مثال: quantity_received) - لأنه يصبح اسم عمود في قاعدة البيانات. استخدم \"اسم الحقل\" للتسمية المقروءة التي تظهر في النموذج، ويمكن أن تكون بأي لغة."
+      }
+    }
+  },
+  "userManagement": {
+    "title": "المستخدمون والأدوار",
+    "subtitle": "أنشئ حسابات وعيّن أدوارًا - هذه هي الطريقة الوحيدة لإنشاء مستخدم الآن، فتسجيل Swagger العام مغلق. أعدّ الأدوار التي تحتاجها أولًا، ثم أنشئ المستخدمين وفقها.",
+    "loadError": "تعذر تحميل المستخدمين والأدوار.",
+    "roles": "الأدوار",
+    "system": "نظام",
+    "newRole": "+ دور جديد",
+    "roleName": "اسم الدور",
+    "roleNamePlaceholder": "مدير الموقع",
+    "descriptionOptional": "الوصف (اختياري)",
+    "createRole": "إنشاء دور",
+    "creating": "جارٍ الإنشاء…",
+    "roleNameRequired": "اسم الدور مطلوب.",
+    "createRoleError": "تعذر إنشاء هذا الدور.",
+    "users": "المستخدمون",
+    "newUser": "+ مستخدم جديد",
+    "email": "البريد الإلكتروني",
+    "displayName": "الاسم المعروض",
+    "passwordMinLength": "كلمة المرور (10 أحرف على الأقل)",
+    "initialRole": "الدور الأولي",
+    "onlyAdminExists": "لا يوجد سوى دور المسؤول حتى الآن - أضف دورًا أعلاه أولًا إذا احتجت شيئًا آخر.",
+    "canAddMoreRolesLater": "يمكنك إضافة المزيد من الأدوار بعد إنشاء الحساب.",
+    "createUser": "إنشاء مستخدم",
+    "createUserRequiredError": "جميع الحقول مطلوبة، ويجب ألا تقل كلمة المرور عن 10 أحرف.",
+    "createUserError": "تعذر إنشاء هذا المستخدم.",
+    "noRoles": "لا توجد أدوار",
+    "active": "نشط",
+    "deactivated": "معطّل",
+    "editRoles": "تعديل الأدوار",
+    "deactivate": "تعطيل",
+    "reactivate": "إعادة تفعيل",
+    "saveRoles": "حفظ الأدوار",
+    "saving": "جارٍ الحفظ…",
+    "toggleActiveError": "تعذر تحديث هذا المستخدم.",
+    "saveRolesError": "تعذر تحديث أدوار هذا المستخدم."
+  }
+}

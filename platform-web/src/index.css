@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Calibri Bold for both languages now (Phase 2) - same family, size, and weight
+   regardless of active language, so switching languages doesn't change the text's
+   visual weight. Fallback chain for non-Windows devices that don't have Calibri
+   installed - Segoe UI/Tahoma are the closest common substitutes. */
 body {
-  @apply bg-paper text-ink font-sans;
+  @apply bg-paper text-ink;
+  font-family: Calibri, 'Segoe UI', Tahoma, Arial, sans-serif;
+  font-weight: bold;
 }
