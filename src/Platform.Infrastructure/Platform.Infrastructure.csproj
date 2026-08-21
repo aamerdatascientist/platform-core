@@ -12,6 +12,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Historical SQL Server migrations, preserved for reference but excluded from the
+         build so EF Core tooling never sees them as candidates for the now-Postgres-backed
+         ApplicationDbContext - their ModelSnapshot and [DbContext] attributes would
+         otherwise make EF think they're still pending/active against the new provider. -->
+    <Compile Remove="Migrations\SqlServer\**\*.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.8" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.8">
       <PrivateAssets>all</PrivateAssets>

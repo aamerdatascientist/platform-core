@@ -9,7 +9,7 @@ using Platform.Infrastructure.Persistence;
 
 #nullable disable
 
-namespace Platform.Infrastructure.Migrations
+namespace Platform.Infrastructure.Migrations.SqlServer
 {
     [DbContext(typeof(ApplicationDbContext))]
     [Migration("20260731233431_AddFormAccessControl")]

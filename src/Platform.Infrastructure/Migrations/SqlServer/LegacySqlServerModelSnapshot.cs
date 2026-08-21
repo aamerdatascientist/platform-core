@@ -3,20 +3,23 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
-using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Platform.Infrastructure.Persistence;
 
 #nullable disable
 
-namespace Platform.Infrastructure.Migrations
+namespace Platform.Infrastructure.Migrations.SqlServer
 {
-    [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260728002837_AddWorkflowEngine")]
-    partial class AddWorkflowEngine
+    // [DbContext(typeof(ApplicationDbContext))] intentionally removed - this attribute is
+    // what EF Core tooling uses to recognize "the" active model snapshot for a context.
+    // Renamed off "*ModelSnapshot" and stripped of the attribute so a future `dotnet ef
+    // migrations add` for the Postgres provider can never rediscover and overwrite this
+    // file in place (it did, once, before this fix - see git history). Historical
+    // reference only, not a live EF Core artifact; this file is excluded from
+    // compilation in Platform.Infrastructure.csproj.
+    partial class LegacySqlServerModelSnapshot : ModelSnapshot
     {
-        /// <inheritdoc />
-        protected override void BuildTargetModel(ModelBuilder modelBuilder)
+        protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -24,6 +27,63 @@ namespace Platform.Infrastructure.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("Platform.Domain.Files.FileMetadata", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BlobName")
+                        .IsRequired()
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("FieldCode")
+                        .IsRequired()
+                        .HasMaxLength(63)
+                        .HasColumnType("nvarchar(63)");
+
+                    b.Property<Guid>("FormDefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("ModifiedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ModifiedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<Guid>("RecordId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RecordId");
+
+                    b.ToTable("FileMetadataEntries", (string)null);
+                });
 
             modelBuilder.Entity("Platform.Domain.Forms.FieldDefinition", b =>
                 {
@@ -143,6 +203,32 @@ namespace Platform.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("FormDefinitions", (string)null);
+                });
+
+            modelBuilder.Entity("Platform.Domain.Forms.FormDefinitionRole", b =>
+                {
+                    b.Property<Guid>("FormDefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("RoleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("FormDefinitionId", "RoleId");
+
+                    b.ToTable("FormDefinitionRoles", (string)null);
+                });
+
+            modelBuilder.Entity("Platform.Domain.Forms.FormDefinitionUser", b =>
+                {
+                    b.Property<Guid>("FormDefinitionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("FormDefinitionId", "UserId");
+
+                    b.ToTable("FormDefinitionUsers", (string)null);
                 });
 
             modelBuilder.Entity("Platform.Domain.Forms.FormVersion", b =>
@@ -616,6 +702,24 @@ namespace Platform.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Platform.Domain.Forms.FormDefinitionRole", b =>
+                {
+                    b.HasOne("Platform.Domain.Forms.FormDefinition", null)
+                        .WithMany("AllowedRoles")
+                        .HasForeignKey("FormDefinitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Platform.Domain.Forms.FormDefinitionUser", b =>
+                {
+                    b.HasOne("Platform.Domain.Forms.FormDefinition", null)
+                        .WithMany("AllowedUsers")
+                        .HasForeignKey("FormDefinitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Platform.Domain.Forms.FormVersion", b =>
                 {
                     b.HasOne("Platform.Domain.Forms.FormDefinition", null)
@@ -681,6 +785,10 @@ namespace Platform.Infrastructure.Migrations
 
             modelBuilder.Entity("Platform.Domain.Forms.FormDefinition", b =>
                 {
+                    b.Navigation("AllowedRoles");
+
+                    b.Navigation("AllowedUsers");
+
                     b.Navigation("Versions");
                 });
 
