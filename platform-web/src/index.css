@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Without this, iOS Safari's elastic/rubber-band overscroll can pan the whole document
+   horizontally by a few px on a touch gesture even when no element actually overflows the
+   viewport in a static DOM check (documentElement.scrollWidth === innerWidth at rest) -
+   Layout.tsx's own overflow-hidden only contains its inner div, not the true document root.
+   Confirmed via real-device screen recording: a swipe on a data-heavy screen (a field label
+   above a wide submissions table) shifted the whole page, not just the table's own internal
+   scroll. overscroll-behavior-x backs up overflow-x for browsers that respect it. */
+html,
+body {
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
 /* Calibri Bold for both languages now (Phase 2) - same family, size, and weight
    regardless of active language, so switching languages doesn't change the text's
    visual weight. Fallback chain for non-Windows devices that don't have Calibri
