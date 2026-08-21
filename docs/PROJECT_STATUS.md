@@ -108,6 +108,18 @@ fully done. The Form Builder UI is built but not yet fully done - see below.
 3. **After those:** continue the backend roadmap (Dashboards/Reporting is Phase 4, AI
    Assistant is Phase 5) or keep extending the frontend (e.g. dashboard views, further polish).
 
+**Newer, currently-open items (added after the above list was last reordered - not yet
+folded into a single priority order with it):**
+- **Real-device retest of the mobile horizontal-overflow fix** (PR #28) before merging -
+  see that section above for the preview URL. This was reported by real users; treat as
+  high priority.
+- **Add `ConnectionStrings__PostgresConnection` to the App Service's Application
+  Settings**, then run `dotnet ef database update` against the Railway Postgres database
+  from somewhere that can reach it, then confirm the 19 tables exist - see the Postgres
+  migration section above for exact commands. Blocks any further Postgres migration work.
+- **Merge `claude/project-setup-api-7feho0` into `main`** once the above is confirmed
+  working, so the Postgres wiring isn't sitting only on a side branch.
+
 ## Analytics — Metabase (LIVE)
 
 ### Current architecture
@@ -242,6 +254,140 @@ but every API call fails silently.
    gotcha #12). Root cause was **a browser extension on the user's own machine**, not
    a code bug. No code change was needed or made.
 
+## Arabic/RTL support (MERGED)
+
+**PR #26, merged into `main`.** Two phases:
+- **Phase 1** (infrastructure): `react-i18next` + `i18next`, `en`/`ar` languages persisted
+  to `localStorage`, `LanguageToggle` in the sidebar (redesigned mid-phase into an
+  iOS-style pill switch per feedback), `dir="rtl"`/`"ltr"` kept in sync on `<html>` driving
+  every Tailwind `rtl:`/logical-utility class app-wide, Calibri Bold in Arabic mode.
+- **Phase 2** (full translation): every screen swept - Form Builder, BuilderHome, Form
+  View, User Management, Welcome, sign-in - genuinely all static app UI translated, RTL
+  logical positioning applied to every newly-touched component, Calibri Bold made
+  unconditional (both languages, not just Arabic, so switching languages doesn't change
+  text weight).
+
+**Two real bugs found and fixed during Phase 2 follow-up, both worth knowing about:**
+1. **Arabic Code in Form Builder raw-500'd instead of showing a clear validation
+   message** - `FieldDefinition.NormalizeColumnName` throws a plain `ArgumentException`
+   when Code doesn't normalize to a valid SQL identifier (Code becomes a physical column
+   name, so it must stay Latin/alphanumeric; Label/"Field name" is free to be any
+   language). Confirmed via live testing, not assumed. Fixed backend-side
+   (`AddFieldDefinitionCommand`), plus a broader mechanism added so backend validation
+   errors carry a stable, translatable `code` (e.g. `form.field.codeMustBeLatin`) instead
+   of only ever showing the backend's raw English text - see `ValidationException.Code` /
+   `ExceptionHandlingMiddleware` / `platform-web/src/api/errorMessage.ts`.
+2. **Error messages could get stuck in whichever language was active when they were first
+   shown**, not updating live on a language toggle - because the resolved *string* was
+   being stored in component state instead of the *source* to resolve from. Fixed with
+   `platform-web/src/hooks/useErrorMessage.ts`, which re-resolves via `t()` on every
+   render; replaced every error `useState` in the app with this hook.
+
+A reported "AddFieldForm regression" (valid Latin Code + Arabic Label suddenly failing)
+turned out **not** to be a real regression - reproduced the exact interaction against a
+mocked backend matching the real endpoint's response shape and it worked cleanly. No
+frontend code change was needed for that specific report.
+
+**Deliberate scope boundary, not an oversight:** only this app's own hardcoded fallback
+strings and the one specific backend error code above are translated. The other ~79
+backend exception-throw sites across the codebase still surface raw English text - the
+mechanism to localize any of them now exists and is cheap to extend (give the exception a
+code, add the two locale-file entries), but doing so for every one of them was treated as
+separate follow-up work, not part of this PR.
+
+## Mobile horizontal-overflow fix (PR OPEN, NOT YET CONFIRMED)
+
+**PR #28, `fix/mobile-horizontal-overflow` -> `main`, open but not merged.** Real users
+reported needing to zoom out / being able to swipe horizontally on mobile, on every
+screen, both languages - initially investigated as a viewport-meta-tag or global-CSS
+issue (both ruled out: the tag is present and correct, and Playwright mobile-device
+emulation across 7+ screens/both languages/multiple device widths never reproduced any
+page-level overflow).
+
+**Real cause, found from an actual screen recording on a real iPhone 16 Pro Max**: a
+touch swipe on the Daily Site Report + submissions table screen shifted a field label and
+the table's right-edge columns together - a page-level shift, not the table's own
+intentional internal scroll. This is iOS Safari's elastic/rubber-band overscroll, not a
+persistent DOM overflow (which is why static viewport checks, even real-device-emulated
+ones, never caught it - `documentElement.scrollWidth` never actually exceeds
+`innerWidth`). `Layout.tsx`'s own `overflow-hidden` only ever contained its inner `<div>`,
+never reaching `html`/`body` - the true document root had zero horizontal-overflow
+protection. Fixed with `overflow-x: hidden` + `overscroll-behavior-x: none` on
+`html, body` in `index.css`.
+
+**Not yet confirmed against real Safari** - this sandbox only has Chromium available (no
+WebKit binary at all), and a Chromium touch-event simulation predictably showed no shift
+either before or after the fix, since Chromium doesn't implement Safari's elastic-scroll
+physics. **Needs a real-device retest** (re-recording the same Daily Site Report swipe) on
+the PR's preview URL before merging with confidence:
+`https://black-field-04a8cb300-28.eastasia.7.azurestaticapps.net`
+
+The same investigation also surfaced two things worth flagging separately, not related to
+the mobile CSS fix itself:
+- **Sign-in took ~55-60 seconds in the reporter's recording.** Not yet root-caused with
+  certainty - no Application Insights SDK exists in this codebase to pull real request
+  timing from, and the sandbox can't reach the live backend or Azure SQL to check
+  directly. Best working theory: `EnableRetryOnFailure()` is called with default EF Core
+  settings (up to 6 retries, exponential backoff capped at 30s/retry) - a first request
+  hitting a fully-paused Azure SQL serverless instance needing 2-3 retry cycles while it
+  resumes lands comfortably in the observed range, independent of the wifi drop also
+  visible in the recording. Worth checking the App Service's own Log Stream / Kudu
+  console directly to confirm.
+- **`src/Platform.Api/appsettings.Development.json` has a real Azure SQL hostname,
+  username, and plaintext password committed to git** (tracked since commit `3a14d3b`,
+  still present in git history regardless of any future edit). Flagged to the project
+  owner; not yet rotated or removed from history as of this writing - see "Before going
+  live" below, which now also needs to cover the newer Postgres credential (see next
+  section) committed the same way.
+
+## Postgres migration - Phase 1: provider wired, not yet applied (IN PROGRESS)
+
+Decision made: migrate the whole backend off Azure SQL Server onto Postgres (Railway-hosted,
+`metro.proxy.rlwy.net:36575`, database `railway`) as the **primary** datastore, not a
+secondary analytics store. This is a multi-phase migration; what's landed so far on
+`claude/project-setup-api-7feho0` (not yet merged into `main`) is provider + connection
+wiring only:
+
+- `Npgsql.EntityFrameworkCore.PostgreSQL` added to both `Platform.Api` and
+  `Platform.Infrastructure` (the package needs to be in the latter too - that's where
+  `UseNpgsql` is actually called, and package references don't flow from a project to
+  what it depends on).
+- `DependencyInjection.cs`: `UseSqlServer` -> `UseNpgsql`, reading a new
+  `PostgresConnection` connection string. The old `DefaultConnection` (SQL Server) stays
+  in config, just unused by the DbContext for now.
+- New `PostgresConnection` entries added to `appsettings.json` (empty placeholder) and
+  `appsettings.Development.json` (real Railway credentials - see the credential-hygiene
+  note above, same concern applies here).
+- Old SQL Server EF migrations moved to `Migrations/SqlServer/` (namespace updated,
+  excluded from compilation) so they're preserved for reference but inert. A fresh
+  `InitialPostgres` migration generated in `Migrations/Postgres/` from the current model
+  - covers the full EF-tracked static schema (19 tables: Users, Roles, Permissions,
+  RefreshTokens, Departments, FormDefinitions/Versions/FieldDefinitions,
+  FormDefinitionRoles/Users, Workflow*, FileMetadataEntries). Nothing dynamic-form-related
+  is in it - those tables were never part of the EF model (`DynamicSchemaService` manages
+  them via raw ADO.NET, entirely outside EF's migration system), and this phase
+  deliberately doesn't touch that.
+
+**Explicitly NOT done yet - each one blocks going further:**
+1. **The App Service's live Application Settings still need a
+   `ConnectionStrings__PostgresConnection` entry added manually** (Portal or `az cli`,
+   whichever's convenient) - the deployed backend has no Postgres connection string
+   configured until this happens. Couldn't be done from Code's sandbox - no Azure CLI
+   available, and Azure endpoints are blocked by the same egress policy that's blocked
+   Azure SQL all along.
+2. **The `InitialPostgres` migration has not been applied to the live Railway database.**
+   `dotnet ef database update --project src/Platform.Infrastructure --startup-project
+   src/Platform.Api` needs to run from somewhere that can actually reach
+   `metro.proxy.rlwy.net:36575` - confirmed unreachable from Code's sandbox (raw TCP
+   connect times out, see CLAUDE.md). No tables exist in the Railway database yet.
+3. **`DynamicSchemaService` and everything dynamic-form-related is still 100%
+   SQL-Server-specific** (raw DDL, `SqlTypeMapper`, the whole `Data_*`/`Report_*` table
+   generation pattern) - deliberately out of scope for this phase, not an oversight. The
+   app cannot actually run against Postgres end-to-end until this is migrated too.
+4. **`claude/project-setup-api-7feho0` itself is not yet merged into `main`** - it was
+   brought up to date with `main` (13-commit gap, merged cleanly, no conflicts) before this
+   work started, but the Postgres work sits on top of that merge, unmerged back.
+
 ## Known environment facts specific to this deployment
 
 - GitHub repo: `aamerdatascientist/platform-core`.
@@ -256,3 +402,6 @@ but every API call fails silently.
 - **Rotate the Azure SQL password and Blob Storage account key.** Both were pasted into
   chat during setup. Deliberately deferred until active development wraps up, not
   forgotten - don't ship without doing this.
+- **Rotate the Railway Postgres password too**, same reason - it's sitting in
+  `appsettings.Development.json` in git history the same way the Azure SQL credentials
+  are (see the Postgres migration section above).

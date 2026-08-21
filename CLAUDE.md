@@ -45,6 +45,13 @@ separate from the Form Engine.
   the PowerShell seed scripts and the frontend both depend on this. Don't remove it.
 - Local dev DB is **Azure SQL** (free tier), not Docker/local SQL Server - Docker doesn't
   work on this machine (corporate-locked virtualization). Don't suggest Docker again.
+- **Code's sandbox can only reach the outside world over HTTPS, via its proxy - raw TCP
+  database connections don't work at all**, regardless of provider. Confirmed for both
+  Azure SQL and the Railway Postgres database (`metro.proxy.rlwy.net:36575`, part of the
+  Postgres migration - see below): DNS resolves fine, but the raw TCP connect itself times
+  out. `dotnet ef migrations add` doesn't need live connectivity (design-time only) and
+  works fine from here; `migrations list`, `database update`, or anything else that queries
+  the live database needs to run somewhere else.
 
 ## Known environment gotchas - Metabase analytics deployment (Railway + Azure Postgres)
 
@@ -183,6 +190,24 @@ already-working unqualified reference in `LoginCommand.cs` on the other side of 
 
 **Fix going forward:** name command/query namespaces after the action, not a bare noun
 that matches a domain type - `RefreshAccessToken`, not `RefreshToken`.
+
+**`dotnet ef migrations add`'s snapshot-placement logic scans the project directory for an
+existing `*ModelSnapshot.cs`-shaped file independently of the compiled assembly - excluding
+old migrations from compilation (`<Compile Remove>`) is not enough on its own to make them
+inert.** Hit while setting up fresh Postgres migrations alongside the archived SQL Server
+ones (`Migrations/SqlServer/` vs `Migrations/Postgres/`): `<Compile Remove>` correctly hides
+the old migrations from *runtime* tooling (`migrations list`/`database update`, which go
+through reflection over the compiled assembly - confirmed working), but `migrations add`'s
+*design-time* tooling found the archived `ApplicationDbContextModelSnapshot.cs` by file-scan
+anyway and silently overwrote it in place with the new provider's model - corrupting the
+exact history the exclusion was meant to preserve, with no warning or error.
+
+**Fix:** don't just exclude the old snapshot from compilation - rename its class/file off
+the `*ModelSnapshot` naming pattern and drop its `[DbContext(typeof(TContext))]` attribute
+(that attribute is specifically what ties a class to being "the" active snapshot for a
+context; the file scan appears to key off it, or off the name, or both - stripped both to be
+safe). Verify by running `migrations add` a second time and confirming the archived folder
+is untouched, not just that the first run reported success.
 
 ## The one rule that's mattered most
 
