@@ -10,6 +10,15 @@
       rel="stylesheet"
     />
     <title>Asas</title>
+    <script>
+      // Set dir/lang before React mounts, from the same localStorage key i18n/index.ts
+      // uses - avoids a flash of the wrong direction on load for a returning Arabic user.
+      (function () {
+        var lang = localStorage.getItem('lang') || 'en';
+        document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+        document.documentElement.lang = lang;
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

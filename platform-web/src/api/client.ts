@@ -21,6 +21,11 @@ export class ApiError extends Error {
     message: string,
     public status: number,
     public errors?: Record<string, string[]>,
+    // Stable, translatable identity for this specific error (e.g.
+    // "form.field.codeMustBeLatin") - see Platform.Application.Common.Exceptions.ValidationException.Code
+    // on the backend. Undefined for errors that don't have one yet; callers fall back to
+    // `message` (the backend's English text) in that case - see api/errorMessage.ts.
+    public code?: string,
   ) {
     super(message);
     this.name = 'ApiError';
@@ -86,7 +91,12 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
   if (!response.ok) {
     // Matches Platform.Api.Middleware.ExceptionHandlingMiddleware's problem+json shape.
     const problem = await response.json().catch(() => null);
-    throw new ApiError(problem?.detail ?? `Request failed with status ${response.status}`, response.status, problem?.errors);
+    throw new ApiError(
+      problem?.detail ?? `Request failed with status ${response.status}`,
+      response.status,
+      problem?.errors,
+      problem?.code,
+    );
   }
 
   if (response.status === 204) return undefined as T;

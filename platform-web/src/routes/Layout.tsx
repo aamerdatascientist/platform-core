@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { api } from '../api/client';
 import { getTokens, setTokens } from '../auth/tokenStore';
 import { FormPicker } from '../components/FormPicker';
+import { LanguageToggle } from '../components/LanguageToggle';
 import { Logo } from '../components/Logo';
 
 interface LayoutProps {
@@ -10,6 +12,7 @@ interface LayoutProps {
 }
 
 export function Layout({ token }: LayoutProps) {
+  const { t } = useTranslation();
   const [isAdmin, setIsAdmin] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
@@ -51,7 +54,7 @@ export function Layout({ token }: LayoutProps) {
         <button
           onClick={() => setMobileMenuOpen(true)}
           className="px-2 text-xl leading-none text-sidebar-text"
-          aria-label="Open menu"
+          aria-label={t('sidebar.openMenu')}
         >
           ☰
         </button>
@@ -62,8 +65,8 @@ export function Layout({ token }: LayoutProps) {
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-64 shrink-0 flex-col overflow-y-auto bg-sidebar px-3 py-5 transition-transform duration-200 lg:static lg:z-auto lg:w-56 lg:translate-x-0 ${
-          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full'
+        className={`fixed inset-y-0 start-0 z-40 flex w-64 shrink-0 flex-col overflow-y-auto bg-sidebar px-3 py-5 transition-transform duration-200 lg:static lg:z-auto lg:w-56 lg:translate-x-0 ${
+          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full max-lg:rtl:translate-x-full'
         }`}
       >
         <div className="mb-5 flex items-center justify-between px-1">
@@ -75,8 +78,11 @@ export function Layout({ token }: LayoutProps) {
             onClick={handleSignOut}
             className="text-[11px] uppercase tracking-wide text-sidebar-muted hover:text-white"
           >
-            Sign out
+            {t('sidebar.signOut')}
           </button>
+        </div>
+        <div className="mb-4 px-1">
+          <LanguageToggle />
         </div>
         <FormPicker token={token} />
 
@@ -84,10 +90,10 @@ export function Layout({ token }: LayoutProps) {
           {isAdmin && (
             <>
               <NavLink to="/builder" className={navLinkClass}>
-                + Build forms
+                {t('sidebar.buildForms')}
               </NavLink>
               <NavLink to="/admin/users" className={navLinkClass}>
-                Users
+                {t('sidebar.users')}
               </NavLink>
             </>
           )}

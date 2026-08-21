@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, ApiError } from '../api/client';
+import { useTranslation } from 'react-i18next';
+import { api } from '../api/client';
+import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { FieldDefinitionDto, FileMetadataDto } from '../types';
 import { LoadingSpinner } from './LoadingSpinner';
 
@@ -11,10 +13,11 @@ interface AttachmentsPanelProps {
 }
 
 export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: AttachmentsPanelProps) {
+  const { t } = useTranslation();
   const [files, setFiles] = useState<FileMetadataDto[] | null>(null);
   const [selectedField, setSelectedField] = useState(attachmentFields[0]?.code ?? '');
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useErrorMessage();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -26,7 +29,7 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
     try {
       setFiles(await api.files.listForRecord(token, recordId));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not load attachments.');
+      setError({ err, fallbackKey: 'attachmentsPanel.loadError' });
     }
   }
 
@@ -40,7 +43,7 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
       await api.files.upload(token, formId, recordId, selectedField, file);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Upload failed.');
+      setError({ err, fallbackKey: 'attachmentsPanel.uploadError' });
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -52,7 +55,7 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
       const { url } = await api.files.getDownloadUrl(token, fileId);
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not open that file.');
+      setError({ err, fallbackKey: 'attachmentsPanel.openError' });
     }
   }
 
@@ -61,7 +64,7 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
       await api.files.delete(token, fileId);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not delete that file.');
+      setError({ err, fallbackKey: 'attachmentsPanel.deleteError' });
     }
   }
 
@@ -69,7 +72,7 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
 
   return (
     <div className="border border-line bg-white p-4">
-      <span className="mb-3 block text-[11px] uppercase tracking-wider text-ink-muted">Attachments</span>
+      <span className="mb-3 block text-[11px] uppercase tracking-wider text-ink-muted">{t('attachmentsPanel.title')}</span>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {attachmentFields.length > 1 && (
@@ -86,7 +89,7 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
           </select>
         )}
         <input ref={fileInputRef} type="file" accept="image/*,application/pdf" onChange={handleFileSelected} disabled={uploading} className="text-sm" />
-        {uploading && <span className="text-xs text-ink-muted">Uploading…</span>}
+        {uploading && <span className="text-xs text-ink-muted">{t('attachmentsPanel.uploading')}</span>}
       </div>
 
       {error && <p className="mb-2 text-sm text-clay">{error}</p>}
@@ -94,21 +97,21 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
       {!files ? (
         <div className="flex items-center gap-2">
           <LoadingSpinner size="sm" />
-          <span className="text-xs uppercase tracking-wide text-ink-muted">Loading…</span>
+          <span className="text-xs uppercase tracking-wide text-ink-muted">{t('common.loading')}</span>
         </div>
       ) : files.length === 0 ? (
-        <p className="text-sm text-ink-muted">No files attached yet.</p>
+        <p className="text-sm text-ink-muted">{t('attachmentsPanel.noFiles')}</p>
       ) : (
         <ul className="space-y-1.5">
           {files.map((f) => (
             <li key={f.id} className="flex items-center justify-between border border-line px-3 py-2 text-sm">
-              <button onClick={() => handleView(f.id)} className="truncate text-left text-ink underline decoration-line hover:decoration-ink">
+              <button onClick={() => handleView(f.id)} className="truncate text-start text-ink underline decoration-line hover:decoration-ink">
                 {f.originalFileName}
               </button>
-              <span className="ml-3 flex shrink-0 items-center gap-3">
+              <span className="ms-3 flex shrink-0 items-center gap-3">
                 <span className="text-xs text-ink-muted">{formatSize(f.sizeBytes)}</span>
                 <button onClick={() => handleDelete(f.id)} className="text-[11px] uppercase tracking-wide text-clay hover:opacity-70">
-                  Remove
+                  {t('common.remove')}
                 </button>
               </span>
             </li>

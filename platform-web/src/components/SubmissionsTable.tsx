@@ -1,3 +1,5 @@
+import type { TFunction } from 'i18next';
+import { useTranslation } from 'react-i18next';
 import type { DynamicRow, FieldDefinitionDto } from '../types';
 
 interface SubmissionsTableProps {
@@ -8,15 +10,16 @@ interface SubmissionsTableProps {
 }
 
 export function SubmissionsTable({ fields, rows, onRowClick, selectedRecordId }: SubmissionsTableProps) {
+  const { t } = useTranslation();
   const columns = fields.filter((f) => f.isActive && f.fieldType !== 'Attachment');
 
   if (rows.length === 0) {
-    return <p className="text-sm text-ink-muted">No records yet - the first submission above will appear here.</p>;
+    return <p className="text-sm text-ink-muted">{t('submissionsTable.noRecords')}</p>;
   }
 
   return (
     <div className="overflow-x-auto border border-line">
-      <table className="w-full text-left text-sm">
+      <table className="w-full text-start text-sm">
         <thead>
           <tr className="border-b border-line bg-paper">
             {columns.map((c) => (
@@ -37,7 +40,7 @@ export function SubmissionsTable({ fields, rows, onRowClick, selectedRecordId }:
             >
               {columns.map((c) => (
                 <td key={c.id} className="px-3 py-2">
-                  {formatValue(row.values[c.code])}
+                  {formatValue(row.values[c.code], t)}
                 </td>
               ))}
             </tr>
@@ -48,8 +51,8 @@ export function SubmissionsTable({ fields, rows, onRowClick, selectedRecordId }:
   );
 }
 
-function formatValue(value: unknown): string {
-  if (value === null || value === undefined || value === '') return '—';
-  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+function formatValue(value: unknown, t: TFunction): string {
+  if (value === null || value === undefined || value === '') return t('common.empty');
+  if (typeof value === 'boolean') return value ? t('common.yes') : t('common.no');
   return String(value);
 }

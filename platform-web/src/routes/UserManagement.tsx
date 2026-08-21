@@ -1,16 +1,19 @@
 import { useEffect, useState } from 'react';
-import { api, ApiError } from '../api/client';
+import { useTranslation } from 'react-i18next';
+import { api } from '../api/client';
 import type { RoleDto, UserSummaryDto } from '../types';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { useErrorMessage } from '../hooks/useErrorMessage';
 
 interface UserManagementProps {
   token: string;
 }
 
 export function UserManagement({ token }: UserManagementProps) {
+  const { t } = useTranslation();
   const [users, setUsers] = useState<UserSummaryDto[] | null>(null);
   const [roles, setRoles] = useState<RoleDto[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useErrorMessage();
 
   const [creatingUser, setCreatingUser] = useState(false);
   const [newEmail, setNewEmail] = useState('');
@@ -39,7 +42,7 @@ export function UserManagement({ token }: UserManagementProps) {
       setUsers(u);
       setRoles(r);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not load users and roles.');
+      setError({ err, fallbackKey: 'userManagement.loadError' });
     }
   }
 
@@ -47,7 +50,7 @@ export function UserManagement({ token }: UserManagementProps) {
     e.preventDefault();
     setError(null);
     if (!newEmail.trim() || !newDisplayName.trim() || newPassword.length < 10 || !newUserRoleId) {
-      setError('All fields are required, and password needs to be at least 10 characters.');
+      setError({ key: 'userManagement.createUserRequiredError' });
       return;
     }
     setSubmittingUser(true);
@@ -66,7 +69,7 @@ export function UserManagement({ token }: UserManagementProps) {
       setCreatingUser(false);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not create that user.');
+      setError({ err, fallbackKey: 'userManagement.createUserError' });
     } finally {
       setSubmittingUser(false);
     }
@@ -78,7 +81,7 @@ export function UserManagement({ token }: UserManagementProps) {
       await api.users.setActiveStatus(token, user.id, !user.isActive);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not update that user.');
+      setError({ err, fallbackKey: 'userManagement.toggleActiveError' });
     }
   }
 
@@ -104,7 +107,7 @@ export function UserManagement({ token }: UserManagementProps) {
       setEditingRolesFor(null);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not update roles for that user.');
+      setError({ err, fallbackKey: 'userManagement.saveRolesError' });
     } finally {
       setSavingRoles(false);
     }
@@ -114,7 +117,7 @@ export function UserManagement({ token }: UserManagementProps) {
     e.preventDefault();
     setError(null);
     if (!newRoleName.trim()) {
-      setError('Role name is required.');
+      setError({ key: 'userManagement.roleNameRequired' });
       return;
     }
     setSubmittingRole(true);
@@ -125,7 +128,7 @@ export function UserManagement({ token }: UserManagementProps) {
       setCreatingRole(false);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : 'Could not create that role.');
+      setError({ err, fallbackKey: 'userManagement.createRoleError' });
     } finally {
       setSubmittingRole(false);
     }
@@ -136,25 +139,22 @@ export function UserManagement({ token }: UserManagementProps) {
   return (
     <div className="max-w-3xl space-y-10">
       <div>
-        <h2 className="font-display text-xl font-semibold text-ink">Users &amp; roles</h2>
-        <p className="text-sm text-ink-muted">
-          Create accounts and assign roles - this is the only way to create a user now, Swagger's public
-          registration is closed. Set up the roles you need first, then create users against them.
-        </p>
+        <h2 className="font-display text-xl font-semibold text-ink">{t('userManagement.title')}</h2>
+        <p className="text-sm text-ink-muted">{t('userManagement.subtitle')}</p>
       </div>
 
       {error && <p className="text-sm text-clay">{error}</p>}
 
       <div>
-        <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">Roles</h3>
+        <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">{t('userManagement.roles')}</h3>
         <div className="mb-3 space-y-1">
           {(roles ?? []).map((r) => (
             <div key={r.id} className="flex items-center justify-between border border-line bg-white px-3 py-2 text-sm">
               <span>
                 <span className="font-medium text-ink">{r.name}</span>
-                {r.description && <span className="ml-2 text-xs text-ink-muted">{r.description}</span>}
+                {r.description && <span className="ms-2 text-xs text-ink-muted">{r.description}</span>}
               </span>
-              {r.isSystemRole && <span className="text-[10px] uppercase tracking-wide text-ink-muted">System</span>}
+              {r.isSystemRole && <span className="text-[10px] uppercase tracking-wide text-ink-muted">{t('userManagement.system')}</span>}
             </div>
           ))}
         </div>
@@ -164,16 +164,21 @@ export function UserManagement({ token }: UserManagementProps) {
             onClick={() => setCreatingRole(true)}
             className="border border-line bg-white px-3 py-1.5 text-sm text-ink hover:border-ink"
           >
-            + New role
+            {t('userManagement.newRole')}
           </button>
         ) : (
           <form onSubmit={handleCreateRole} className="space-y-3 border border-line bg-white p-4">
             <div>
-              <label className="mb-1 block text-xs text-ink-muted">Role name</label>
-              <input className={inputClass} value={newRoleName} onChange={(e) => setNewRoleName(e.target.value)} placeholder="Site Manager" />
+              <label className="mb-1 block text-xs text-ink-muted">{t('userManagement.roleName')}</label>
+              <input
+                className={inputClass}
+                value={newRoleName}
+                onChange={(e) => setNewRoleName(e.target.value)}
+                placeholder={t('userManagement.roleNamePlaceholder')}
+              />
             </div>
             <div>
-              <label className="mb-1 block text-xs text-ink-muted">Description (optional)</label>
+              <label className="mb-1 block text-xs text-ink-muted">{t('userManagement.descriptionOptional')}</label>
               <input className={inputClass} value={newRoleDescription} onChange={(e) => setNewRoleDescription(e.target.value)} />
             </div>
             <div className="flex gap-2">
@@ -182,10 +187,10 @@ export function UserManagement({ token }: UserManagementProps) {
                 disabled={submittingRole}
                 className="bg-signal px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
               >
-                {submittingRole ? 'Creating…' : 'Create role'}
+                {submittingRole ? t('userManagement.creating') : t('userManagement.createRole')}
               </button>
               <button type="button" onClick={() => setCreatingRole(false)} className="px-3 py-1.5 text-sm text-ink-muted">
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </form>
@@ -193,35 +198,35 @@ export function UserManagement({ token }: UserManagementProps) {
       </div>
 
       <div className="border-t border-line pt-6">
-        <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">Users</h3>
+        <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">{t('userManagement.users')}</h3>
         {!creatingUser ? (
           <button
             onClick={() => setCreatingUser(true)}
             className="border border-line bg-white px-3 py-1.5 text-sm text-ink hover:border-ink"
           >
-            + New user
+            {t('userManagement.newUser')}
           </button>
         ) : (
           <form onSubmit={handleCreateUser} className="space-y-3 border border-line bg-white p-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block text-xs text-ink-muted">Email</label>
+                <label className="mb-1 block text-xs text-ink-muted">{t('userManagement.email')}</label>
                 <input className={inputClass} type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-ink-muted">Display name</label>
+                <label className="mb-1 block text-xs text-ink-muted">{t('userManagement.displayName')}</label>
                 <input className={inputClass} value={newDisplayName} onChange={(e) => setNewDisplayName(e.target.value)} />
               </div>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block text-xs text-ink-muted">Password (min. 10 characters)</label>
+                <label className="mb-1 block text-xs text-ink-muted">{t('userManagement.passwordMinLength')}</label>
                 <input className={inputClass} type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
               </div>
               <div>
-                <label className="mb-1 block text-xs text-ink-muted">Initial role</label>
+                <label className="mb-1 block text-xs text-ink-muted">{t('userManagement.initialRole')}</label>
                 <select className={inputClass} value={newUserRoleId} onChange={(e) => setNewUserRoleId(e.target.value)}>
-                  <option value="">Select…</option>
+                  <option value="">{t('common.select')}</option>
                   {(roles ?? []).map((r) => (
                     <option key={r.id} value={r.id}>
                       {r.name}
@@ -229,23 +234,21 @@ export function UserManagement({ token }: UserManagementProps) {
                   ))}
                 </select>
                 {(roles?.length ?? 0) <= 1 && (
-                  <p className="mt-1 text-xs text-ink-muted">
-                    Only Administrator exists so far - add a role above first if you need something else.
-                  </p>
+                  <p className="mt-1 text-xs text-ink-muted">{t('userManagement.onlyAdminExists')}</p>
                 )}
               </div>
             </div>
-            <p className="text-xs text-ink-muted">You can add more roles after the account is created.</p>
+            <p className="text-xs text-ink-muted">{t('userManagement.canAddMoreRolesLater')}</p>
             <div className="flex gap-2">
               <button
                 type="submit"
                 disabled={submittingUser}
                 className="bg-signal px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
               >
-                {submittingUser ? 'Creating…' : 'Create user'}
+                {submittingUser ? t('userManagement.creating') : t('userManagement.createUser')}
               </button>
               <button type="button" onClick={() => setCreatingUser(false)} className="px-3 py-1.5 text-sm text-ink-muted">
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </form>
@@ -256,7 +259,7 @@ export function UserManagement({ token }: UserManagementProps) {
         {!users ? (
           <div className="flex items-center gap-2">
             <LoadingSpinner size="sm" />
-            <span className="text-xs uppercase tracking-wide text-ink-muted">Loading…</span>
+            <span className="text-xs uppercase tracking-wide text-ink-muted">{t('common.loading')}</span>
           </div>
         ) : (
           <div className="space-y-1">
@@ -265,10 +268,10 @@ export function UserManagement({ token }: UserManagementProps) {
                 <div className="flex items-center justify-between px-3 py-2">
                   <div>
                     <span className="text-sm font-medium text-ink">{u.displayName}</span>
-                    <span className="ml-2 text-xs text-ink-muted">{u.email}</span>
+                    <span className="ms-2 text-xs text-ink-muted">{u.email}</span>
                     <div className="mt-0.5 flex flex-wrap gap-1">
                       {u.roles.length === 0 ? (
-                        <span className="text-xs text-ink-muted">No roles</span>
+                        <span className="text-xs text-ink-muted">{t('userManagement.noRoles')}</span>
                       ) : (
                         u.roles.map((r) => (
                           <span key={r.id} className="border border-line px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ink-muted">
@@ -280,19 +283,19 @@ export function UserManagement({ token }: UserManagementProps) {
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     <span className={`text-[11px] uppercase tracking-wider ${u.isActive ? 'text-moss' : 'text-clay'}`}>
-                      {u.isActive ? 'Active' : 'Deactivated'}
+                      {u.isActive ? t('userManagement.active') : t('userManagement.deactivated')}
                     </span>
                     <button
                       onClick={() => (editingRolesFor === u.id ? setEditingRolesFor(null) : startEditingRoles(u))}
                       className="text-[11px] uppercase tracking-wide text-ink-muted hover:text-ink"
                     >
-                      Edit roles
+                      {t('userManagement.editRoles')}
                     </button>
                     <button
                       onClick={() => handleToggleActive(u)}
                       className={`text-[11px] uppercase tracking-wide hover:opacity-70 ${u.isActive ? 'text-clay' : 'text-moss'}`}
                     >
-                      {u.isActive ? 'Deactivate' : 'Reactivate'}
+                      {u.isActive ? t('userManagement.deactivate') : t('userManagement.reactivate')}
                     </button>
                   </div>
                 </div>
@@ -313,10 +316,10 @@ export function UserManagement({ token }: UserManagementProps) {
                         disabled={savingRoles}
                         className="bg-ink px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
                       >
-                        {savingRoles ? 'Saving…' : 'Save roles'}
+                        {savingRoles ? t('userManagement.saving') : t('userManagement.saveRoles')}
                       </button>
                       <button onClick={() => setEditingRolesFor(null)} className="px-3 py-1.5 text-sm text-ink-muted">
-                        Cancel
+                        {t('common.cancel')}
                       </button>
                     </div>
                   </div>

@@ -42,9 +42,30 @@ public class AddFieldDefinitionCommandHandler : IRequestHandler<AddFieldDefiniti
 
         var draft = formDefinition.GetDraftVersionOrThrow();
 
-        var field = draft.AddField(
-            request.Code, request.Label, request.FieldType, request.IsRequired,
-            request.OptionsJson, request.LookupFormDefinitionId, request.ValidationRulesJson);
+        Platform.Domain.Forms.FieldDefinition field;
+        try
+        {
+            field = draft.AddField(
+                request.Code, request.Label, request.FieldType, request.IsRequired,
+                request.OptionsJson, request.LookupFormDefinitionId, request.ValidationRulesJson);
+        }
+        catch (ArgumentException ex) when (ex.ParamName is null)
+        {
+            // FieldDefinition.Create's NormalizeColumnName throws this specific shape of
+            // ArgumentException (no ParamName) when Code doesn't normalize to a valid SQL
+            // identifier - most commonly non-Latin input, since Code becomes a physical
+            // column name and can't be. The other ArgumentExceptions AddField/Create can
+            // throw (missing OptionsJson/LookupFormDefinitionId) always set ParamName, so
+            // this guard is what keeps this catch scoped to the Code case specifically.
+            // Code is given a stable identity ("form.field.codeMustBeLatin") rather than
+            // just a message so the frontend can show this fully localized, not just in
+            // whatever language the backend happens to write English strings in.
+            throw new Common.Exceptions.ValidationException(
+                "form.field.codeMustBeLatin",
+                "Code must be Latin letters, digits, and underscores only, starting with a letter " +
+                "(e.g. 'quantity_received') - it becomes a database column name. Use 'Field name' for " +
+                "the human-readable label shown on the form, which can be in any language.");
+        }
 
         _db.FieldDefinitions.Add(field);
         await _db.SaveChangesAsync(cancellationToken);
