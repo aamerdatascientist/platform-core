@@ -12,7 +12,7 @@ using Platform.Infrastructure.Persistence;
 namespace Platform.Infrastructure.Migrations.Postgres
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260821191337_InitialPostgres")]
+    [Migration("20260821195812_InitialPostgres")]
     partial class InitialPostgres
     {
         /// <inheritdoc />
@@ -132,10 +132,10 @@ namespace Platform.Infrastructure.Migrations.Postgres
                         .HasColumnType("uuid");
 
                     b.Property<string>("OptionsJson")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("text");
 
                     b.Property<string>("ValidationRulesJson")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 

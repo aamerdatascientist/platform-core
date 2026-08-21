@@ -129,10 +129,10 @@ namespace Platform.Infrastructure.Migrations.Postgres
                         .HasColumnType("uuid");
 
                     b.Property<string>("OptionsJson")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("text");
 
                     b.Property<string>("ValidationRulesJson")
-                        .HasColumnType("nvarchar(max)");
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
