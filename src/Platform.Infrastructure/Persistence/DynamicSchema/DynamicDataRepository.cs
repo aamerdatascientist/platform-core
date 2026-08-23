@@ -1,8 +1,8 @@
 using System.Data;
 using System.Text.Json;
 using Dapper;
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
+using Npgsql;
 using Platform.Application.Common.Interfaces;
 using Platform.Domain.Forms;
 using Platform.Domain.Forms.Enums;
@@ -12,17 +12,17 @@ namespace Platform.Infrastructure.Persistence.DynamicSchema;
 /// <summary>
 /// Every column touched here comes from a FieldDefinition.Code the caller already
 /// resolved from the database (never from raw user input directly) - see the
-/// SubmitFormDataCommandHandler / GetFormSubmissionsQueryHandler callers. AssertSafeIdentifier
-/// is still run on each one before it's interpolated, because "trust the caller" is not
-/// a security boundary on its own.
+/// SubmitFormDataCommandHandler / GetFormSubmissionsQueryHandler callers.
+/// AssertSafePostgresIdentifier is still run on each one before it's interpolated,
+/// because "trust the caller" is not a security boundary on its own.
 /// </summary>
 public class DynamicDataRepository : IDynamicDataRepository
 {
     private readonly string _connectionString;
 
     public DynamicDataRepository(IConfiguration configuration) =>
-        _connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is not configured.");
+        _connectionString = configuration.GetConnectionString("PostgresConnection")
+            ?? throw new InvalidOperationException("ConnectionStrings:PostgresConnection is not configured.");
 
     public async Task<Guid> InsertAsync(
         string tableName,
@@ -31,7 +31,7 @@ public class DynamicDataRepository : IDynamicDataRepository
         Guid submittedByUserId,
         CancellationToken cancellationToken = default)
     {
-        SqlTypeMapper.AssertSafeIdentifier(tableName);
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
         var writableFields = activeFields.Where(f => f.FieldType != FieldType.Attachment).ToList();
 
         var id = Guid.NewGuid();
@@ -43,14 +43,14 @@ public class DynamicDataRepository : IDynamicDataRepository
         parameters.Add("CreatedAtUtc", DateTime.UtcNow);
         parameters.Add("CreatedByUserId", submittedByUserId);
 
-        var columns = new List<string> { "[Id]", "[FormVersionId]", "[CreatedAtUtc]", "[CreatedByUserId]", "[IsDeleted]" };
-        var valueTokens = new List<string> { "@Id", "@FormVersionId", "@CreatedAtUtc", "@CreatedByUserId", "0" };
+        var columns = new List<string> { "\"Id\"", "\"FormVersionId\"", "\"CreatedAtUtc\"", "\"CreatedByUserId\"", "\"IsDeleted\"" };
+        var valueTokens = new List<string> { "@Id", "@FormVersionId", "@CreatedAtUtc", "@CreatedByUserId", "false" };
 
         foreach (var field in writableFields)
         {
-            SqlTypeMapper.AssertSafeIdentifier(field.Code);
+            SqlTypeMapper.AssertSafePostgresIdentifier(field.Code);
             var paramName = $"field_{field.Code}";
-            columns.Add($"[{field.Code}]");
+            columns.Add($"\"{field.Code}\"");
             valueTokens.Add($"@{paramName}");
             var rawValue = values.TryGetValue(field.Code, out var v) ? v : null;
             // dbType is mandatory here, not just a hint: without it, Dapper infers the SQL
@@ -59,13 +59,17 @@ public class DynamicDataRepository : IDynamicDataRepository
             parameters.Add(paramName, ConvertFieldValue(field.FieldType, rawValue), MapToDbType(field.FieldType));
         }
 
+        // RETURNING (Postgres) sits after VALUES, not inline between the column list and
+        // VALUES the way SQL Server's OUTPUT INSERTED.[Id] did - a structural move, not just
+        // a text swap. ExecuteScalarAsync<Guid> reads it back exactly the same way either
+        // way, since both produce a single-row/single-column result set from the INSERT itself.
         var sql = $"""
-            INSERT INTO [{tableName}] ({string.Join(", ", columns)})
-            OUTPUT INSERTED.[Id]
-            VALUES ({string.Join(", ", valueTokens)});
+            INSERT INTO "{tableName}" ({string.Join(", ", columns)})
+            VALUES ({string.Join(", ", valueTokens)})
+            RETURNING "Id";
             """;
 
-        await using var connection = new SqlConnection(_connectionString);
+        await using var connection = new NpgsqlConnection(_connectionString);
         return await connection.ExecuteScalarAsync<Guid>(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
     }
 
@@ -73,13 +77,13 @@ public class DynamicDataRepository : IDynamicDataRepository
         string tableName, IReadOnlyCollection<FieldDefinition> activeFields, Guid id,
         CancellationToken cancellationToken = default)
     {
-        SqlTypeMapper.AssertSafeIdentifier(tableName);
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
         var readableFields = activeFields.Where(f => f.FieldType != FieldType.Attachment).ToList();
         var selectColumns = BuildSelectColumnList(readableFields);
 
-        var sql = $"SELECT [Id]{selectColumns} FROM [{tableName}] WHERE [Id] = @Id AND [IsDeleted] = 0;";
+        var sql = $"SELECT \"Id\"{selectColumns} FROM \"{tableName}\" WHERE \"Id\" = @Id AND \"IsDeleted\" = false;";
 
-        await using var connection = new SqlConnection(_connectionString);
+        await using var connection = new NpgsqlConnection(_connectionString);
         var row = await connection.QuerySingleOrDefaultAsync(
             new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken));
 
@@ -90,22 +94,22 @@ public class DynamicDataRepository : IDynamicDataRepository
         string tableName, IReadOnlyCollection<FieldDefinition> activeFields, int page, int pageSize,
         CancellationToken cancellationToken = default)
     {
-        SqlTypeMapper.AssertSafeIdentifier(tableName);
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
         page = Math.Max(page, 1);
         pageSize = Math.Clamp(pageSize, 1, 200);
 
         var readableFields = activeFields.Where(f => f.FieldType != FieldType.Attachment).ToList();
         var selectColumns = BuildSelectColumnList(readableFields);
 
-        var countSql = $"SELECT COUNT(1) FROM [{tableName}] WHERE [IsDeleted] = 0;";
+        var countSql = $"SELECT COUNT(1) FROM \"{tableName}\" WHERE \"IsDeleted\" = false;";
         var pageSql = $"""
-            SELECT [Id]{selectColumns} FROM [{tableName}]
-            WHERE [IsDeleted] = 0
-            ORDER BY [CreatedAtUtc] DESC
+            SELECT "Id"{selectColumns} FROM "{tableName}"
+            WHERE "IsDeleted" = false
+            ORDER BY "CreatedAtUtc" DESC
             OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY;
             """;
 
-        await using var connection = new SqlConnection(_connectionString);
+        await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
         var totalCount = await connection.ExecuteScalarAsync<int>(
@@ -123,8 +127,8 @@ public class DynamicDataRepository : IDynamicDataRepository
     {
         var codes = fields.Select(f =>
         {
-            SqlTypeMapper.AssertSafeIdentifier(f.Code);
-            return $", [{f.Code}]";
+            SqlTypeMapper.AssertSafePostgresIdentifier(f.Code);
+            return $", \"{f.Code}\"";
         });
         return string.Concat(codes);
     }
@@ -165,7 +169,7 @@ public class DynamicDataRepository : IDynamicDataRepository
         };
     }
 
-    /// <summary>Mirrors SqlTypeMapper.ToSqlColumnType - keep the two in sync.</summary>
+    /// <summary>Mirrors SqlTypeMapper.ToPostgresColumnType - keep the two in sync.</summary>
     private static DbType MapToDbType(FieldType fieldType) => fieldType switch
     {
         FieldType.ShortText or FieldType.LongText or FieldType.Dropdown => DbType.String,
