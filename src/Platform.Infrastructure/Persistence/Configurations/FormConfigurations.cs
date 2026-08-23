@@ -44,8 +44,10 @@ public class FieldDefinitionConfiguration : IEntityTypeConfiguration<FieldDefini
         builder.HasKey(fd => fd.Id);
         builder.Property(fd => fd.Code).IsRequired().HasMaxLength(63);
         builder.Property(fd => fd.Label).IsRequired().HasMaxLength(200);
-        builder.Property(fd => fd.OptionsJson).HasColumnType("nvarchar(max)");
-        builder.Property(fd => fd.ValidationRulesJson).HasColumnType("nvarchar(max)");
+        // No explicit HasColumnType - an unbounded string (no HasMaxLength) already maps to
+        // each provider's own "unlimited text" type by default (nvarchar(max) on SQL Server,
+        // text on Npgsql), so leaving it unset gets the right column type on both without
+        // provider-conditional code.
         builder.HasIndex(fd => new { fd.FormVersionId, fd.Code }).IsUnique();
     }
 }

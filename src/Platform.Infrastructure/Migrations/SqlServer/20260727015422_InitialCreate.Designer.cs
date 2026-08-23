@@ -9,11 +9,11 @@ using Platform.Infrastructure.Persistence;
 
 #nullable disable
 
-namespace Platform.Infrastructure.Migrations
+namespace Platform.Infrastructure.Migrations.SqlServer
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260730034512_AddFileManagement")]
-    partial class AddFileManagement
+    [Migration("20260727015422_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -24,63 +24,6 @@ namespace Platform.Infrastructure.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
-
-            modelBuilder.Entity("Platform.Domain.Files.FileMetadata", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("BlobName")
-                        .IsRequired()
-                        .HasMaxLength(1024)
-                        .HasColumnType("nvarchar(1024)");
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("FieldCode")
-                        .IsRequired()
-                        .HasMaxLength(63)
-                        .HasColumnType("nvarchar(63)");
-
-                    b.Property<Guid>("FormDefinitionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("ModifiedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("ModifiedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("OriginalFileName")
-                        .IsRequired()
-                        .HasMaxLength(260)
-                        .HasColumnType("nvarchar(260)");
-
-                    b.Property<Guid>("RecordId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<long>("SizeBytes")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RecordId");
-
-                    b.ToTable("FileMetadataEntries", (string)null);
-                });
 
             modelBuilder.Entity("Platform.Domain.Forms.FieldDefinition", b =>
                 {
@@ -464,206 +407,6 @@ namespace Platform.Infrastructure.Migrations
                     b.ToTable("UserRoles", (string)null);
                 });
 
-            modelBuilder.Entity("Platform.Domain.Workflow.WorkflowDefinition", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("FormDefinitionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("ModifiedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("ModifiedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique();
-
-                    b.ToTable("WorkflowDefinitions", (string)null);
-                });
-
-            modelBuilder.Entity("Platform.Domain.Workflow.WorkflowInstance", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("CreatedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("CurrentStateId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("FormDefinitionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime?>("ModifiedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("ModifiedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("RecordId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("WorkflowDefinitionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RecordId")
-                        .IsUnique();
-
-                    b.ToTable("WorkflowInstances", (string)null);
-                });
-
-            modelBuilder.Entity("Platform.Domain.Workflow.WorkflowInstanceHistoryEntry", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Comment")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<DateTime>("ExecutedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("ExecutedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("FromStateId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("ToStateId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid?>("TransitionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("WorkflowInstanceId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("WorkflowInstanceId");
-
-                    b.ToTable("WorkflowInstanceHistoryEntries", (string)null);
-                });
-
-            modelBuilder.Entity("Platform.Domain.Workflow.WorkflowState", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<bool>("IsFinal")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsInitial")
-                        .HasColumnType("bit");
-
-                    b.Property<string>("Label")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<Guid>("WorkflowDefinitionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("WorkflowDefinitionId", "Code")
-                        .IsUnique();
-
-                    b.ToTable("WorkflowStates", (string)null);
-                });
-
-            modelBuilder.Entity("Platform.Domain.Workflow.WorkflowTransition", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("nvarchar(64)");
-
-                    b.Property<Guid>("FromStateId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Label")
-                        .IsRequired()
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
-
-                    b.Property<Guid>("ToStateId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("WorkflowDefinitionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("WorkflowDefinitionId", "Code")
-                        .IsUnique();
-
-                    b.ToTable("WorkflowTransitions", (string)null);
-                });
-
-            modelBuilder.Entity("Platform.Domain.Workflow.WorkflowTransitionRole", b =>
-                {
-                    b.Property<Guid>("WorkflowTransitionId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("RoleId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("WorkflowTransitionId", "RoleId");
-
-                    b.ToTable("WorkflowTransitionRoles", (string)null);
-                });
-
             modelBuilder.Entity("Platform.Domain.Forms.FieldDefinition", b =>
                 {
                     b.HasOne("Platform.Domain.Forms.FormVersion", null)
@@ -700,42 +443,6 @@ namespace Platform.Infrastructure.Migrations
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Platform.Domain.Workflow.WorkflowInstanceHistoryEntry", b =>
-                {
-                    b.HasOne("Platform.Domain.Workflow.WorkflowInstance", null)
-                        .WithMany("History")
-                        .HasForeignKey("WorkflowInstanceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Platform.Domain.Workflow.WorkflowState", b =>
-                {
-                    b.HasOne("Platform.Domain.Workflow.WorkflowDefinition", null)
-                        .WithMany("States")
-                        .HasForeignKey("WorkflowDefinitionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Platform.Domain.Workflow.WorkflowTransition", b =>
-                {
-                    b.HasOne("Platform.Domain.Workflow.WorkflowDefinition", null)
-                        .WithMany("Transitions")
-                        .HasForeignKey("WorkflowDefinitionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
-            modelBuilder.Entity("Platform.Domain.Workflow.WorkflowTransitionRole", b =>
-                {
-                    b.HasOne("Platform.Domain.Workflow.WorkflowTransition", null)
-                        .WithMany("AllowedRoles")
-                        .HasForeignKey("WorkflowTransitionId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-                });
-
             modelBuilder.Entity("Platform.Domain.Forms.FormDefinition", b =>
                 {
                     b.Navigation("Versions");
@@ -754,23 +461,6 @@ namespace Platform.Infrastructure.Migrations
             modelBuilder.Entity("Platform.Domain.Identity.User", b =>
                 {
                     b.Navigation("UserRoles");
-                });
-
-            modelBuilder.Entity("Platform.Domain.Workflow.WorkflowDefinition", b =>
-                {
-                    b.Navigation("States");
-
-                    b.Navigation("Transitions");
-                });
-
-            modelBuilder.Entity("Platform.Domain.Workflow.WorkflowInstance", b =>
-                {
-                    b.Navigation("History");
-                });
-
-            modelBuilder.Entity("Platform.Domain.Workflow.WorkflowTransition", b =>
-                {
-                    b.Navigation("AllowedRoles");
                 });
 #pragma warning restore 612, 618
         }

@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Platform.Infrastructure.Migrations
+namespace Platform.Infrastructure.Migrations.SqlServer
 {
     /// <inheritdoc />
     public partial class AddWorkflowEngine : Migration

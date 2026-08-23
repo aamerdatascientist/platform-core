@@ -14,13 +14,13 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(
-                configuration.GetConnectionString("DefaultConnection"),
-                sql => sql
+            options.UseNpgsql(
+                configuration.GetConnectionString("PostgresConnection"),
+                npgsql => npgsql
                     .MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName)
-                    // Azure SQL serverless auto-pauses when idle and returns error 40613 on
-                    // the first request that wakes it back up - that's a transient condition,
-                    // not a real failure, and it's in EF Core's default transient-error list.
+                    // General transient-fault retry (network blips, connection resets) -
+                    // not working around a Postgres-specific quirk the way the old
+                    // Azure-SQL-serverless-autopause version of this call was.
                     .EnableRetryOnFailure()));
 
         services.AddScoped<IApplicationDbContext>(provider => provider.GetRequiredService<ApplicationDbContext>());
