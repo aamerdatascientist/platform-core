@@ -181,9 +181,15 @@ public class DynamicDataRepository : IDynamicDataRepository
     private static DateTimeOffset ToDateTimeOffset(JsonElement element)
     {
         var dateTime = element.GetDateTime();
-        return dateTime.Kind == DateTimeKind.Unspecified
+        var offset = dateTime.Kind == DateTimeKind.Unspecified
             ? new DateTimeOffset(dateTime, SaudiArabiaOffset)
             : element.GetDateTimeOffset();
+
+        // Npgsql only accepts Offset=0 for timestamptz - ToUniversalTime() re-expresses the
+        // same point in time with Offset=Zero rather than changing what instant it represents,
+        // so the Saudi-local-time interpretation above still happens first, this just
+        // normalizes the result for the wire.
+        return offset.ToUniversalTime();
     }
 
     /// <summary>Mirrors SqlTypeMapper.ToPostgresColumnType - keep the two in sync.</summary>
