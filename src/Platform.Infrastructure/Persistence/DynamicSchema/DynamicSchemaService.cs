@@ -1,7 +1,7 @@
 using System.Text;
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using Platform.Application.Common.Interfaces;
 using Platform.Domain.Forms;
 using Platform.Domain.Forms.Enums;
@@ -15,8 +15,8 @@ public class DynamicSchemaService : IDynamicSchemaService
 
     public DynamicSchemaService(IConfiguration configuration, ILogger<DynamicSchemaService> logger)
     {
-        _connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection is not configured.");
+        _connectionString = configuration.GetConnectionString("PostgresConnection")
+            ?? throw new InvalidOperationException("ConnectionStrings:PostgresConnection is not configured.");
         _logger = logger;
     }
 
@@ -24,9 +24,9 @@ public class DynamicSchemaService : IDynamicSchemaService
         FormDefinition formDefinition, FormVersion version, CancellationToken cancellationToken = default)
     {
         var tableName = formDefinition.TableName ?? $"Data_{SqlTypeMapper.ToPascalCase(formDefinition.Code)}";
-        SqlTypeMapper.AssertSafeIdentifier(tableName);
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
 
-        await using var connection = new SqlConnection(_connectionString);
+        await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
         var activeFields = version.Fields.Where(f => f.IsActive && f.FieldType != FieldType.Attachment).ToList();
@@ -61,22 +61,23 @@ public class DynamicSchemaService : IDynamicSchemaService
         var tableName = formDefinition.TableName
             ?? throw new InvalidOperationException("Cannot build a reporting view before the table has been created.");
         var viewName = $"Report_{SqlTypeMapper.ToPascalCase(formDefinition.Code)}";
-        SqlTypeMapper.AssertSafeIdentifier(viewName);
-        SqlTypeMapper.AssertSafeIdentifier(tableName);
+        SqlTypeMapper.AssertSafePostgresIdentifier(viewName);
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
 
         var activeFields = version.Fields.Where(f => f.IsActive && f.FieldType != FieldType.Attachment).ToList();
 
         var selectColumns = new StringBuilder();
         var joins = new StringBuilder();
-        selectColumns.Append("        d.[Id] AS [Record Id],\n");
-        selectColumns.Append("        d.[CreatedAtUtc] AS [Submitted At],\n");
-        selectColumns.Append("        creator.[DisplayName] AS [Submitted By]");
+        selectColumns.Append("        d.\"Id\" AS \"Record Id\",\n");
+        selectColumns.Append("        d.\"CreatedAtUtc\" AS \"Submitted At\",\n");
+        selectColumns.Append("        creator.\"DisplayName\" AS \"Submitted By\"");
 
-        // SQL Server's default collation compares column names case-insensitively, so a
-        // field labelled e.g. "Submitted by" collides with the fixed "Submitted By" audit
-        // column (and two fields could coincidentally share a label) - CREATE VIEW then
-        // fails outright with "column names must be unique". Disambiguating with the
-        // field's Code, which is unique per version, guarantees no further collision.
+        // Kept as case-insensitive disambiguation even though Postgres's double-quoted
+        // identifiers are themselves case-sensitive - unlike SQL Server's default collation,
+        // which is what originally made this necessary there. Two field labels differing
+        // only by case wouldn't strictly collide on Postgres, but treating them as the same
+        // name here is still the safer, less confusing choice, and keeps this logic
+        // identical across both dialects rather than diverging behavior on a port.
         var usedColumnNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "Record Id", "Submitted At", "Submitted By"
@@ -84,14 +85,15 @@ public class DynamicSchemaService : IDynamicSchemaService
 
         foreach (var field in activeFields)
         {
-            SqlTypeMapper.AssertSafeIdentifier(field.Code);
+            SqlTypeMapper.AssertSafePostgresIdentifier(field.Code);
 
             var displayLabel = usedColumnNames.Add(field.Label) ? field.Label : $"{field.Label} ({field.Code})";
             usedColumnNames.Add(displayLabel);
 
-            // Labels are free text, not identifiers - bracket-quoted aliases don't need to be
-            // valid identifiers, but embedded ']' must still be escaped to close the quote safely.
-            var escapedLabel = displayLabel.Replace("]", "]]");
+            // Labels are free text, not identifiers - double-quoted aliases don't need to be
+            // valid identifiers, but an embedded '"' must still be escaped to close the quote
+            // safely (Postgres's quoted-identifier escape is "" , not SQL Server's ]] ).
+            var escapedLabel = displayLabel.Replace("\"", "\"\"");
 
             var displaySource = field.FieldType == FieldType.Lookup
                 ? ResolveLookupDisplaySource(field, lookupTargets)
@@ -99,32 +101,39 @@ public class DynamicSchemaService : IDynamicSchemaService
 
             if (displaySource is null)
             {
-                selectColumns.Append($",\n        d.[{field.Code}] AS [{escapedLabel}]");
+                selectColumns.Append($",\n        d.\"{field.Code}\" AS \"{escapedLabel}\"");
             }
             else
             {
                 var (targetTable, displayColumn) = displaySource.Value;
                 var joinAlias = $"lkp_{field.Code}";
-                SqlTypeMapper.AssertSafeIdentifier(joinAlias);
+                SqlTypeMapper.AssertSafePostgresIdentifier(joinAlias);
 
-                joins.Append($"\n        LEFT JOIN [{targetTable}] [{joinAlias}] ON [{joinAlias}].[Id] = d.[{field.Code}]");
-                selectColumns.Append($",\n        [{joinAlias}].[{displayColumn}] AS [{escapedLabel}]");
+                joins.Append($"\n        LEFT JOIN \"{targetTable}\" \"{joinAlias}\" ON \"{joinAlias}\".\"Id\" = d.\"{field.Code}\"");
+                selectColumns.Append($",\n        \"{joinAlias}\".\"{displayColumn}\" AS \"{escapedLabel}\"");
             }
         }
 
-        var sql = $"""
-            CREATE OR ALTER VIEW [{viewName}] AS
+        var selectSql = $"""
             SELECT
             {selectColumns}
-            FROM [{tableName}] d
-            LEFT JOIN [Users] creator ON creator.[Id] = d.[CreatedByUserId]{joins}
-            WHERE d.[IsDeleted] = 0;
+            FROM "{tableName}" d
+            LEFT JOIN "Users" creator ON creator."Id" = d."CreatedByUserId"{joins}
+            WHERE d."IsDeleted" = false
             """;
 
-        await using var connection = new SqlConnection(_connectionString);
+        await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
-        await using var command = new SqlCommand(sql, connection);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+
+        // Postgres can't CREATE OR REPLACE a view whose column shape changed (columns
+        // added/removed/reordered/retyped) - unlike SQL Server's CREATE OR ALTER VIEW, which
+        // handles that transparently. Drop and recreate unconditionally on every publish
+        // instead; IF EXISTS covers the first-ever publish, where there's nothing to drop yet.
+        await using (var dropCommand = new NpgsqlCommand($"DROP VIEW IF EXISTS \"{viewName}\";", connection))
+            await dropCommand.ExecuteNonQueryAsync(cancellationToken);
+
+        await using (var createCommand = new NpgsqlCommand($"CREATE VIEW \"{viewName}\" AS\n{selectSql};", connection))
+            await createCommand.ExecuteNonQueryAsync(cancellationToken);
 
         _logger.LogInformation("Refreshed reporting view {ViewName} for form {FormCode}", viewName, formDefinition.Code);
     }
@@ -152,75 +161,83 @@ public class DynamicSchemaService : IDynamicSchemaService
 
     public async Task<bool> ColumnExistsAsync(string tableName, string columnCode, CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqlConnection(_connectionString);
+        await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
         return await ColumnExistsAsync(tableName, columnCode, connection, cancellationToken);
     }
 
-    private static async Task<bool> TableExistsAsync(SqlConnection connection, string tableName, CancellationToken ct)
+    private static async Task<bool> TableExistsAsync(NpgsqlConnection connection, string tableName, CancellationToken ct)
     {
         const string sql = """
-            SELECT CAST(COUNT(1) AS bit) FROM INFORMATION_SCHEMA.TABLES
+            SELECT COUNT(1) > 0 FROM INFORMATION_SCHEMA.TABLES
             WHERE TABLE_NAME = @tableName AND TABLE_TYPE = 'BASE TABLE';
             """;
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new NpgsqlCommand(sql, connection);
         command.Parameters.AddWithValue("@tableName", tableName);
         return (bool)(await command.ExecuteScalarAsync(ct))!;
     }
 
     private static async Task<bool> ColumnExistsAsync(
-        string tableName, string columnCode, SqlConnection connection, CancellationToken ct)
+        string tableName, string columnCode, NpgsqlConnection connection, CancellationToken ct)
     {
         const string sql = """
-            SELECT CAST(COUNT(1) AS bit) FROM INFORMATION_SCHEMA.COLUMNS
+            SELECT COUNT(1) > 0 FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_NAME = @tableName AND COLUMN_NAME = @columnName;
             """;
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new NpgsqlCommand(sql, connection);
         command.Parameters.AddWithValue("@tableName", tableName);
         command.Parameters.AddWithValue("@columnName", columnCode);
         return (bool)(await command.ExecuteScalarAsync(ct))!;
     }
 
     private static async Task CreateTableAsync(
-        SqlConnection connection, string tableName, IReadOnlyCollection<FieldDefinition> fields, CancellationToken ct)
+        NpgsqlConnection connection, string tableName, IReadOnlyCollection<FieldDefinition> fields, CancellationToken ct)
     {
         var columns = new StringBuilder();
         foreach (var field in fields)
         {
-            SqlTypeMapper.AssertSafeIdentifier(field.Code);
+            SqlTypeMapper.AssertSafePostgresIdentifier(field.Code);
             var nullability = field.IsRequired ? "NOT NULL" : "NULL";
-            columns.Append($",\n    [{field.Code}] {SqlTypeMapper.ToSqlColumnType(field.FieldType)} {nullability}");
+            columns.Append($",\n    \"{field.Code}\" {SqlTypeMapper.ToPostgresColumnType(field.FieldType)} {nullability}");
         }
 
+        // No DEFAULT on Id, unlike SQL Server's DEFAULT NEWID() - every insert path supplies
+        // an explicit client-generated Id already (see DynamicDataRepository.InsertAsync),
+        // confirmed via a full audit of every INSERT into a Data_* table before this port, so
+        // there's no need for gen_random_uuid() or the extension it would otherwise require.
+        // Primary key left unnamed rather than the SQL Server version's explicit
+        // "PK_{tableName}" constraint name - Postgres auto-generates one and handles its own
+        // length-safe truncation for it, whereas manually building "PK_" + tableName risks
+        // exceeding Postgres's 63-byte identifier limit for a tableName already close to it.
         var sql = $"""
-            CREATE TABLE [{tableName}] (
-                [Id] uniqueidentifier NOT NULL CONSTRAINT [PK_{tableName}] PRIMARY KEY DEFAULT NEWID(),
-                [FormVersionId] uniqueidentifier NOT NULL,
-                [CreatedAtUtc] datetime2 NOT NULL,
-                [CreatedByUserId] uniqueidentifier NOT NULL,
-                [ModifiedAtUtc] datetime2 NULL,
-                [ModifiedByUserId] uniqueidentifier NULL,
-                [IsDeleted] bit NOT NULL DEFAULT 0,
-                [Extensions] nvarchar(max) NULL{columns}
+            CREATE TABLE "{tableName}" (
+                "Id" uuid NOT NULL PRIMARY KEY,
+                "FormVersionId" uuid NOT NULL,
+                "CreatedAtUtc" timestamptz NOT NULL,
+                "CreatedByUserId" uuid NOT NULL,
+                "ModifiedAtUtc" timestamptz NULL,
+                "ModifiedByUserId" uuid NULL,
+                "IsDeleted" boolean NOT NULL DEFAULT false,
+                "Extensions" text NULL{columns}
             );
             """;
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync(ct);
     }
 
     private static async Task AddColumnAsync(
-        SqlConnection connection, string tableName, FieldDefinition field, CancellationToken ct)
+        NpgsqlConnection connection, string tableName, FieldDefinition field, CancellationToken ct)
     {
-        SqlTypeMapper.AssertSafeIdentifier(field.Code);
+        SqlTypeMapper.AssertSafePostgresIdentifier(field.Code);
 
         // New columns on an already-live table are always nullable, even if the field is
         // marked required going forward - existing rows have no value to backfill, and a
         // NOT NULL ALTER would fail outright. Required-ness is enforced at submission time
         // in the Application layer instead, see SubmitFormDataCommandHandler.
-        var sql = $"ALTER TABLE [{tableName}] ADD [{field.Code}] {SqlTypeMapper.ToSqlColumnType(field.FieldType)} NULL;";
+        var sql = $"ALTER TABLE \"{tableName}\" ADD COLUMN \"{field.Code}\" {SqlTypeMapper.ToPostgresColumnType(field.FieldType)} NULL;";
 
-        await using var command = new SqlCommand(sql, connection);
+        await using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync(ct);
     }
 }
