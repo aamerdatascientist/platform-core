@@ -163,10 +163,27 @@ public class DynamicDataRepository : IDynamicDataRepository
             FieldType.Number => element.GetInt32(),
             FieldType.Decimal => element.GetDecimal(),
             FieldType.Boolean => element.GetBoolean(),
-            FieldType.DateTime => element.GetDateTime(),
+            FieldType.DateTime => ToDateTimeOffset(element),
             FieldType.Lookup => Guid.Parse(element.GetString()!),
             _ => throw new NotSupportedException($"Unsupported field type '{fieldType}' for dynamic data.")
         };
+    }
+
+    /// <summary>
+    /// Dynamic form DateTime fields assume Saudi local time (Arabia Standard Time, UTC+03:00,
+    /// no DST - stable year-round, safe to hardcode rather than resolve via TimeZoneInfo) when
+    /// the incoming value carries no explicit offset. This is a deliberate, form-data-specific
+    /// choice, not an oversight or an inconsistency with the static schema's audit columns
+    /// (CreatedAtUtc/ModifiedAtUtc), which are and remain UTC.
+    /// </summary>
+    private static readonly TimeSpan SaudiArabiaOffset = TimeSpan.FromHours(3);
+
+    private static DateTimeOffset ToDateTimeOffset(JsonElement element)
+    {
+        var dateTime = element.GetDateTime();
+        return dateTime.Kind == DateTimeKind.Unspecified
+            ? new DateTimeOffset(dateTime, SaudiArabiaOffset)
+            : element.GetDateTimeOffset();
     }
 
     /// <summary>Mirrors SqlTypeMapper.ToPostgresColumnType - keep the two in sync.</summary>
@@ -176,7 +193,7 @@ public class DynamicDataRepository : IDynamicDataRepository
         FieldType.Number => DbType.Int32,
         FieldType.Decimal => DbType.Decimal,
         FieldType.Boolean => DbType.Boolean,
-        FieldType.DateTime => DbType.DateTime2,
+        FieldType.DateTime => DbType.DateTimeOffset,
         FieldType.Lookup => DbType.Guid,
         _ => throw new NotSupportedException($"Unsupported field type '{fieldType}' for dynamic data.")
     };
