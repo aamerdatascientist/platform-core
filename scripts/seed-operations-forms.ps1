@@ -1,4 +1,4 @@
-# Seeds all Phase 2 Operations forms via the API, in dependency order
+﻿# Seeds all Phase 2 Operations forms via the API, in dependency order
 # (Projects, Equipment, Trades first, then the four transactional forms), then submits
 # realistic sample data rows into every form, again master data before the
 # transactional forms that Lookup into it.

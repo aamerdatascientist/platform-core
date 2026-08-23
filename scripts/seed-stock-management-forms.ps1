@@ -1,4 +1,4 @@
-# Seeds all Phase 1 Stock Management forms via the API, in dependency order
+﻿# Seeds all Phase 1 Stock Management forms via the API, in dependency order
 # (Materials and Locations first, since the transactional forms Lookup into them),
 # then submits realistic sample data rows into every form, again in dependency order
 # (master data submitted before the transactional forms that Lookup into it).
