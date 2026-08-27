@@ -67,6 +67,12 @@ public class WorkflowInstanceConfiguration : IEntityTypeConfiguration<WorkflowIn
         // One workflow instance per record - a record can't be in two workflows at once.
         builder.HasIndex(i => i.RecordId).IsUnique();
 
+        // Added for the analytics "count by current state" query - GROUP BY CurrentStateId
+        // was a full table scan otherwise. FormDefinitionId is likewise queried directly by
+        // module/form-scoped analytics, and had no index at all despite being a foreign key.
+        builder.HasIndex(i => i.CurrentStateId);
+        builder.HasIndex(i => i.FormDefinitionId);
+
         builder.HasMany(i => i.History).WithOne().HasForeignKey(h => h.WorkflowInstanceId).OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(i => i.History).UsePropertyAccessMode(PropertyAccessMode.Field);
     }
@@ -79,5 +85,10 @@ public class WorkflowInstanceHistoryEntryConfiguration : IEntityTypeConfiguratio
         builder.ToTable("WorkflowInstanceHistoryEntries");
         builder.HasKey(h => h.Id);
         builder.Property(h => h.Comment).HasMaxLength(2000);
+
+        // Composite, not just WorkflowInstanceId alone (which already existed as the FK
+        // index) - time-in-state queries fetch one instance's history ordered by
+        // ExecutedAtUtc, so the sort column belongs in the index, not applied afterward.
+        builder.HasIndex(h => new { h.WorkflowInstanceId, h.ExecutedAtUtc });
     }
 }

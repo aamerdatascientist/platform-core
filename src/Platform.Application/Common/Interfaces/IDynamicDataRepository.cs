@@ -33,4 +33,11 @@ public interface IDynamicDataRepository
         int page,
         int pageSize,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Same COUNT(1)/IsDeleted=false predicate QueryAsync already uses for its own
+    /// TotalCount - split out standalone for aggregate queries (e.g. submissions-per-form)
+    /// that need a row count without paging through the rows themselves.
+    /// </summary>
+    Task<int> CountAsync(string tableName, CancellationToken cancellationToken = default);
 }

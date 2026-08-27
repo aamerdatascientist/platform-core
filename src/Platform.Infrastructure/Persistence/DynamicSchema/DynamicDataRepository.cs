@@ -123,6 +123,16 @@ public class DynamicDataRepository : IDynamicDataRepository
         return new PagedResult<DynamicRow>(items, totalCount, page, pageSize);
     }
 
+    public async Task<int> CountAsync(string tableName, CancellationToken cancellationToken = default)
+    {
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
+        var countSql = $"SELECT COUNT(1) FROM \"{tableName}\" WHERE \"IsDeleted\" = false;";
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        return await connection.ExecuteScalarAsync<int>(
+            new CommandDefinition(countSql, cancellationToken: cancellationToken));
+    }
+
     private static string BuildSelectColumnList(IEnumerable<FieldDefinition> fields)
     {
         var codes = fields.Select(f =>

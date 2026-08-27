@@ -224,6 +224,19 @@ public class DynamicSchemaService : IDynamicSchemaService
 
         await using var command = new NpgsqlCommand(sql, connection);
         await command.ExecuteNonQueryAsync(ct);
+
+        // IsDeleted and CreatedAtUtc are filtered/sorted on by every QueryAsync call
+        // (DynamicDataRepository) and every Report_* view - not speculative. Index names
+        // left unnamed for the same reason the primary key above is: Postgres auto-generates
+        // one and truncates it safely, whereas hand-building "IX_" + tableName + "_IsDeleted"
+        // risks exceeding the 63-byte identifier limit for a tableName already close to it.
+        await using (var isDeletedIndexCommand = new NpgsqlCommand(
+            $"CREATE INDEX ON \"{tableName}\" (\"IsDeleted\");", connection))
+            await isDeletedIndexCommand.ExecuteNonQueryAsync(ct);
+
+        await using (var createdAtIndexCommand = new NpgsqlCommand(
+            $"CREATE INDEX ON \"{tableName}\" (\"CreatedAtUtc\");", connection))
+            await createdAtIndexCommand.ExecuteNonQueryAsync(ct);
     }
 
     private static async Task AddColumnAsync(
