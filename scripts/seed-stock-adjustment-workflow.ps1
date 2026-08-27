@@ -21,9 +21,18 @@ param(
 $ErrorActionPreference = "Stop"
 $headers = @{ Authorization = "Bearer $Token" }
 
+function Invoke-JsonPost($uri, $json) {
+    # Same fix as the other two seed scripts' Invoke-JsonPost, applied here for
+    # consistency even though this script has no Arabic strings (confirmed earlier) -
+    # Invoke-RestMethod's -Body, given a plain [string], doesn't reliably send it as
+    # UTF-8 on Windows PowerShell 5.1.
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
+    return Invoke-RestMethod -Uri $uri -Method Post -Headers $headers -Body $bytes -ContentType "application/json; charset=utf-8"
+}
+
 function Post($path, $body) {
     $json = $body | ConvertTo-Json
-    return Invoke-RestMethod -Uri "$BaseUrl$path" -Method Post -Headers $headers -Body $json -ContentType "application/json"
+    return Invoke-JsonPost "$BaseUrl$path" $json
 }
 
 Write-Host "Creating workflow definition..."

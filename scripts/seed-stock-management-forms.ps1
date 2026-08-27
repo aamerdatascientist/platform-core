@@ -32,15 +32,29 @@ param(
 $ErrorActionPreference = "Stop"
 $headers = @{ Authorization = "Bearer $Token" }
 
+function Invoke-JsonPost($uri, $json) {
+    # Invoke-RestMethod's -Body, given a plain [string], does NOT reliably send it as
+    # UTF-8 - Windows PowerShell 5.1 encodes a string body using the system's default
+    # (non-UTF-8) codepage, silently replacing every Arabic character with '?' at the
+    # point the request is sent, even though the script's own source parses correctly
+    # (a separate, already-fixed issue - see the UTF-8 BOM note above). Confirmed as the
+    # actual root cause: the seed data landed as literal '?' characters in Postgres
+    # itself, not corrupted by anything downstream. Every JSON POST in this script goes
+    # through here so the fix - explicit UTF-8 bytes, explicit charset - only needs to
+    # exist in one place.
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
+    return Invoke-RestMethod -Uri $uri -Method Post -Headers $headers -Body $bytes -ContentType "application/json; charset=utf-8"
+}
+
 function New-Form($code, $name, $moduleName, $description) {
-    $body = @{ code = $code; name = $name; moduleName = $moduleName; description = $description } | ConvertTo-Json
-    $resp = Invoke-RestMethod -Uri "$BaseUrl/api/forms" -Method Post -Headers $headers -Body $body -ContentType "application/json"
+    $json = @{ code = $code; name = $name; moduleName = $moduleName; description = $description } | ConvertTo-Json
+    $resp = Invoke-JsonPost "$BaseUrl/api/forms" $json
     Write-Host "Created form '$name' -> $($resp.id)"
     return $resp.id
 }
 
 function Add-Field($formId, $code, $label, $fieldType, $isRequired, $optionsJson = $null, $lookupFormDefinitionId = $null) {
-    $body = @{
+    $json = @{
         code                    = $code
         label                   = $label
         fieldType               = $fieldType
@@ -49,7 +63,7 @@ function Add-Field($formId, $code, $label, $fieldType, $isRequired, $optionsJson
         lookupFormDefinitionId  = $lookupFormDefinitionId
         validationRulesJson     = $null
     } | ConvertTo-Json
-    Invoke-RestMethod -Uri "$BaseUrl/api/forms/$formId/fields" -Method Post -Headers $headers -Body $body -ContentType "application/json" | Out-Null
+    Invoke-JsonPost "$BaseUrl/api/forms/$formId/fields" $json | Out-Null
 }
 
 function Publish-Form($formId, $name) {
@@ -59,7 +73,10 @@ function Publish-Form($formId, $name) {
 
 function Options($pairs) {
     # $pairs is a list of @{ value = "x"; label = "X" } hashtables - value is the stored
-    # Code-like identifier (unchanged), label is what the user sees (Arabic).
+    # Code-like identifier (unchanged), label is what the user sees (Arabic). This isn't
+    # an HTTP body itself - it becomes the optionsJson field VALUE, sent through
+    # Invoke-JsonPost by whichever Add-Field call uses it - so no separate encoding fix
+    # needed here.
     return ($pairs | ConvertTo-Json -Compress)
 }
 
@@ -68,8 +85,8 @@ function Submit-Data($formId, $values) {
     # where relevant (descriptions, names, notes). Returns the new record's Id (a real
     # GUID from the API response), so later forms can Lookup into it for real instead
     # of a fabricated one.
-    $body = $values | ConvertTo-Json -Depth 5
-    $resp = Invoke-RestMethod -Uri "$BaseUrl/api/forms/$formId/submissions" -Method Post -Headers $headers -Body $body -ContentType "application/json"
+    $json = $values | ConvertTo-Json -Depth 5
+    $resp = Invoke-JsonPost "$BaseUrl/api/forms/$formId/submissions" $json
     return $resp.id
 }
 
