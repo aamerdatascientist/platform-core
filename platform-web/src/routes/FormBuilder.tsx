@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../api/client';
 import { AddFieldForm } from '../components/AddFieldForm';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { StatusLed } from '../components/StatusLed';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { FormDefinitionDto, FormSummaryDto, RoleDto, UserSummaryDto } from '../types';
 
@@ -142,12 +143,12 @@ export function FormBuilder({ token }: { token: string }) {
     }
   }
 
-  if (error && !formDefinition) return <p className="text-sm text-clay">{error}</p>;
+  if (error && !formDefinition) return <p className="text-sm text-danger">{error}</p>;
   if (!formDefinition)
     return (
       <div className="flex items-center gap-2">
         <LoadingSpinner size="sm" />
-        <span className="text-xs uppercase tracking-wide text-ink-muted">{t('common.loading')}</span>
+        <span className="text-xs uppercase tracking-wide text-ink-soft">{t('common.loading')}</span>
       </div>
     );
 
@@ -164,37 +165,27 @@ export function FormBuilder({ token }: { token: string }) {
     <div className="max-w-3xl space-y-8">
       <div>
         <div className="flex items-center gap-3">
-          <h2 className="font-display text-xl font-semibold text-ink">{formDefinition.name}</h2>
-          <span
-            className={`border px-2 py-0.5 text-[11px] uppercase tracking-wider ${
-              isPublished ? 'border-moss text-moss' : 'border-signal-dark text-signal-dark'
-            }`}
-          >
-            {t(`formStatus.${formDefinition.status}`)}
-          </span>
-          {isPublished && hasDraft && (
-            <span className="border border-signal-dark px-2 py-0.5 text-[11px] uppercase tracking-wider text-signal-dark">
-              {t('formBuilder.editingNewVersion')}
-            </span>
-          )}
+          <h2 className="font-display text-xl font-semibold uppercase tracking-[0.07em] text-ink">{formDefinition.name}</h2>
+          <StatusLed label={t(`formStatus.${formDefinition.status}`)} tone={isPublished ? 'success' : 'accent'} />
+          {isPublished && hasDraft && <StatusLed label={t('formBuilder.editingNewVersion')} tone="accent" />}
         </div>
-        <p className="mt-1 font-mono text-xs text-ink-muted">
+        <p className="mt-1 font-mono text-xs text-ink-soft">
           {formDefinition.code} · {formDefinition.moduleName}
         </p>
       </div>
 
-      <div className="border border-line bg-white p-4">
-        <h3 className="mb-1 text-[11px] font-medium uppercase tracking-wider text-ink-muted">{t('formBuilder.access')}</h3>
-        <p className="mb-3 text-sm text-ink-muted">
+      <div className="border border-border rounded bg-panel p-4 shadow-recessed">
+        <h3 className="mb-1 text-[11px] font-medium uppercase tracking-wider text-ink-soft">{t('formBuilder.access')}</h3>
+        <p className="mb-3 text-sm text-ink-soft">
           {formDefinition.allowedRoleIds.length === 0 && formDefinition.allowedUserIds.length === 0
             ? t('formBuilder.accessOpenDescription')
             : t('formBuilder.accessRestrictedDescription')}
         </p>
 
-        <p className="mb-1 text-xs font-medium text-ink-muted">{t('formBuilder.byRole')}</p>
+        <p className="mb-1 text-xs font-medium text-ink-soft">{t('formBuilder.byRole')}</p>
         <div className="mb-4 flex flex-wrap gap-3">
           {roles.length === 0 ? (
-            <span className="text-sm text-ink-muted">{t('formBuilder.noRolesYet')}</span>
+            <span className="text-sm text-ink-soft">{t('formBuilder.noRolesYet')}</span>
           ) : (
             roles.map((r) => (
               <label key={r.id} className="flex items-center gap-1.5 text-sm text-ink">
@@ -205,10 +196,10 @@ export function FormBuilder({ token }: { token: string }) {
           )}
         </div>
 
-        <p className="mb-1 text-xs font-medium text-ink-muted">{t('formBuilder.byUser')}</p>
+        <p className="mb-1 text-xs font-medium text-ink-soft">{t('formBuilder.byUser')}</p>
         <div className="mb-3 flex flex-wrap gap-3">
           {users.length === 0 ? (
-            <span className="text-sm text-ink-muted">{t('formBuilder.noUsersYet')}</span>
+            <span className="text-sm text-ink-soft">{t('formBuilder.noUsersYet')}</span>
           ) : (
             users.map((u) => (
               <label key={u.id} className="flex items-center gap-1.5 text-sm text-ink">
@@ -222,19 +213,19 @@ export function FormBuilder({ token }: { token: string }) {
         <button
           onClick={handleSaveAccess}
           disabled={savingAccess || !accessChanged}
-          className="bg-ink px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+          className="bg-accent rounded px-3 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50"
         >
           {savingAccess ? t('formBuilder.savingAccess') : t('formBuilder.saveAccess')}
         </button>
       </div>
 
       {isPublished && !hasDraft && (
-        <div className="flex items-center justify-between gap-3 border border-line bg-white p-3">
-          <p className="text-sm text-ink-muted">{t('formBuilder.publishedNoDraftPrompt')}</p>
+        <div className="flex items-center justify-between gap-3 border border-border rounded bg-panel p-3 shadow-recessed">
+          <p className="text-sm text-ink-soft">{t('formBuilder.publishedNoDraftPrompt')}</p>
           <button
             onClick={handleStartNewVersion}
             disabled={startingNewVersion}
-            className="shrink-0 bg-ink px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="shrink-0 bg-accent rounded px-3 py-1.5 text-sm font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
           >
             {startingNewVersion ? t('formBuilder.startingNewVersion') : t('formBuilder.addMoreFields')}
           </button>
@@ -242,19 +233,19 @@ export function FormBuilder({ token }: { token: string }) {
       )}
 
       {isPublished && hasDraft && (
-        <p className="border border-line bg-white p-3 text-sm text-ink-muted">{t('formBuilder.editingPublishedNote')}</p>
+        <p className="border border-border rounded bg-panel p-3 text-sm text-ink-soft shadow-recessed">{t('formBuilder.editingPublishedNote')}</p>
       )}
 
       <div>
-        <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">
+        <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-soft">
           {t('formBuilder.fieldsCount', { count: fields.length })}
         </h3>
         <div className="space-y-1">
           {fields.map((f) => (
-            <div key={f.id} className="flex items-center justify-between border border-line bg-white px-3 py-2 text-sm">
+            <div key={f.id} className="flex items-center justify-between border border-border rounded bg-panel px-3 py-2 text-sm">
               <span>
                 <span className="font-medium text-ink">{f.label}</span>
-                <span className="ms-2 font-mono text-xs text-ink-muted">
+                <span className="ms-2 font-mono text-xs text-ink-soft">
                   {f.code} · {t(`fieldType.${f.fieldType}`)}
                   {f.isRequired ? ` · ${t('formBuilder.required')}` : ''}
                 </span>
@@ -262,21 +253,21 @@ export function FormBuilder({ token }: { token: string }) {
               {hasDraft && (
                 <button
                   onClick={() => handleRemoveField(f.id)}
-                  className="text-[11px] uppercase tracking-wide text-clay hover:opacity-70"
+                  className="text-[11px] uppercase tracking-wide text-danger hover:opacity-70"
                 >
                   {t('common.remove')}
                 </button>
               )}
             </div>
           ))}
-          {fields.length === 0 && <p className="text-sm text-ink-muted">{t('formBuilder.noFieldsYet')}</p>}
+          {fields.length === 0 && <p className="text-sm text-ink-soft">{t('formBuilder.noFieldsYet')}</p>}
         </div>
       </div>
 
       {hasDraft && (
         <>
           <div>
-            <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">
+            <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-soft">
               {t('formBuilder.addAField')}
             </h3>
             <AddFieldForm
@@ -287,16 +278,16 @@ export function FormBuilder({ token }: { token: string }) {
             />
           </div>
 
-          <div className="border-t border-line pt-6">
-            {error && <p className="mb-2 text-sm text-clay">{error}</p>}
+          <div className="border-t border-border rounded pt-6">
+            {error && <p className="mb-2 text-sm text-danger">{error}</p>}
             <button
               onClick={handlePublish}
               disabled={publishing || fields.length === 0}
-              className="bg-ink px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+              className="bg-accent rounded px-4 py-2 text-sm font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
             >
               {publishing ? t('formBuilder.publishing') : t('formBuilder.publishForm')}
             </button>
-            <p className="mt-2 text-xs text-ink-muted">{t('formBuilder.publishNote')}</p>
+            <p className="mt-2 text-xs text-ink-soft">{t('formBuilder.publishNote')}</p>
           </div>
         </>
       )}
@@ -304,38 +295,38 @@ export function FormBuilder({ token }: { token: string }) {
       {isPublished && (
         <button
           onClick={() => navigate(`/forms/${formId}`)}
-          className="text-xs uppercase tracking-wide text-ink-muted hover:text-ink"
+          className="text-xs uppercase tracking-wide text-ink-soft hover:text-ink"
         >
           {t('formBuilder.goFillOutForm')}
         </button>
       )}
 
-      <div className="border-t border-line pt-6">
-        {error && !confirmingDelete && <p className="mb-2 text-sm text-clay">{error}</p>}
+      <div className="border-t border-border rounded pt-6">
+        {error && !confirmingDelete && <p className="mb-2 text-sm text-danger">{error}</p>}
         {!confirmingDelete ? (
           <button
             onClick={() => setConfirmingDelete(true)}
-            className="text-[11px] uppercase tracking-wide text-clay hover:opacity-70"
+            className="text-[11px] uppercase tracking-wide text-danger hover:opacity-70"
           >
             {t('formBuilder.deleteThisForm')}
           </button>
         ) : (
-          <div className="border border-clay bg-white p-3">
+          <div className="border border-danger rounded bg-panel p-3 shadow-recessed">
             <p className="mb-2 text-sm text-ink">
               {formDefinition.status === 'Published'
                 ? t('formBuilder.deleteConfirmPublished')
                 : t('formBuilder.deleteConfirmDraft')}
             </p>
-            {error && <p className="mb-2 text-sm text-clay">{error}</p>}
+            {error && <p className="mb-2 text-sm text-danger">{error}</p>}
             <div className="flex gap-2">
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="bg-clay px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+                className="bg-danger rounded px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
               >
                 {deleting ? t('formBuilder.deleting') : t('formBuilder.yesDeleteIt')}
               </button>
-              <button onClick={() => setConfirmingDelete(false)} className="px-3 py-1.5 text-sm text-ink-muted">
+              <button onClick={() => setConfirmingDelete(false)} className="px-3 py-1.5 text-sm text-ink-soft">
                 {t('common.cancel')}
               </button>
             </div>

@@ -5,6 +5,7 @@ import { api } from '../api/client';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { FormSummaryDto } from '../types';
 import { LoadingSpinner } from './LoadingSpinner';
+import { StatusLed } from './StatusLed';
 
 interface FormPickerProps {
   token: string;
@@ -45,15 +46,15 @@ export function FormPicker({ token }: FormPickerProps) {
     setIndicator({ top: btnRect.top - navTop, height: btnRect.height });
   }, [selectedFormId, forms]);
 
-  if (error) return <p className="text-sm text-clay">{error}</p>;
+  if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!forms)
     return (
       <div className="flex items-center gap-2">
         <LoadingSpinner size="sm" />
-        <span className="font-mono text-xs uppercase tracking-wide text-sidebar-muted">{t('sidebar.loading')}</span>
+        <span className="font-mono text-xs uppercase tracking-wide text-sidebar-ink">{t('sidebar.loading')}</span>
       </div>
     );
-  if (forms.length === 0) return <p className="text-sm text-sidebar-muted">{t('sidebar.noForms')}</p>;
+  if (forms.length === 0) return <p className="text-sm text-sidebar-ink">{t('sidebar.noForms')}</p>;
 
   const byModule = forms.reduce<Record<string, FormSummaryDto[]>>((acc, form) => {
     (acc[form.moduleName] ??= []).push(form);
@@ -64,13 +65,13 @@ export function FormPicker({ token }: FormPickerProps) {
     <nav ref={navRef} className="relative space-y-5">
       {indicator && (
         <div
-          className="absolute start-0 w-[3px] bg-signal transition-all duration-200 ease-out"
+          className="absolute start-0 w-[3px] bg-accent transition-all duration-200 ease-out"
           style={{ top: indicator.top, height: indicator.height }}
         />
       )}
       {Object.entries(byModule).map(([moduleName, moduleForms]) => (
         <div key={moduleName}>
-          <h3 className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-sidebar-muted">
+          <h3 className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-sidebar-ink">
             {moduleName}
           </h3>
           <ul className="space-y-0.5">
@@ -88,14 +89,18 @@ export function FormPicker({ token }: FormPickerProps) {
                     title={!isPublished ? t('sidebar.notPublished') : undefined}
                     className={`w-full px-3 py-1.5 text-start text-sm transition-colors ${
                       isSelected
-                        ? 'font-medium text-white'
+                        ? 'font-medium text-sidebar-ink-strong'
                         : isPublished
-                          ? 'text-sidebar-muted hover:text-white'
-                          : 'cursor-not-allowed text-sidebar-border'
+                          ? 'text-sidebar-ink hover:text-sidebar-ink-strong'
+                          : 'cursor-not-allowed text-sidebar-ink/40'
                     }`}
                   >
                     {form.name}
-                    {!isPublished && <span className="ms-2 text-[10px] uppercase">{t('sidebar.draft')}</span>}
+                    {!isPublished && (
+                      <span className="ms-2 inline-block align-middle">
+                        <StatusLed label={t('sidebar.draft')} tone="sidebar" />
+                      </span>
+                    )}
                   </button>
                 </li>
               );

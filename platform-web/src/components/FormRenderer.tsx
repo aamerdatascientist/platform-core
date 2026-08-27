@@ -199,7 +199,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
   }
 
   if (!formDefinition.publishedVersion) {
-    return <p className="text-sm text-ink-muted">{t('formRenderer.noPublishedVersion')}</p>;
+    return <p className="text-sm text-ink-soft">{t('formRenderer.noPublishedVersion')}</p>;
   }
 
   return (
@@ -218,12 +218,12 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
         />
       ))}
 
-      {error && <p className="text-sm text-clay">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
       <button
         type="submit"
         disabled={submitting}
-        className="w-full bg-ink px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="w-full bg-accent rounded px-4 py-2 text-sm font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {submitting ? t('formRenderer.submitting') : t('formRenderer.submit')}
       </button>
@@ -252,13 +252,13 @@ function FieldInput({
 }) {
   const { t } = useTranslation();
   const baseClass =
-    'w-full border border-line px-3 py-2 text-sm focus:border-ink focus:outline-none';
+    'w-full border border-border rounded px-3 py-2 text-sm focus:border-accent focus:outline-none';
 
   return (
     <div>
       <label className="mb-1 block text-sm font-medium text-ink">
         {field.label}
-        {field.isRequired && <span className="text-clay"> *</span>}
+        {field.isRequired && <span className="text-danger"> *</span>}
       </label>
 
       {field.fieldType === 'Attachment' ? (
@@ -270,7 +270,7 @@ function FieldInput({
             className="text-sm"
           />
           {selectedFileName && (
-            <p className="mt-1 text-xs text-ink-muted">{t('formRenderer.selected', { name: selectedFileName })}</p>
+            <p className="mt-1 text-xs text-ink-soft">{t('formRenderer.selected', { name: selectedFileName })}</p>
           )}
         </div>
       ) : field.fieldType === 'LongText' ? (
@@ -314,7 +314,7 @@ function FieldInput({
       )}
 
       {error && (
-        <p className="mt-1 text-xs text-clay">
+        <p className="mt-1 text-xs text-danger">
           {error === FIELD_REQUIRED_SENTINEL ? t('formRenderer.fieldRequired') : error}
         </p>
       )}

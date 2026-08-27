@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
+import { StatusLed } from './StatusLed';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { WorkflowStatusDto } from '../types';
 
@@ -59,22 +60,22 @@ export function WorkflowPanel({ token, recordId, onChanged }: WorkflowPanelProps
   }
 
   if (!hasWorkflow) return null;
-  if (error) return <p className="text-sm text-clay">{error}</p>;
-  if (!status) return <p className="text-xs uppercase tracking-wide text-ink-muted">{t('workflowPanel.loadingStatus')}</p>;
+  if (error) return <p className="text-sm text-danger">{error}</p>;
+  if (!status) return <p className="text-xs uppercase tracking-wide text-ink-soft">{t('workflowPanel.loadingStatus')}</p>;
 
   return (
-    <div className="border border-line bg-white p-4">
+    <div className="border border-border rounded bg-panel p-4 shadow-recessed">
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-[11px] uppercase tracking-wider text-ink-muted">{t('workflowPanel.status')}</span>
-        <StatusBadge label={status.currentStateLabel} isFinal={status.isFinal} />
+        <span className="text-[11px] uppercase tracking-wider text-ink-soft">{t('workflowPanel.status')}</span>
+        <StatusLed label={status.currentStateLabel} tone={status.isFinal ? 'success' : 'accent'} />
       </div>
 
       {status.availableTransitions.length > 0 && (
-        <div className="space-y-2 border-t border-line pt-3">
+        <div className="space-y-2 border-t border-border rounded pt-3">
           <input
             type="text"
             placeholder={t('workflowPanel.commentPlaceholder')}
-            className="w-full border border-line px-2 py-1.5 text-sm focus:border-ink focus:outline-none"
+            className="w-full border border-border rounded px-2 py-1.5 text-sm focus:border-accent focus:outline-none"
             value={comment}
             onChange={(e) => setComment(e.target.value)}
           />
@@ -84,7 +85,7 @@ export function WorkflowPanel({ token, recordId, onChanged }: WorkflowPanelProps
                 key={tr.code}
                 disabled={busy}
                 onClick={() => executeTransition(tr.code)}
-                className="bg-ink px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                className="bg-accent rounded px-3 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50"
               >
                 {tr.label}
               </button>
@@ -94,17 +95,17 @@ export function WorkflowPanel({ token, recordId, onChanged }: WorkflowPanelProps
       )}
 
       {status.availableTransitions.length === 0 && !status.isFinal && (
-        <p className="border-t border-line pt-3 text-sm text-ink-muted">{t('workflowPanel.noActionAvailable')}</p>
+        <p className="border-t border-border rounded pt-3 text-sm text-ink-soft">{t('workflowPanel.noActionAvailable')}</p>
       )}
 
       {status.history.length > 0 && (
-        <details className="mt-3 border-t border-line pt-3">
-          <summary className="cursor-pointer text-[11px] uppercase tracking-wider text-ink-muted">
+        <details className="mt-3 border-t border-border rounded pt-3">
+          <summary className="cursor-pointer text-[11px] uppercase tracking-wider text-ink-soft">
             {t('workflowPanel.history', { count: status.history.length })}
           </summary>
           <ul className="mt-2 space-y-1.5">
             {status.history.map((h, i) => (
-              <li key={i} className="font-mono text-xs text-ink-muted">
+              <li key={i} className="font-mono text-xs text-ink-soft">
                 <span className="text-ink">{h.fromStateLabel ?? t('workflowPanel.started')} → {h.toStateLabel}</span>
                 {h.transitionLabel ? ` · ${h.transitionLabel}` : ''} · {new Date(h.executedAtUtc).toLocaleString()}
                 {h.comment ? <span className="block italic">"{h.comment}"</span> : null}
@@ -114,16 +115,5 @@ export function WorkflowPanel({ token, recordId, onChanged }: WorkflowPanelProps
         </details>
       )}
     </div>
-  );
-}
-
-function StatusBadge({ label, isFinal }: { label: string; isFinal: boolean }) {
-  const color = isFinal ? 'text-moss border-moss' : 'text-signal-dark border-signal-dark';
-  const dot = isFinal ? 'bg-moss' : 'bg-signal-dark';
-  return (
-    <span className={`inline-flex items-center gap-1.5 border px-2 py-0.5 text-[11px] uppercase tracking-wider ${color}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
-      {label}
-    </span>
   );
 }

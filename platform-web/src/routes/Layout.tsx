@@ -6,6 +6,7 @@ import { getTokens, setTokens } from '../auth/tokenStore';
 import { FormPicker } from '../components/FormPicker';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { Logo } from '../components/Logo';
+import { ModeToggle } from '../components/ModeToggle';
 
 interface LayoutProps {
   token: string;
@@ -38,26 +39,29 @@ export function Layout({ token }: LayoutProps) {
   }
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `block text-[11px] uppercase tracking-wide ${isActive ? 'text-white' : 'text-sidebar-muted hover:text-white'}`;
+    `block text-[11px] uppercase tracking-wide ${isActive ? 'text-sidebar-ink-strong' : 'text-sidebar-ink hover:text-sidebar-ink-strong'}`;
 
   return (
     // h-screen + overflow-hidden here, not min-h-screen, is what actually makes the
     // sidebar "stick" - the page itself never scrolls; each column below scrolls
     // independently within its own fixed-height box instead.
-    <div className="flex h-screen overflow-hidden bg-paper">
-      {/* Mobile-only top bar - just branding and a toggle, shown when the drawer is closed */}
-      <div className="fixed inset-x-0 top-0 z-20 flex items-center justify-between border-b border-sidebar-border bg-sidebar px-3 py-3 lg:hidden">
+    <div className="flex h-screen overflow-hidden bg-bg">
+      {/* Mobile-only top bar - just branding and a toggle, shown when the drawer is closed.
+          relative + the rivet-strip as its last child replaces the old plain border-b -
+          the rivet-strip IS the divider here, not an addition on top of one. */}
+      <div className="fixed inset-x-0 top-0 z-20 flex items-center justify-between bg-sidebar px-3 py-3 lg:hidden">
         <div className="flex items-center gap-2">
           <Logo size="sm" />
-          <span className="font-display text-sm font-semibold text-sidebar-text">ASAS</span>
+          <span className="font-display text-sm font-semibold uppercase tracking-[0.07em] text-sidebar-ink-strong">ASAS</span>
         </div>
         <button
           onClick={() => setMobileMenuOpen(true)}
-          className="px-2 text-xl leading-none text-sidebar-text"
+          className="px-2 text-xl leading-none text-sidebar-ink-strong"
           aria-label={t('sidebar.openMenu')}
         >
           ☰
         </button>
+        <div className="rivet-strip absolute inset-x-0 bottom-0" />
       </div>
 
       {mobileMenuOpen && (
@@ -69,24 +73,26 @@ export function Layout({ token }: LayoutProps) {
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full max-lg:rtl:translate-x-full'
         }`}
       >
-        <div className="mb-5 flex items-center justify-between px-1">
+        <div className="mb-3 flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
             <Logo size="sm" />
-            <span className="font-display text-sm font-semibold tracking-wide text-sidebar-text">ASAS</span>
+            <span className="font-display text-sm font-semibold uppercase tracking-[0.07em] text-sidebar-ink-strong">ASAS</span>
           </div>
           <button
             onClick={handleSignOut}
-            className="text-[11px] uppercase tracking-wide text-sidebar-muted hover:text-white"
+            className="text-[11px] uppercase tracking-wide text-sidebar-ink hover:text-sidebar-ink-strong"
           >
             {t('sidebar.signOut')}
           </button>
         </div>
-        <div className="mb-4 px-1">
+        <div className="rivet-strip mb-4" />
+        <div className="mb-4 flex items-center gap-4 px-1">
           <LanguageToggle />
+          <ModeToggle />
         </div>
         <FormPicker token={token} />
 
-        <div className="mt-6 space-y-2 border-t border-sidebar-border pt-3">
+        <div className="mt-6 space-y-2 border-t border-border rounded pt-3">
           {isAdmin && (
             <>
               <NavLink to="/builder" className={navLinkClass}>

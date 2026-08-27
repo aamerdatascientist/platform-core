@@ -89,13 +89,13 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
     }
   }
 
-  const inputClass = 'w-full border border-line px-2 py-1.5 text-sm focus:border-ink focus:outline-none';
+  const inputClass = 'w-full border border-border rounded px-2 py-1.5 text-sm focus:border-accent focus:outline-none';
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 border border-line bg-white p-4">
+    <form onSubmit={handleSubmit} className="space-y-3 border border-border rounded bg-panel p-4 shadow-recessed">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-xs text-ink-muted">{t('addField.fieldName')}</label>
+          <label className="mb-1 block text-xs text-ink-soft">{t('addField.fieldName')}</label>
           <input
             className={inputClass}
             value={label}
@@ -104,7 +104,7 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
           />
         </div>
         <div>
-          <label className="mb-1 block text-xs text-ink-muted">{t('addField.code')}</label>
+          <label className="mb-1 block text-xs text-ink-soft">{t('addField.code')}</label>
           <input
             className={`${inputClass} font-mono`}
             value={code}
@@ -119,7 +119,7 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
-          <label className="mb-1 block text-xs text-ink-muted">{t('addField.type')}</label>
+          <label className="mb-1 block text-xs text-ink-soft">{t('addField.type')}</label>
           <select className={inputClass} value={fieldType} onChange={(e) => setFieldType(e.target.value as FieldType)}>
             {FIELD_TYPES.map((type) => (
               <option key={type} value={type}>
@@ -136,7 +136,7 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
 
       {fieldType === 'Dropdown' && (
         <div>
-          <label className="mb-1 block text-xs text-ink-muted">{t('addField.options')}</label>
+          <label className="mb-1 block text-xs text-ink-soft">{t('addField.options')}</label>
           <div className="space-y-1.5">
             {options.map((opt, i) => (
               <div key={i} className="flex gap-2">
@@ -158,7 +158,7 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
           <button
             type="button"
             onClick={() => setOptions((prev) => [...prev, { value: '', label: '' }])}
-            className="mt-2 text-[11px] uppercase tracking-wide text-ink-muted hover:text-ink"
+            className="mt-2 text-[11px] uppercase tracking-wide text-ink-soft hover:text-ink"
           >
             {t('addField.addOption')}
           </button>
@@ -167,7 +167,7 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
 
       {fieldType === 'Lookup' && (
         <div>
-          <label className="mb-1 block text-xs text-ink-muted">{t('addField.looksUpFrom')}</label>
+          <label className="mb-1 block text-xs text-ink-soft">{t('addField.looksUpFrom')}</label>
           <select className={inputClass} value={lookupTargetId} onChange={(e) => setLookupTargetId(e.target.value)}>
             <option value="">{t('addField.selectForm')}</option>
             {lookupTargets.map((f) => (
@@ -179,12 +179,12 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
         </div>
       )}
 
-      {error && <p className="text-sm text-clay">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
       <button
         type="submit"
         disabled={submitting}
-        className="bg-ink px-3 py-1.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="bg-accent rounded px-3 py-1.5 text-sm font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {submitting ? t('addField.adding') : t('addField.addField')}
       </button>

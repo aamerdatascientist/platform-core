@@ -43,12 +43,12 @@ export function FormView({ token }: FormViewProps) {
     setSubmissions(page.items);
   }
 
-  if (error) return <p className="text-sm text-clay">{error}</p>;
+  if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!formDefinition)
     return (
       <div className="flex items-center gap-2">
         <LoadingSpinner size="sm" />
-        <span className="text-xs uppercase tracking-wide text-ink-muted">{t('common.loading')}</span>
+        <span className="text-xs uppercase tracking-wide text-ink-soft">{t('common.loading')}</span>
       </div>
     );
 
@@ -57,7 +57,7 @@ export function FormView({ token }: FormViewProps) {
   return (
     <div className="grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
       <div className="space-y-8">
-        <h2 className="font-display text-xl font-semibold text-ink">{formDefinition.name}</h2>
+        <h2 className="font-display text-xl font-semibold uppercase tracking-[0.07em] text-ink">{formDefinition.name}</h2>
 
         <FormRenderer
           token={token}
@@ -66,7 +66,7 @@ export function FormView({ token }: FormViewProps) {
         />
 
         <div>
-          <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-muted">
+          <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-soft">
             {t('formView.recordsHeading')}
           </h3>
           <SubmissionsTable
@@ -96,7 +96,7 @@ export function FormView({ token }: FormViewProps) {
             />
           </>
         ) : (
-          <div className="border border-dashed border-line p-4 text-sm text-ink-muted">
+          <div className="border border-dashed border-border rounded p-4 text-sm text-ink-soft">
             {t('formView.selectRecordPrompt')}
             {attachmentFields.length > 0 ? t('formView.andAttachments') : ''}.
           </div>

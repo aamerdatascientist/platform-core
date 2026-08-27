@@ -2,12 +2,68 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Calibri Bold for both languages now (Phase 2) - same family, size, and weight
-   regardless of active language, so switching languages doesn't change the text's
-   visual weight. Fallback chain for non-Windows devices that don't have Calibri
-   installed - Segoe UI/Tahoma are the closest common substitutes. */
+/* "Structural steel" design tokens. Light values are the :root default; the dark
+   set overrides them under [data-mode="dark"] (set on <html> - see
+   src/theme/mode.ts and index.html's pre-mount script). Referenced from
+   tailwind.config.js's theme.extend.colors as var(--...), so they're usable as
+   normal Tailwind utility classes (bg-panel, text-ink, border-border, ...) rather
+   than inline styles. */
+:root {
+  --sidebar: #E4E7EA;
+  --sidebar-ink: #4A535C;
+  --sidebar-ink-strong: #161A1E;
+  --panel: #FFFFFF;
+  --bg: #EEF0F2;
+  --ink: #161A1E;
+  --ink-soft: #5C6670;
+  --accent: #3A7CB0;
+  --accent-ink: #FFFFFF;
+  --accent2: #C98826;
+  --border: #D5D9DD;
+  --success: #2F7D50;
+  --danger: #B14A3B;
+  /* Light values look muddy smeared on white - stronger highlight, softer shadow. */
+  --shadow-recessed: inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -1px 0 rgba(0, 0, 0, 0.05);
+}
+
+:root[data-mode='dark'] {
+  --sidebar: #121519;
+  --sidebar-ink: #98A1AB;
+  --sidebar-ink-strong: #F5F7F9;
+  --panel: #1E2226;
+  --bg: #171A1E;
+  --ink: #E9E7E2;
+  --ink-soft: #93A0AC;
+  --accent: #5B9BD1;
+  --accent-ink: #081420;
+  --accent2: #E0A94B;
+  --border: #363C44;
+  --success: #63B67F;
+  --danger: #DD715F;
+  --shadow-recessed: inset 0 1px 0 rgba(255, 255, 255, 0.03), inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+}
+
+/* Calibri Bold for both languages (Phase 2 of the RTL work) - same family, size, and
+   weight regardless of active language, so switching languages doesn't change the
+   text's visual weight. Fallback chain for non-Windows devices that don't have
+   Calibri installed - Segoe UI/Tahoma are the closest common substitutes. Untouched
+   by the "Structural steel" reskin - Archivo is applied explicitly via font-display
+   on headers only, same mechanism already used before this change (a class-applied
+   font-family always wins over this inherited body rule on specificity). */
 body {
-  @apply bg-paper text-ink;
+  @apply bg-bg text-ink;
   font-family: Calibri, 'Segoe UI', Tahoma, Arial, sans-serif;
   font-weight: bold;
+}
+
+/* Rivet-strip divider: 5px bar combining a highlight-to-accent gradient with evenly
+   spaced dark dots ("rivets"). Reusable utility class, not a one-off - used under
+   the mobile topbar and as a divider on the sign-in card, and anywhere else this
+   direction expands to. */
+.rivet-strip {
+  height: 5px;
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.16), var(--accent) 55%),
+    radial-gradient(circle, rgba(0, 0, 0, 0.45) 1.6px, transparent 2px);
+  background-size: 100% 100%, 22px 100%;
 }

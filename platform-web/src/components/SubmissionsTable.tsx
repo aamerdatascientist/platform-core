@@ -14,16 +14,16 @@ export function SubmissionsTable({ fields, rows, onRowClick, selectedRecordId }:
   const columns = fields.filter((f) => f.isActive && f.fieldType !== 'Attachment');
 
   if (rows.length === 0) {
-    return <p className="text-sm text-ink-muted">{t('submissionsTable.noRecords')}</p>;
+    return <p className="text-sm text-ink-soft">{t('submissionsTable.noRecords')}</p>;
   }
 
   return (
-    <div className="overflow-x-auto border border-line">
+    <div className="overflow-x-auto border border-border rounded shadow-recessed">
       <table className="w-full text-start text-sm">
         <thead>
-          <tr className="border-b border-line bg-paper">
+          <tr className="border-b border-border rounded bg-bg">
             {columns.map((c) => (
-              <th key={c.id} className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-ink-muted">
+              <th key={c.id} className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-ink-soft">
                 {c.label}
               </th>
             ))}
@@ -34,8 +34,8 @@ export function SubmissionsTable({ fields, rows, onRowClick, selectedRecordId }:
             <tr
               key={row.id}
               onClick={() => onRowClick?.(row.id)}
-              className={`border-b border-line last:border-0 ${onRowClick ? 'cursor-pointer hover:bg-paper' : ''} ${
-                row.id === selectedRecordId ? 'bg-paper' : ''
+              className={`border-b border-border rounded last:border-0 ${onRowClick ? 'cursor-pointer hover:bg-bg' : ''} ${
+                row.id === selectedRecordId ? 'bg-bg' : ''
               }`}
             >
               {columns.map((c) => (

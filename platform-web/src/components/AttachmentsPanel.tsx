@@ -71,13 +71,13 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
   if (attachmentFields.length === 0) return null;
 
   return (
-    <div className="border border-line bg-white p-4">
-      <span className="mb-3 block text-[11px] uppercase tracking-wider text-ink-muted">{t('attachmentsPanel.title')}</span>
+    <div className="border border-border rounded bg-panel p-4 shadow-recessed">
+      <span className="mb-3 block text-[11px] uppercase tracking-wider text-ink-soft">{t('attachmentsPanel.title')}</span>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {attachmentFields.length > 1 && (
           <select
-            className="border border-line px-2 py-1.5 text-sm focus:border-ink focus:outline-none"
+            className="border border-border rounded px-2 py-1.5 text-sm focus:border-accent focus:outline-none"
             value={selectedField}
             onChange={(e) => setSelectedField(e.target.value)}
           >
@@ -89,28 +89,28 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
           </select>
         )}
         <input ref={fileInputRef} type="file" accept="image/*,application/pdf" onChange={handleFileSelected} disabled={uploading} className="text-sm" />
-        {uploading && <span className="text-xs text-ink-muted">{t('attachmentsPanel.uploading')}</span>}
+        {uploading && <span className="text-xs text-ink-soft">{t('attachmentsPanel.uploading')}</span>}
       </div>
 
-      {error && <p className="mb-2 text-sm text-clay">{error}</p>}
+      {error && <p className="mb-2 text-sm text-danger">{error}</p>}
 
       {!files ? (
         <div className="flex items-center gap-2">
           <LoadingSpinner size="sm" />
-          <span className="text-xs uppercase tracking-wide text-ink-muted">{t('common.loading')}</span>
+          <span className="text-xs uppercase tracking-wide text-ink-soft">{t('common.loading')}</span>
         </div>
       ) : files.length === 0 ? (
-        <p className="text-sm text-ink-muted">{t('attachmentsPanel.noFiles')}</p>
+        <p className="text-sm text-ink-soft">{t('attachmentsPanel.noFiles')}</p>
       ) : (
         <ul className="space-y-1.5">
           {files.map((f) => (
-            <li key={f.id} className="flex items-center justify-between border border-line px-3 py-2 text-sm">
+            <li key={f.id} className="flex items-center justify-between border border-border rounded px-3 py-2 text-sm">
               <button onClick={() => handleView(f.id)} className="truncate text-start text-ink underline decoration-line hover:decoration-ink">
                 {f.originalFileName}
               </button>
               <span className="ms-3 flex shrink-0 items-center gap-3">
-                <span className="text-xs text-ink-muted">{formatSize(f.sizeBytes)}</span>
-                <button onClick={() => handleDelete(f.id)} className="text-[11px] uppercase tracking-wide text-clay hover:opacity-70">
+                <span className="text-xs text-ink-soft">{formatSize(f.sizeBytes)}</span>
+                <button onClick={() => handleDelete(f.id)} className="text-[11px] uppercase tracking-wide text-danger hover:opacity-70">
                   {t('common.remove')}
                 </button>
               </span>

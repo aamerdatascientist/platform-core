@@ -7,8 +7,12 @@ interface LanguageToggleProps {
 }
 
 const TONE_CLASSES = {
-  dark: { active: 'font-medium text-white', inactive: 'text-sidebar-muted', track: 'bg-white/20' },
-  light: { active: 'font-medium text-ink', inactive: 'text-ink-muted', track: 'bg-ink/15' },
+  // 'dark' tone name is legacy - it originally assumed the sidebar surface was always
+  // visually dark. Now that light mode makes the sidebar a light surface too (see
+  // src/theme/mode.ts), these route through sidebar-ink-strong/sidebar-ink instead of
+  // hardcoded white, so this stays readable against either mode's sidebar color.
+  dark: { active: 'font-medium text-sidebar-ink-strong', inactive: 'text-sidebar-ink', track: 'bg-sidebar-ink/20' },
+  light: { active: 'font-medium text-ink', inactive: 'text-ink-soft', track: 'bg-ink/15' },
 };
 
 /**
