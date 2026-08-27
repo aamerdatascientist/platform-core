@@ -47,9 +47,15 @@ export function Switch({ checked, onChange, leftLabel, rightLabel, tone = 'dark'
           checked ? 'bg-accent' : 'bg-border'
         }`}
       >
+        {/* translate-x-[22px], not Tailwind's translate-x-5 (20px): the knob rests at
+            left-0.5 (2px), and needs to travel exactly track_width - knob_width - 2*inset
+            = 44 - 18 - 2*2 = 22px to land with the same 2px inset flush against the
+            right edge that it starts with on the left - 20px left it 2px short,
+            landing at a 4px right gap instead of 2px. Measured via getBoundingClientRect
+            in both states to confirm, not eyeballed. */}
         <span
           className={`absolute left-0.5 h-[18px] w-[18px] rounded-full bg-white shadow transition-transform duration-200 ${
-            checked ? 'translate-x-5' : 'translate-x-0'
+            checked ? 'translate-x-[22px]' : 'translate-x-0'
           }`}
         />
       </span>

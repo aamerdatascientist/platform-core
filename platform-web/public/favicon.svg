@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <!-- Same mark as src/components/Logo.tsx's "lg" variant (rects, rotation, colors) -
+       kept as one vector source of truth in spirit, not a redrawn approximation. The
+       "lg" three-tone range (not "sm"'s lighter set) is used deliberately: "sm" skips
+       the darkest navy specifically because it nearly matches the sidebar's own
+       background there, a concern that doesn't apply to a browser tab's chrome. -->
+  <g transform="rotate(-8 60 60)">
+    <rect x="18" y="66" width="80" height="22" rx="3" fill="#0F1729" />
+    <rect x="26" y="42" width="80" height="22" rx="3" fill="#4361EE" />
+    <rect x="34" y="18" width="80" height="22" rx="3" fill="#7B92FF" />
+  </g>
+</svg>

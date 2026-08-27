@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api/client';
@@ -15,11 +15,8 @@ export function FormPicker({ token }: FormPickerProps) {
   const { t } = useTranslation();
   const [forms, setForms] = useState<FormSummaryDto[] | null>(null);
   const [error, setError] = useErrorMessage();
-  const [indicator, setIndicator] = useState<{ top: number; height: number } | null>(null);
   const navigate = useNavigate();
   const { formId: selectedFormId } = useParams<{ formId: string }>();
-  const navRef = useRef<HTMLElement>(null);
-  const itemRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   useEffect(() => {
     api.forms
@@ -27,24 +24,6 @@ export function FormPicker({ token }: FormPickerProps) {
       .then(setForms)
       .catch((err) => setError({ err, fallbackKey: 'sidebar.loadFormsError' }));
   }, [token]);
-
-  // Measures the actual DOM position of the active item rather than computing it
-  // arithmetically from list index - stays correct regardless of how many modules or
-  // items are above it, and re-measures whenever the selection or the list itself changes.
-  useLayoutEffect(() => {
-    if (!selectedFormId || !navRef.current) {
-      setIndicator(null);
-      return;
-    }
-    const activeButton = itemRefs.current[selectedFormId];
-    if (!activeButton) {
-      setIndicator(null);
-      return;
-    }
-    const navTop = navRef.current.getBoundingClientRect().top;
-    const btnRect = activeButton.getBoundingClientRect();
-    setIndicator({ top: btnRect.top - navTop, height: btnRect.height });
-  }, [selectedFormId, forms]);
 
   if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!forms)
@@ -62,13 +41,7 @@ export function FormPicker({ token }: FormPickerProps) {
   }, {});
 
   return (
-    <nav ref={navRef} className="relative space-y-5">
-      {indicator && (
-        <div
-          className="absolute start-0 w-[3px] bg-accent transition-all duration-200 ease-out"
-          style={{ top: indicator.top, height: indicator.height }}
-        />
-      )}
+    <nav className="space-y-5">
       {Object.entries(byModule).map(([moduleName, moduleForms]) => (
         <div key={moduleName}>
           <h3 className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-sidebar-ink">
@@ -80,18 +53,21 @@ export function FormPicker({ token }: FormPickerProps) {
               const isPublished = form.status === 'Published';
               return (
                 <li key={form.id}>
+                  {/* Filled box for the active item (bg-accent/text-accent-ink), not the
+                      old measured thin accent-line indicator that used to float next to
+                      it - that treatment predated the steel work and never got swept
+                      over, same root cause as the white inputs. Quiet bg-border-toned
+                      hover on non-active published items - the reference mockup was
+                      static and didn't define a hover state explicitly. */}
                   <button
-                    ref={(el) => {
-                      itemRefs.current[form.id] = el;
-                    }}
                     onClick={() => navigate(`/forms/${form.id}`)}
                     disabled={!isPublished}
                     title={!isPublished ? t('sidebar.notPublished') : undefined}
-                    className={`w-full px-3 py-1.5 text-start text-sm transition-colors ${
+                    className={`w-full rounded px-3 py-1.5 text-start text-sm transition-colors ${
                       isSelected
-                        ? 'font-medium text-sidebar-ink-strong'
+                        ? 'bg-accent font-medium text-accent-ink'
                         : isPublished
-                          ? 'text-sidebar-ink hover:text-sidebar-ink-strong'
+                          ? 'text-sidebar-ink hover:bg-border/40 hover:text-sidebar-ink-strong'
                           : 'cursor-not-allowed text-sidebar-ink/40'
                     }`}
                   >
