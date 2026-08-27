@@ -24,6 +24,12 @@
   --danger: #B14A3B;
   /* Light values look muddy smeared on white - stronger highlight, softer shadow. */
   --shadow-recessed: inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -1px 0 rgba(0, 0, 0, 0.05);
+  /* Sign-in background texture (dot grid + center vignette) - light mode uses dark
+     dots and a white vignette; the reference file specifies these as inverses of the
+     dark-mode values below (same vignette color, different opacity; opposite dot
+     color), not independently derived. */
+  --signin-texture: radial-gradient(rgba(0, 0, 0, 0.045) 1.5px, transparent 1.6px),
+    radial-gradient(ellipse at center, rgba(255, 255, 255, 0.7), transparent 60%);
 }
 
 :root[data-mode='dark'] {
@@ -41,6 +47,8 @@
   --success: #63B67F;
   --danger: #DD715F;
   --shadow-recessed: inset 0 1px 0 rgba(255, 255, 255, 0.03), inset 0 -1px 0 rgba(0, 0, 0, 0.35);
+  --signin-texture: radial-gradient(rgba(255, 255, 255, 0.06) 1.5px, transparent 1.6px),
+    radial-gradient(ellipse at center, rgba(255, 255, 255, 0.035), transparent 60%);
 }
 
 /* Calibri Bold for both languages (Phase 2 of the RTL work) - same family, size, and
@@ -66,4 +74,17 @@ body {
     linear-gradient(180deg, rgba(255, 255, 255, 0.16), var(--accent) 55%),
     radial-gradient(circle, rgba(0, 0, 0, 0.45) 1.6px, transparent 2px);
   background-size: 100% 100%, 22px 100%;
+  background-position: 0 0, 11px center;
+}
+
+/* Sign-in background: the "blank" bug from the mockup - var(--bg) alone has zero
+   texture. Two layers: a dot grid (bolted-plate texture) plus a soft center
+   vignette. --signin-texture itself is mode-aware (defined in the :root/
+   [data-mode="dark"] blocks above); background-color/-size/-position are identical
+   across both modes, only the texture's colors differ. */
+.signin-bg {
+  background-color: var(--bg);
+  background-image: var(--signin-texture);
+  background-size: 46px 46px, 100% 100%;
+  background-position: 0 0, center;
 }

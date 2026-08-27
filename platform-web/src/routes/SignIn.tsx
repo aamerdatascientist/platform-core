@@ -30,7 +30,7 @@ export function SignIn() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-bg px-4">
+    <div className="signin-bg relative flex min-h-screen items-center justify-center px-4">
       {/* Fixed physical corner, not logical (end-4) - deliberate exception to this app's
           RTL pattern, so the language switcher stays in the same spot regardless of
           which language is currently active. */}
