@@ -32,26 +32,52 @@ separate from the Form Engine.
   Lookup, Attachment. Attachment never gets a physical column - resolves through the
   (not-yet-built) File Management module instead.
 - Identifiers that end up in raw DDL (table/column names) go through
-  `SqlTypeMapper.AssertSafeIdentifier` - hard security boundary, not cosmetic.
+  `SqlTypeMapper.AssertSafePostgresIdentifier` (enforces Postgres's real 63-byte
+  identifier limit) - hard security boundary, not cosmetic. The SQL-Server-era
+  `AssertSafeIdentifier` (128-char limit) is now dead code, unused since the Postgres
+  migration completed - see "Low-priority cleanup candidates" below.
+- Dynamic form `DateTime` fields default an unspecified UTC offset to **UTC+3 (Saudi
+  local time)** - deliberately distinct from the static schema's audit columns
+  (`CreatedAtUtc`/`ModifiedAtUtc`/etc.), which always stay UTC. This isn't an
+  inconsistency to "fix" - it's the documented default for form data specifically.
+- Npgsql requires any `DateTimeOffset` written to a `timestamptz` column to have
+  `Offset=0` - call `.ToUniversalTime()` on it before writing, never send a non-zero
+  offset directly. SQL Server accepted a non-zero offset without complaint; Postgres/
+  Npgsql doesn't. Bit `DynamicDataRepository`'s DateTime handling once already.
 
 ## Known environment gotchas - don't rediscover these
 
-- **Azure SQL serverless auto-pauses.** `EnableRetryOnFailure()` is required on
-  `UseSqlServer()` or the first request after any idle period fails with error 40613.
 - **`ASPNETCORE_ENVIRONMENT` must be `Development` locally**, or JWT config throws (empty
   secret) since Development-only appsettings + user-secrets don't load otherwise.
   `Properties/launchSettings.json` handles this now - don't remove it.
 - **Enums serialize as strings** (`JsonStringEnumConverter` registered in `Program.cs`) -
   the PowerShell seed scripts and the frontend both depend on this. Don't remove it.
-- Local dev DB is **Azure SQL** (free tier), not Docker/local SQL Server - Docker doesn't
-  work on this machine (corporate-locked virtualization). Don't suggest Docker again.
+- Local dev DB is **Postgres** (Railway-hosted), not Docker/local Postgres - Docker
+  doesn't work on this machine (corporate-locked virtualization). Don't suggest Docker
+  again. Azure SQL was the original dev/prod database; it's been **fully decommissioned**
+  since the Postgres migration completed (see `docs/PROJECT_STATUS.md`) - don't
+  reintroduce it as a reference point, and don't assume any Azure SQL-specific gotcha
+  below this point still applies to the live database.
 - **Code's sandbox can only reach the outside world over HTTPS, via its proxy - raw TCP
-  database connections don't work at all**, regardless of provider. Confirmed for both
-  Azure SQL and the Railway Postgres database (`metro.proxy.rlwy.net:36575`, part of the
-  Postgres migration - see below): DNS resolves fine, but the raw TCP connect itself times
-  out. `dotnet ef migrations add` doesn't need live connectivity (design-time only) and
-  works fine from here; `migrations list`, `database update`, or anything else that queries
-  the live database needs to run somewhere else.
+  database connections don't work at all**, regardless of provider. Confirmed for the
+  Railway Postgres database (`metro.proxy.rlwy.net:36575`): DNS resolves fine, but the
+  raw TCP connect itself times out. `dotnet ef migrations add` doesn't need live
+  connectivity (design-time only) and works fine from here; `migrations list`,
+  `database update`, or anything else that queries the live database needs to run
+  somewhere else.
+- **Windows PowerShell 5.1's `Invoke-RestMethod` does not reliably send a string
+  `-Body` as UTF-8** - it silently replaces non-ASCII characters (Arabic seed data, in
+  particular) with `?` at the exact point the request is sent, even when the script's
+  own source is saved and parses correctly. Convert the JSON payload to a UTF-8 byte
+  array explicitly (`[System.Text.Encoding]::UTF8.GetBytes($json)`) and pass that as
+  `-Body`, with `-ContentType "application/json; charset=utf-8"` set explicitly - don't
+  rely on a string body's implicit encoding. `scripts/*.ps1`'s shared `Invoke-JsonPost`
+  helper has the fix in place; anything sending JSON over HTTP from PowerShell should
+  route through something equivalent.
+- **Azure App Service (Linux) needs "Always On" enabled explicitly**, in Configuration ->
+  General settings, or the worker process unloads after ~20 min with no requests and the
+  next one pays a real cold-start cost. Unrelated to database auto-pausing - Postgres/
+  Railway doesn't auto-pause the way Azure SQL serverless used to.
 
 ## Known environment gotchas - Metabase analytics deployment (Railway + Azure Postgres)
 
@@ -155,14 +181,24 @@ separate from the Form Engine.
 
 ## Known gaps - deliberate, not oversights (check `docs/PROJECT_STATUS.md` for current priority)
 
-- No `GET /api/forms` list endpoint - frontend can't show real navigation yet.
-- No refresh-token flow - access tokens just expire (30 min), nothing renews them. Sign
-  out/in again in the frontend, or re-login via Swagger, when you hit a 401 that isn't a
-  real bug.
 - No designated "display field" on `FormDefinition` for Lookup rendering - frontend
   guesses (first ShortText field on the target form).
 - Workflow Engine: no versioning, no notifications, one published workflow per form.
-- No form-builder or workflow-designer UI - everything's created via API/PowerShell scripts.
+- No workflow-designer UI - workflows are still created via API/PowerShell scripts. (A
+  Form Builder UI does exist for forms themselves now - see `docs/PROJECT_STATUS.md`.)
+- No automated first-admin-bootstrap mechanism. `Register` requires an existing
+  Administrator token, so there's no way in on a brand-new database except a one-off
+  direct SQL insert (which is how the current admin account was actually created) - the
+  same manual step would be needed again for any future fresh environment. Worth a real
+  fix (e.g. "allow anonymous register only when zero users exist") if this project ever
+  needs a second environment.
+
+## Low-priority cleanup candidates - not urgent
+
+- `Migrations/SqlServer/` and the SQL-Server-specific methods in `SqlTypeMapper`
+  (`ToSqlColumnType`, `AssertSafeIdentifier`) are dead code now that the Postgres
+  migration is complete - nothing calls them anymore. Safe to delete whenever it's
+  convenient; not blocking anything.
 
 ## Known engineering gotchas - hit multiple times, check for this pattern in new code
 
@@ -208,6 +244,17 @@ the `*ModelSnapshot` naming pattern and drop its `[DbContext(typeof(TContext))]`
 context; the file scan appears to key off it, or off the name, or both - stripped both to be
 safe). Verify by running `migrations add` a second time and confirming the archived folder
 is untouched, not just that the first run reported success.
+
+**A form control (`<input>`/`<select>`/`<textarea>`) with no explicit `bg-*` class
+relies on the browser's native default background, not the current theme.** Several of
+this app's inputs had no background class at all, even before the "Structural steel"
+dark/light mode work existed - invisible as a problem against the old light-only
+palette, and only surfaced as a stark white-box-on-dark-background bug once dark mode
+gave it something to contrast against.
+
+**Fix going forward:** always set an explicit `bg-*` class on every form control, even
+ones that look fine in whichever mode you happen to be testing in at the time - "looks
+right in light mode" isn't evidence it has a background class at all.
 
 ## The one rule that's mattered most
 

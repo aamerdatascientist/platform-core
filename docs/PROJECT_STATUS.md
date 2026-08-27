@@ -3,9 +3,15 @@
 Update this file at the end of every session - what changed, what's next. Keep CLAUDE.md
 itself stable; this is where the narrative goes.
 
-## Verified end-to-end against the REAL Azure SQL database - by the project owner, not just Code's sandbox
+## Verified end-to-end against a real database - by the project owner, not just Code's sandbox
 
-**All four phases built so far, plus every feature added since, now meet this bar.**
+**All four phases built so far, plus every feature added since, now meet this bar.** All
+of the entries below were originally verified against the real Azure SQL database, before
+it was decommissioned - the backend has since fully migrated to Postgres (see "Postgres
+migration" below, now complete) and been re-verified working end-to-end against the real
+Postgres/Railway database as part of that migration. Where a bullet below still says
+"Azure DB," that's the historical record of when it was first verified, not a claim about
+the current database.
 
 - **Phase 0** (Identity + Form Engine core): register, login, create/publish a form,
   submit data, read it back. Confirmed via the browser frontend and Swagger.
@@ -43,13 +49,15 @@ itself stable; this is where the narrative goes.
   FormView layout with a sticky Workflow/Attachments panel, and the Nexus placeholder
   logo/wordmark.
 
-## Built and verified in Code's sandbox - not yet tested by the project owner against the real Azure DB
+## Built and verified in Code's sandbox - not yet tested by the project owner against the real database
 
 - **Form Builder UI** (create forms, add/remove fields, publish, edit a published form's
   fields via a new draft version): built and verified end-to-end against a local SQL
   Server in Code's sandbox, including the `StartNewFormVersionCommand`/`DeleteFormCommand`
   work from PR #15 and the FormBuilder draft-status fix from `16a7d52`. Doesn't meet the
-  bar above yet - needs a real pass against the Azure DB before it counts as verified.
+  bar above yet - needs a real pass against the real Postgres/Railway database before it
+  counts as verified (the target database has changed since this was written - it was
+  Azure SQL when this was first built, Postgres now).
 - **Form access control** (restrict which roles AND/OR individual users can see/use each
   form): done and verified via SQL/API in Code's sandbox. Role-based: restriction,
   unrestriction, the "open to everyone by default" rule (confirmed by diffing
@@ -95,32 +103,43 @@ itself stable; this is where the narrative goes.
 
 ## Immediate next steps, in priority order
 
-The frontend app shell (routing, workflow status/approval UI) and File Management are
-fully done. The Form Builder UI is built but not yet fully done - see below.
+The frontend app shell (routing, workflow status/approval UI), File Management, and the
+Postgres migration are all fully done. The Form Builder UI is built but not yet fully
+done - see below. The "Structural steel" visual direction is implemented and merged, but
+not yet visually confirmed by the project owner in a real browser - Code's sandbox
+verified it via headless-Chromium screenshots and computed-style checks, not a person
+actually looking at it.
 
-1. **Verify the Form Builder UI against the real Azure DB** - see "Built and verified in
-   Code's sandbox" above. Same bar every other phase has already cleared.
+1. **Verify the Form Builder UI against the real Postgres/Railway database** - see
+   "Built and verified in Code's sandbox" above. Same bar every other phase has already
+   cleared; the target database changed (Azure SQL -> Postgres) since this was written.
 2. **Verify form access control in the actual browser UI** - SQL/API-verified only so far
    (both role-based and per-user); needs a real pass confirming restricted forms actually
    disappear from navigation, the admin-only actions are hidden or gated correctly in the
    Form Builder UI, and there's a real way for an admin to manage per-user grants, not
    just blocked server-side.
-3. **After those:** continue the backend roadmap (Dashboards/Reporting is Phase 4, AI
-   Assistant is Phase 5) or keep extending the frontend (e.g. dashboard views, further polish).
+3. **Real-device retest of the mobile horizontal-overflow fix** (PR #28) before merging -
+   still open, not addressed this session - see that section below for the preview URL.
+   Reported by real users; treat as high priority.
+4. **A human look at "Structural steel" in a real browser** - see the note above. Code's
+   sandbox verified layout/measurements/colors programmatically, which isn't the same as
+   someone actually using it, especially across both languages and both modes together.
+5. **Build a real first-admin-bootstrap mechanism** - see the "Known gap" in the Postgres
+   migration section below and in CLAUDE.md. Currently a manual one-off SQL insert; would
+   need repeating by hand for any future fresh environment.
+6. **After those:** Analytics/Reporting (previously "Phase 4" of the backend roadmap) is
+   now actively underway - see "Analytics / Reporting direction" below for the full
+   phased plan. AI Assistant remains the phase after that.
 
-**Newer, currently-open items (added after the above list was last reordered - not yet
-folded into a single priority order with it):**
-- **Real-device retest of the mobile horizontal-overflow fix** (PR #28) before merging -
-  see that section above for the preview URL. This was reported by real users; treat as
-  high priority.
-- **Add `ConnectionStrings__PostgresConnection` to the App Service's Application
-  Settings**, then run `dotnet ef database update` against the Railway Postgres database
-  from somewhere that can reach it, then confirm the 19 tables exist - see the Postgres
-  migration section above for exact commands. Blocks any further Postgres migration work.
-- **Merge `claude/project-setup-api-7feho0` into `main`** once the above is confirmed
-  working, so the Postgres wiring isn't sitting only on a side branch.
+## Analytics — Metabase and Power BI (SUPERSEDED - see "Analytics / Reporting direction" below)
 
-## Analytics — Metabase (LIVE)
+> The two sections below (Metabase, then a planned shift to Power BI) are kept as
+> historical record - the infrastructure details and reasoning are still real, even
+> though neither is the current direction. Metabase was superseded by a planned Power BI
+> direction; Power BI has since been evaluated in detail and rejected too, in favor of
+> building analytics directly into the webapp - see "Analytics / Reporting direction"
+> further down for the current plan and the reasoning for moving off Power BI. Don't
+> restart either Metabase or Power BI work without reading why each was moved away from.
 
 ### Current architecture
 - **Metabase itself**: self-hosted on **Railway** (`metabase-production-ebca.up.railway.app`),
@@ -184,8 +203,12 @@ transaction-wrapped SQL file — not currently committed to the repo; worth addi
 ### Deliberate gaps / not yet done
 - No dashboards built beyond the first manual walkthrough example
 - No scheduled reports/alerts configured in Metabase
-- `PowerBIReader` credential switch (see above)
-- Old Azure Postgres resource cleanup (see above)
+- `PowerBIReader` credential switch (see above) - **now moot**: `PowerBIReader` was a
+  read-only Azure SQL login, and Azure SQL has since been deleted entirely (see the
+  Postgres migration section). Nothing to switch to anymore; this item is dead, not just
+  deferred.
+- Old Azure Postgres resource cleanup (see above) - status unconfirmed, not checked this
+  session; don't assume it was done.
 
 ## Analytics — status update (reconsidered from previous session)
 
@@ -208,6 +231,43 @@ ready for this purpose.
 running in parallel, or wind it down once Power BI is functional. Worth a deliberate
 decision rather than letting both quietly exist indefinitely — Railway is a real, small
 ongoing cost either way.
+
+## Analytics / Reporting direction — building into the webapp (CURRENT)
+
+**Decided this session, superseding both the Metabase and Power BI directions above.**
+Power BI was evaluated in real detail and rejected - recorded here as an established
+fact, not something to re-research if it comes up again:
+- **Import mode** caps at a limited number of scheduled refreshes per day (up to 8x/day
+  on Pro) - not live data. The earlier "lower-effort middle ground" framing (see the
+  status-update section above) undersold how far from real-time that actually is for an
+  operational tool.
+- **DirectQuery** against a non-Azure cloud Postgres (Railway) generally still needs a
+  persistent on-premises data gateway - there's no good cloud-native DirectQuery path
+  for this setup, and the gateway has documented reliability issues specifically for
+  Postgres sources in the Power BI Service.
+- **Embedding for viewers without their own Power BI license** needs either Power BI
+  Embedded (a Fabric capacity, roughly $260+/month minimum) or an insecure public link -
+  neither is acceptable for this use case.
+
+**Current phase: Phase 0 - auditing.** Reviewing the existing `Report_*` views and the
+current aggregate-query surface before building anything new.
+
+**Planned phases:**
+1. A real analytics query layer - CQRS-pattern aggregate queries (matching this
+   codebase's existing command/query convention), not ad-hoc SQL scattered around.
+2. One or two real dashboards, built with the "Structural steel" components (`StatusLed`,
+   the rivet-strip divider, etc. - see below), using polling-based live updates
+   initially, not WebSockets.
+3. A kiosk/screen-display route - needs a new long-lived, scoped, view-only token type,
+   distinct from the normal session access token (which expires in 30 min and isn't
+   meant to sit on a wall-mounted display indefinitely).
+4. Scheduled automated PDF report generation.
+
+**Defaults chosen for the build** (starting points, not locked-in architecture
+decisions): Recharts for charting; fixed dashboards over a generic dashboard-builder for
+now (less to build, revisit if a real need for one shows up); a lightweight
+`IHostedService` timer for the first scheduled report job, not Hangfire (no need for
+Hangfire's persistence/retry machinery yet at one job).
 
 ## Custom Domain, Email & Live App Access (LIVE)
 
@@ -332,7 +392,11 @@ the mobile CSS fix itself:
   hitting a fully-paused Azure SQL serverless instance needing 2-3 retry cycles while it
   resumes lands comfortably in the observed range, independent of the wifi drop also
   visible in the recording. Worth checking the App Service's own Log Stream / Kudu
-  console directly to confirm.
+  console directly to confirm. **This specific theory no longer applies going forward**
+  - Azure SQL (and its serverless auto-pause behavior) is gone; Postgres/Railway doesn't
+  auto-pause the same way. If slow sign-in is reported again post-migration, this isn't
+  the explanation - look at App Service cold starts instead (see CLAUDE.md's "Always On"
+  gotcha).
 - **`src/Platform.Api/appsettings.Development.json` has a real Azure SQL hostname,
   username, and plaintext password committed to git** (tracked since commit `3a14d3b`,
   still present in git history regardless of any future edit). Flagged to the project
@@ -340,68 +404,111 @@ the mobile CSS fix itself:
   live" below, which now also needs to cover the newer Postgres credential (see next
   section) committed the same way.
 
-## Postgres migration - Phase 1: provider wired, not yet applied (IN PROGRESS)
+## Postgres migration - COMPLETE
 
-Decision made: migrate the whole backend off Azure SQL Server onto Postgres (Railway-hosted,
-`metro.proxy.rlwy.net:36575`, database `railway`) as the **primary** datastore, not a
-secondary analytics store. This is a multi-phase migration; what's landed so far on
-`claude/project-setup-api-7feho0` (not yet merged into `main`) is provider + connection
-wiring only:
+The whole backend has moved off Azure SQL Server onto Postgres (Railway-hosted,
+`metro.proxy.rlwy.net:36575`, database `railway`) as the primary datastore. **Azure SQL
+(`test2`) has been deleted** - the ~45x cost savings that motivated this migration is
+realized. Don't reference Azure SQL as the live or dev database anywhere going forward;
+CLAUDE.md's environment gotchas have been updated to match.
 
-- `Npgsql.EntityFrameworkCore.PostgreSQL` added to both `Platform.Api` and
-  `Platform.Infrastructure` (the package needs to be in the latter too - that's where
-  `UseNpgsql` is actually called, and package references don't flow from a project to
-  what it depends on).
-- `DependencyInjection.cs`: `UseSqlServer` -> `UseNpgsql`, reading a new
-  `PostgresConnection` connection string. The old `DefaultConnection` (SQL Server) stays
-  in config, just unused by the DbContext for now.
-- New `PostgresConnection` entries added to `appsettings.json` (empty placeholder) and
-  `appsettings.Development.json` (real Railway credentials - see the credential-hygiene
-  note above, same concern applies here).
-- Old SQL Server EF migrations moved to `Migrations/SqlServer/` (namespace updated,
-  excluded from compilation) so they're preserved for reference but inert. A fresh
-  `InitialPostgres` migration generated in `Migrations/Postgres/` from the current model
-  - covers the full EF-tracked static schema (19 tables: Users, Roles, Permissions,
-  RefreshTokens, Departments, FormDefinitions/Versions/FieldDefinitions,
-  FormDefinitionRoles/Users, Workflow*, FileMetadataEntries). Nothing dynamic-form-related
-  is in it - those tables were never part of the EF model (`DynamicSchemaService` manages
-  them via raw ADO.NET, entirely outside EF's migration system), and this phase
-  deliberately doesn't touch that.
+**What's done:**
+- EF-tracked static schema: `Npgsql.EntityFrameworkCore.PostgreSQL` wired into both
+  `Platform.Api` and `Platform.Infrastructure`, a fresh `InitialPostgres` migration
+  applied, all 19 tables (Users, Roles, Permissions, RefreshTokens, Departments,
+  FormDefinitions/Versions/FieldDefinitions, FormDefinitionRoles/Users, Workflow*,
+  FileMetadataEntries) live on Railway Postgres.
+- `DynamicSchemaService` and `DynamicDataRepository` - the dynamic `Data_*`/`Report_*`
+  table generation and raw-SQL data access layer - are now **fully ported to Postgres**.
+  Npgsql throughout, no SQL Server code path remains active. Verified end-to-end with
+  real data, including finding and fixing the Arabic seed-data encoding bug along the
+  way (Windows PowerShell's `Invoke-RestMethod` not UTF-8-encoding its `-Body` - see
+  CLAUDE.md).
+- Old SQL Server EF migrations preserved but inert in `Migrations/SqlServer/`; the
+  SQL-Server-specific methods in `SqlTypeMapper` (`ToSqlColumnType`,
+  `AssertSafeIdentifier`) are now dead code - see CLAUDE.md's "Low-priority cleanup
+  candidates," not urgent, nothing depends on them.
+- `claude/project-setup-api-7feho0` (all of this migration's work) merged into `main`.
 
-**Explicitly NOT done yet - each one blocks going further:**
-1. **The App Service's live Application Settings still need a
-   `ConnectionStrings__PostgresConnection` entry added manually** (Portal or `az cli`,
-   whichever's convenient) - the deployed backend has no Postgres connection string
-   configured until this happens. Couldn't be done from Code's sandbox - no Azure CLI
-   available, and Azure endpoints are blocked by the same egress policy that's blocked
-   Azure SQL all along.
-2. **The `InitialPostgres` migration has not been applied to the live Railway database.**
-   `dotnet ef database update --project src/Platform.Infrastructure --startup-project
-   src/Platform.Api` needs to run from somewhere that can actually reach
-   `metro.proxy.rlwy.net:36575` - confirmed unreachable from Code's sandbox (raw TCP
-   connect times out, see CLAUDE.md). No tables exist in the Railway database yet.
-3. **`DynamicSchemaService` and everything dynamic-form-related is still 100%
-   SQL-Server-specific** (raw DDL, `SqlTypeMapper`, the whole `Data_*`/`Report_*` table
-   generation pattern) - deliberately out of scope for this phase, not an oversight. The
-   app cannot actually run against Postgres end-to-end until this is migrated too.
-4. **`claude/project-setup-api-7feho0` itself is not yet merged into `main`** - it was
-   brought up to date with `main` (13-commit gap, merged cleanly, no conflicts) before this
-   work started, but the Postgres work sits on top of that merge, unmerged back.
+**New established conventions from this work** (permanent record in CLAUDE.md):
+- Dynamic form `DateTime` fields default an unspecified offset to UTC+3 (Saudi local
+  time) - deliberately different from the static schema's audit columns, which stay UTC.
+- Npgsql requires `Offset=0` on any `DateTimeOffset` written to a `timestamptz` column -
+  call `.ToUniversalTime()` before writing. SQL Server accepted a non-zero offset
+  directly; Postgres/Npgsql doesn't.
+
+**Known gap, not yet resolved:** there's still no automated first-admin-bootstrap
+mechanism (see CLAUDE.md). The current admin account was created via a one-off direct
+SQL insert (credentials below) - the same manual step would be needed again for any
+future fresh environment. Worth a real fix eventually, not urgent while there's only the
+one environment.
+
+**Key IDs** (current - replaces an earlier set that went stale after a mid-session
+cleanup/re-seed):
+- Locations form: `9f8896a7-f6e9-484f-ac20-9bfc2fde7fa3`
+- Stock Adjustment form: `dd23d28f-dc81-4133-9513-c5b1e7452dae`
+- Administrator role: `d573b2ad-3410-4924-9885-c582ceb24f28` (unchanged throughout)
+- Stock Adjustment workflow definition: `9cab64bc-e963-49e5-8301-3a78af45dd95`
+
+**Admin credentials (for reference):** `admin@asasksa.co` / `TempAdmin123!`
+
+**Credential hygiene:** the Railway Postgres connection string, including its password,
+is sitting in `appsettings.Development.json` in git history - same deferred-security-item
+category as the old exposed Azure SQL credential (see "Before going live" below). Azure
+SQL itself is now deleted, so that specific exposure is moot; Postgres and Blob Storage
+are the two live credentials still needing rotation before going live.
+
+## "Structural steel" visual direction (MERGED)
+
+**`feature/structural-steel` merged into `main`** via a clean fast-forward, deployed
+live. A deliberate scope decision, not a partial rollout: the reskin applies to the whole
+authenticated app shell and sign-in - everywhere `Layout` wraps, not just the two screens
+originally scoped for a validation pass. `FormRenderer`/`SubmissionsTable` are shared
+across every form, so re-skinning them was never going to stay "two screens" in practice
+- see the Step 1 audit that decided this before implementation started.
+
+**What shipped:**
+- Full dark/light mode toggle (`src/theme/mode.ts` - mirrors the existing `i18n` module-
+  singleton pattern, not React Context) alongside the existing language toggle.
+- Font: Archivo replaces Space Grotesk for headers; IBM Plex Mono kept for data/mono
+  text (already loaded, reused as-is).
+- New reusable components: `StatusLed.tsx` (glowing LED-style status indicator - replaced
+  the old bordered status pills everywhere, and a separate measured thin-accent-line
+  active-nav-item treatment in `FormPicker.tsx` that predated this work and had never
+  been swept over), `Switch.tsx` (shared iOS-style sliding toggle - both the language and
+  mode toggles are thin wrappers around it now, not two separate implementations), and
+  the `.rivet-strip` divider utility class.
+- Design tokens (light/dark color pairs, 2px radius, recessed panel shadow, sign-in
+  background texture) as CSS custom properties in `index.css`, referenced from
+  `tailwind.config.js` so they work as normal Tailwind utility classes.
+
+**Not yet done:** a real human look at this in an actual browser - see "Immediate next
+steps" above. Verified in Code's sandbox via headless Chromium (computed styles,
+`getBoundingClientRect` measurements, screenshots) across both languages and both modes,
+which isn't the same as someone actually using it.
+
+**Worth knowing as a pattern, not just a one-off fix:** several inputs/selects had no
+explicit `bg-*` class at all, even before this redesign - invisible against the old
+light-only palette, and only surfaced as a white-box-on-dark-background bug once dark
+mode existed to contrast against. See CLAUDE.md's engineering gotchas - check for this
+pattern in any new form-control markup going forward.
 
 ## Known environment facts specific to this deployment
 
 - GitHub repo: `aamerdatascientist/platform-core`.
-- Local dev machine can't run Docker (corporate-locked virtualization) - Azure SQL free
-  tier is the database for local dev too, not just "production." Don't suggest Docker.
-- Azure SQL server: `construction-site-aamer-shah.database.windows.net`, database `test2`.
+- Local dev machine can't run Docker (corporate-locked virtualization) - Postgres
+  (Railway-hosted) is the database for local dev too, not just "production." Don't
+  suggest Docker.
+- Postgres: Railway-hosted, `metro.proxy.rlwy.net:36575`, database `railway`. Azure SQL
+  (`construction-site-aamer-shah.database.windows.net`, database `test2`) has been
+  deleted - don't reference it as live.
 - Local frontend dev server: `http://localhost:5173`. Local API: `http://localhost:5080`
   (pinned via `launchSettings.json` - don't let it drift back to the ASP.NET default 5000).
 
 ## Before going live
 
-- **Rotate the Azure SQL password and Blob Storage account key.** Both were pasted into
-  chat during setup. Deliberately deferred until active development wraps up, not
-  forgotten - don't ship without doing this.
-- **Rotate the Railway Postgres password too**, same reason - it's sitting in
-  `appsettings.Development.json` in git history the same way the Azure SQL credentials
-  are (see the Postgres migration section above).
+- **Rotate the Railway Postgres password and the Blob Storage account key.** Both were
+  pasted into chat and committed to `appsettings.Development.json` during setup.
+  Deliberately deferred until active development wraps up, not forgotten - don't ship
+  without doing this. (Azure SQL had the same exposure, but that credential is now moot -
+  the database itself was deleted as part of the Postgres migration.)
