@@ -89,7 +89,7 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
     }
   }
 
-  const inputClass = 'w-full border border-border rounded px-2 py-1.5 text-sm focus:border-accent focus:outline-none';
+  const inputClass = 'w-full border border-border rounded bg-bg px-2 py-1.5 text-sm focus:border-accent focus:outline-none';
 
   return (
     <form onSubmit={handleSubmit} className="space-y-3 border border-border rounded bg-panel p-4 shadow-recessed">

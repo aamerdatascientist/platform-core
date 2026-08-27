@@ -77,7 +77,7 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {attachmentFields.length > 1 && (
           <select
-            className="border border-border rounded px-2 py-1.5 text-sm focus:border-accent focus:outline-none"
+            className="border border-border rounded bg-bg px-2 py-1.5 text-sm focus:border-accent focus:outline-none"
             value={selectedField}
             onChange={(e) => setSelectedField(e.target.value)}
           >

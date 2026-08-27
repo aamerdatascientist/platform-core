@@ -86,7 +86,12 @@ export function Layout({ token }: LayoutProps) {
           </button>
         </div>
         <div className="rivet-strip mb-4" />
-        <div className="mb-4 flex items-center gap-4 px-1">
+        {/* dir="ltr" here, not just on each Switch individually - otherwise this row
+            itself reorders under an inherited RTL context even though each toggle's
+            own internal layout stays correct on its own. flex-wrap is a safety net,
+            not the primary fix - a fixed physical position matters more than a tight
+            one-line fit if the sidebar is ever narrower than both switches combined. */}
+        <div dir="ltr" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 px-1">
           <LanguageToggle />
           <ModeToggle />
         </div>

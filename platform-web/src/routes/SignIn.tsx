@@ -34,7 +34,7 @@ export function SignIn() {
       {/* Fixed physical corner, not logical (end-4) - deliberate exception to this app's
           RTL pattern, so the language switcher stays in the same spot regardless of
           which language is currently active. */}
-      <div className="absolute right-4 top-4 flex items-center gap-4">
+      <div dir="ltr" className="absolute right-4 top-4 flex flex-wrap items-center justify-end gap-x-3 gap-y-2">
         <LanguageToggle tone="light" />
         <ModeToggle tone="light" />
       </div>
@@ -50,7 +50,7 @@ export function SignIn() {
             type="email"
             placeholder={t('signIn.emailPlaceholder')}
             autoComplete="username"
-            className="w-full border border-border rounded bg-panel px-3 py-2 text-sm focus:border-accent focus:outline-none"
+            className="w-full border border-border rounded bg-bg px-3 py-2 text-sm focus:border-accent focus:outline-none"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
@@ -58,7 +58,7 @@ export function SignIn() {
             type="password"
             placeholder={t('signIn.passwordPlaceholder')}
             autoComplete="current-password"
-            className="w-full border border-border rounded bg-panel px-3 py-2 text-sm focus:border-accent focus:outline-none"
+            className="w-full border border-border rounded bg-bg px-3 py-2 text-sm focus:border-accent focus:outline-none"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />

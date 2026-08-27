@@ -75,7 +75,7 @@ export function WorkflowPanel({ token, recordId, onChanged }: WorkflowPanelProps
           <input
             type="text"
             placeholder={t('workflowPanel.commentPlaceholder')}
-            className="w-full border border-border rounded px-2 py-1.5 text-sm focus:border-accent focus:outline-none"
+            className="w-full border border-border rounded bg-bg px-2 py-1.5 text-sm focus:border-accent focus:outline-none"
             value={comment}
             onChange={(e) => setComment(e.target.value)}
           />

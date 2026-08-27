@@ -252,7 +252,7 @@ function FieldInput({
 }) {
   const { t } = useTranslation();
   const baseClass =
-    'w-full border border-border rounded px-3 py-2 text-sm focus:border-accent focus:outline-none';
+    'w-full border border-border rounded bg-bg px-3 py-2 text-sm focus:border-accent focus:outline-none';
 
   return (
     <div>

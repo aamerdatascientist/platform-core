@@ -134,7 +134,7 @@ export function UserManagement({ token }: UserManagementProps) {
     }
   }
 
-  const inputClass = 'w-full border border-border rounded px-2 py-1.5 text-sm focus:border-accent focus:outline-none';
+  const inputClass = 'w-full border border-border rounded bg-bg px-2 py-1.5 text-sm focus:border-accent focus:outline-none';
 
   return (
     <div className="max-w-3xl space-y-10">

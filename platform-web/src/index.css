@@ -64,6 +64,36 @@ body {
   font-weight: bold;
 }
 
+/* Themed scrollbar - mode-aware for free since it references the same tokens
+   everything else does. Firefox (scrollbar-color/-width) and WebKit/Blink
+   (::-webkit-scrollbar and friends) need separate rules - there's no shorthand that
+   covers both. Applied globally (html), not just on the sidebar/main scroll
+   containers, so it's consistent wherever a scrollbar appears, not just the two
+   places already known to scroll independently. */
+html {
+  scrollbar-color: var(--border) var(--bg);
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+  border: 2px solid var(--bg);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-soft);
+}
+
 /* Rivet-strip divider: 5px bar combining a highlight-to-accent gradient with evenly
    spaced dark dots ("rivets"). Reusable utility class, not a one-off - used under
    the mobile topbar and as a divider on the sign-in card, and anywhere else this
