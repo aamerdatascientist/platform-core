@@ -98,6 +98,9 @@ export function Layout({ token }: LayoutProps) {
         <FormPicker token={token} />
 
         <div className="mt-6 space-y-2 border-t border-border rounded pt-3">
+          <NavLink to="/dashboards/executive-overview" className={navLinkClass}>
+            {t('sidebar.executiveOverview')}
+          </NavLink>
           {isAdmin && (
             <>
               <NavLink to="/builder" className={navLinkClass}>

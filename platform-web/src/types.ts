@@ -145,3 +145,57 @@ export interface DropdownOption {
   value: string;
   label: string;
 }
+
+// Mirrors Platform.Application.Analytics's query handler DTOs - same hand-kept-in-sync
+// convention as the rest of this file.
+
+export interface ProjectProgressDto {
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  status: string | null;
+  startDateUtc: string | null;
+  expectedCompletionUtc: string | null;
+  /** Null means "not enough information" (a missing date, or a non-positive span) - render "—", not 0%/100%. */
+  percentComplete: number | null;
+}
+
+export interface ProjectCrewCountDto {
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  logDate: string;
+  totalHeadcount: number;
+}
+
+export interface ProjectWeatherSummaryDto {
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  totalDays: number;
+  impactedDays: number;
+}
+
+export interface OverdueTaskDto {
+  taskId: string;
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  taskReference: string;
+  description: string;
+  assignedTo: string;
+  priority: string;
+  dueDateUtc: string;
+}
+
+export type StockMovementType = 'GoodsReceipt' | 'MaterialIssue' | 'StockTransfer' | 'StockAdjustment';
+
+export interface StockMovementBreakdownDto {
+  movementType: StockMovementType;
+  locationId: string;
+  locationName: string;
+  materialId: string;
+  materialCode: string;
+  materialName: string;
+  totalQuantity: number;
+}

@@ -4,8 +4,13 @@ import type {
   FileMetadataDto,
   FormDefinitionDto,
   FormSummaryDto,
+  OverdueTaskDto,
   PagedResult,
+  ProjectCrewCountDto,
+  ProjectProgressDto,
+  ProjectWeatherSummaryDto,
   RoleDto,
+  StockMovementBreakdownDto,
   TokenPair,
   UserSummaryDto,
   WorkflowStatusDto,
@@ -172,6 +177,22 @@ export const api = {
 
     list: (token: string, formId: string, page = 1, pageSize = 25) =>
       request<PagedResult<DynamicRow>>(`/api/forms/${formId}/submissions?page=${page}&pageSize=${pageSize}`, {}, token),
+  },
+
+  analytics: {
+    projectProgress: (token: string) =>
+      request<ProjectProgressDto[]>('/api/analytics/project-progress', {}, token),
+
+    crewCountByProject: (token: string) =>
+      request<ProjectCrewCountDto[]>('/api/analytics/crew-count-by-project', {}, token),
+
+    weatherImpactedDays: (token: string) =>
+      request<ProjectWeatherSummaryDto[]>('/api/analytics/weather-impacted-days', {}, token),
+
+    overdueTasks: (token: string) => request<OverdueTaskDto[]>('/api/analytics/overdue-tasks', {}, token),
+
+    stockMovementBreakdown: (token: string) =>
+      request<StockMovementBreakdownDto[]>('/api/analytics/stock-movement-breakdown', {}, token),
   },
 
   workflow: {

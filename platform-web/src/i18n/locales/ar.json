@@ -4,6 +4,7 @@
     "openMenu": "فتح القائمة",
     "buildForms": "+ إنشاء نموذج",
     "users": "المستخدمون",
+    "executiveOverview": "النظرة التنفيذية العامة",
     "loading": "جارٍ التحميل…",
     "noForms": "لا توجد نماذج بعد.",
     "notPublished": "لم يُنشر بعد",
@@ -198,5 +199,56 @@
     "saving": "جارٍ الحفظ…",
     "toggleActiveError": "تعذر تحديث هذا المستخدم.",
     "saveRolesError": "تعذر تحديث أدوار هذا المستخدم."
+  },
+  "projectSelector": {
+    "allProjects": "كل المشاريع"
+  },
+  "executiveOverview": {
+    "title": "النظرة التنفيذية العامة",
+    "subtitle": "الحالة الحية لكل مشروع نشط.",
+    "loadError": "تعذر تحميل لوحة المعلومات.",
+    "projectStatus": {
+      "planning": "التخطيط",
+      "active": "نشط",
+      "on_hold": "متوقف مؤقتاً",
+      "completed": "مكتمل"
+    },
+    "priority": {
+      "low": "منخفضة",
+      "medium": "متوسطة",
+      "high": "عالية",
+      "urgent": "عاجلة"
+    },
+    "projectProgress": {
+      "title": "تقدّم المشاريع",
+      "empty": "لا توجد مشاريع بعد."
+    },
+    "crewCount": {
+      "title": "العمالة في الموقع",
+      "empty": "لا توجد سجلات عمالة بعد.",
+      "asOf": "حتى تاريخ {{date}}"
+    },
+    "weatherImpact": {
+      "title": "تأثير الطقس",
+      "empty": "لا توجد تقارير يومية للموقع بعد.",
+      "daysImpacted": "{{impacted}} من {{total}} أيام متأثرة"
+    },
+    "overdueTasks": {
+      "title": "المهام المتأخرة ({{count}})",
+      "empty": "لا توجد مهام متأخرة حالياً.",
+      "assignedTo": "مسندة إلى {{name}}",
+      "dueDate": "الاستحقاق {{date}}"
+    },
+    "stockMovement": {
+      "title": "تفصيل حركة المخزون",
+      "empty": "لا توجد حركات مخزون مسجلة بعد.",
+      "noMovements": "لا توجد حركات مسجلة لهذه المادة.",
+      "movementType": {
+        "GoodsReceipt": "استلام البضائع",
+        "MaterialIssue": "صرف المواد",
+        "StockTransfer": "تحويل المخزون",
+        "StockAdjustment": "تسوية المخزون"
+      }
+    }
   }
 }
