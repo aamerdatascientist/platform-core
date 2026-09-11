@@ -22,6 +22,7 @@ public class WorkflowsController : ControllerBase
     public record CreateWorkflowRequest(string Code, string Name, Guid FormDefinitionId);
 
     [HttpPost]
+    [Authorize(Roles = "Administrator")]
     public async Task<IActionResult> Create(CreateWorkflowRequest request, CancellationToken cancellationToken)
     {
         var id = await _sender.Send(new CreateWorkflowDefinitionCommand(request.Code, request.Name, request.FormDefinitionId), cancellationToken);
@@ -35,6 +36,7 @@ public class WorkflowsController : ControllerBase
     public record AddStateRequest(string Code, string Label, bool IsInitial, bool IsFinal);
 
     [HttpPost("{id:guid}/states")]
+    [Authorize(Roles = "Administrator")]
     public async Task<IActionResult> AddState(Guid id, AddStateRequest request, CancellationToken cancellationToken)
     {
         var stateId = await _sender.Send(
@@ -45,6 +47,7 @@ public class WorkflowsController : ControllerBase
     public record AddTransitionRequest(string Code, string Label, Guid FromStateId, Guid ToStateId, IReadOnlyList<Guid> AllowedRoleIds);
 
     [HttpPost("{id:guid}/transitions")]
+    [Authorize(Roles = "Administrator")]
     public async Task<IActionResult> AddTransition(Guid id, AddTransitionRequest request, CancellationToken cancellationToken)
     {
         var transitionId = await _sender.Send(new AddWorkflowTransitionCommand(
@@ -53,6 +56,7 @@ public class WorkflowsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/publish")]
+    [Authorize(Roles = "Administrator")]
     public async Task<IActionResult> Publish(Guid id, CancellationToken cancellationToken)
     {
         await _sender.Send(new PublishWorkflowDefinitionCommand(id), cancellationToken);

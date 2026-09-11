@@ -43,6 +43,13 @@ public class RegisterUserCommandHandler : IRequestHandler<RegisterUserCommand, G
                 new FluentValidation.Results.ValidationFailure(nameof(request.Email), "Email is already registered.")
             });
 
+        var roleExists = await _db.Roles.AnyAsync(r => r.Id == request.DefaultRoleId, cancellationToken);
+        if (!roleExists)
+            throw new Common.Exceptions.ValidationException(new[]
+            {
+                new FluentValidation.Results.ValidationFailure(nameof(request.DefaultRoleId), "That role doesn't exist.")
+            });
+
         var user = User.Create(
             normalizedEmail, request.DisplayName, _passwordHasher.Hash(request.Password), request.DepartmentId);
         user.AssignRole(request.DefaultRoleId);

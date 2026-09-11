@@ -7,7 +7,7 @@ using Platform.Domain.Forms;
 namespace Platform.Application.Forms.Queries.GetFormSubmissions;
 
 public record GetFormSubmissionsQuery(Guid FormDefinitionId, int Page = 1, int PageSize = 25)
-    : IRequest<PagedResult<DynamicRow>>;
+    : IRequest<PagedResult<DynamicRow>>, IFormScopedRequest;
 
 public class GetFormSubmissionsQueryHandler : IRequestHandler<GetFormSubmissionsQuery, PagedResult<DynamicRow>>
 {

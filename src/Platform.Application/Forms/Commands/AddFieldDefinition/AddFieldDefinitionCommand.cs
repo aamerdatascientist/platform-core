@@ -13,10 +13,19 @@ public record AddFieldDefinitionCommand(
 
 public class AddFieldDefinitionCommandValidator : AbstractValidator<AddFieldDefinitionCommand>
 {
+    // Postgres's 63-byte identifier limit, minus the "lkp_" prefix DynamicSchemaService
+    // builds a reporting-view join alias from for every Lookup field
+    // (RefreshReportingViewAsync) - a Code right at the plain 63-char limit would overflow
+    // once prefixed. Only Lookup fields go through that prefixing, so only they need the
+    // tighter cap.
+    private const int MaxLookupCodeLength = 63 - 4;
+
     public AddFieldDefinitionCommandValidator()
     {
         RuleFor(x => x.FormDefinitionId).NotEmpty();
         RuleFor(x => x.Code).NotEmpty().MaximumLength(63);
+        RuleFor(x => x.Code).MaximumLength(MaxLookupCodeLength).When(x => x.FieldType == FieldType.Lookup)
+            .WithMessage($"Lookup field codes can be at most {MaxLookupCodeLength} characters.");
         RuleFor(x => x.Label).NotEmpty().MaximumLength(200);
         RuleFor(x => x.OptionsJson).NotEmpty().When(x => x.FieldType == FieldType.Dropdown)
             .WithMessage("Dropdown fields require options.");

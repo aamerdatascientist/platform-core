@@ -6,7 +6,15 @@ using Platform.Application.Common.Interfaces;
 
 namespace Platform.Application.Workflow.Commands.ExecuteWorkflowTransition;
 
-public record ExecuteWorkflowTransitionCommand(Guid RecordId, string TransitionCode, string? Comment) : IRequest;
+public record ExecuteWorkflowTransitionCommand(Guid RecordId, string TransitionCode, string? Comment)
+    : IRequest, IFormScopeResolvingRequest
+{
+    public async Task<Guid?> ResolveFormDefinitionIdAsync(IApplicationDbContext db, CancellationToken cancellationToken) =>
+        await db.WorkflowInstances
+            .Where(i => i.RecordId == RecordId)
+            .Select(i => (Guid?)i.FormDefinitionId)
+            .SingleOrDefaultAsync(cancellationToken);
+}
 
 public class ExecuteWorkflowTransitionCommandValidator : AbstractValidator<ExecuteWorkflowTransitionCommand>
 {
@@ -76,6 +84,26 @@ public class ExecuteWorkflowTransitionCommandHandler : IRequestHandler<ExecuteWo
         // new entry via graph traversal during SaveChanges - same class of bug as
         // AddFieldDefinitionCommand had, fixed the same way: track it explicitly.
         _db.WorkflowInstanceHistoryEntries.Add(historyEntry);
-        await _db.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            await _db.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // WorkflowInstance is now concurrency-tokened on Postgres's xmin (see
+            // WorkflowConfigurations) - this fires when someone else's transition committed
+            // between this handler loading the instance and saving its own, which the
+            // transition-validity check above (FromStateId == instance.CurrentStateId, read
+            // at load time) can't catch on its own. A clean, retryable error beats either
+            // silently overwriting the other transition or surfacing a raw EF exception as
+            // an unhandled 500.
+            throw new Common.Exceptions.ValidationException(new[]
+            {
+                new FluentValidation.Results.ValidationFailure(
+                    nameof(request.RecordId),
+                    "This record's workflow state changed since you loaded it. Refresh and try again.")
+            });
+        }
     }
 }

@@ -11,7 +11,7 @@ namespace Platform.Application.Files.Commands.UploadFile;
 public record UploadFileCommand(
     Guid FormDefinitionId, Guid RecordId, string FieldCode,
     Stream Content, string OriginalFileName, string ContentType, long SizeBytes, Guid UploadedByUserId)
-    : IRequest<FileMetadataDto>;
+    : IRequest<FileMetadataDto>, IFormScopedRequest;
 
 public record FileMetadataDto(
     Guid Id, string FieldCode, string OriginalFileName, string ContentType, long SizeBytes, DateTime CreatedAtUtc);
@@ -76,9 +76,26 @@ public class UploadFileCommandHandler : IRequestHandler<UploadFileCommand, FileM
                     nameof(request.FieldCode), $"'{request.FieldCode}' isn't a valid attachment field on this form.")
             });
 
+        // Buffered fully rather than peeked-and-reset: request.Content isn't guaranteed
+        // seekable (depends on how ASP.NET Core backed the multipart body for this
+        // request), and the size cap above already accepts holding one upload's worth in
+        // memory. This is also where the actual bytes get checked against the declared
+        // Content-Type - UploadFileCommandValidator's allow-list only ever validated that
+        // header string, which the caller controls and can lie about.
+        var buffer = new MemoryStream();
+        await request.Content.CopyToAsync(buffer, cancellationToken);
+        var header = buffer.Length <= 4096 ? buffer.ToArray() : buffer.ToArray()[..4096];
+        if (!FileSignatureValidator.MatchesDeclaredContentType(header, request.ContentType))
+            throw new Common.Exceptions.ValidationException(new[]
+            {
+                new FluentValidation.Results.ValidationFailure(
+                    nameof(request.ContentType), "The file's actual content doesn't match its declared type.")
+            });
+        buffer.Position = 0;
+
         var blobName = $"{formDefinition.Code}/{request.RecordId}/{request.FieldCode}/{Guid.NewGuid()}_{SanitizeFileName(request.OriginalFileName)}";
 
-        await _blobStorage.UploadAsync(blobName, request.Content, request.ContentType, cancellationToken);
+        await _blobStorage.UploadAsync(blobName, buffer, request.ContentType, cancellationToken);
 
         var metadata = FileMetadata.Create(
             formDefinition.Id, request.RecordId, request.FieldCode,

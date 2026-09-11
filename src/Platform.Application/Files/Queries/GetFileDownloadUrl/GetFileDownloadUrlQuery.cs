@@ -5,7 +5,14 @@ using Platform.Application.Common.Interfaces;
 
 namespace Platform.Application.Files.Queries.GetFileDownloadUrl;
 
-public record GetFileDownloadUrlQuery(Guid FileId) : IRequest<string>;
+public record GetFileDownloadUrlQuery(Guid FileId) : IRequest<string>, IFormScopeResolvingRequest
+{
+    public async Task<Guid?> ResolveFormDefinitionIdAsync(IApplicationDbContext db, CancellationToken cancellationToken) =>
+        await db.FileMetadataEntries
+            .Where(f => f.Id == FileId)
+            .Select(f => (Guid?)f.FormDefinitionId)
+            .SingleOrDefaultAsync(cancellationToken);
+}
 
 public class GetFileDownloadUrlQueryHandler : IRequestHandler<GetFileDownloadUrlQuery, string>
 {
