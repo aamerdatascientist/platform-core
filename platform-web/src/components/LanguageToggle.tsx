@@ -6,7 +6,7 @@ interface LanguageToggleProps {
 }
 
 export function LanguageToggle({ tone = 'dark' }: LanguageToggleProps) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isArabic = i18n.language === 'ar';
 
   return (
@@ -16,7 +16,7 @@ export function LanguageToggle({ tone = 'dark' }: LanguageToggleProps) {
       leftLabel="EN"
       rightLabel="عربي"
       tone={tone}
-      ariaLabel="Toggle language"
+      ariaLabel={t('common.toggleLanguage')}
     />
   );
 }

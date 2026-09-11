@@ -8,6 +8,7 @@ import { Layout } from './routes/Layout';
 import { SignIn } from './routes/SignIn';
 import { UserManagement } from './routes/UserManagement';
 import { Welcome } from './routes/Welcome';
+import { RequireAdmin } from './components/RequireAdmin';
 
 /**
  * Real routing now (React Router) - refreshing or bookmarking /forms/{id} keeps your
@@ -26,9 +27,11 @@ export default function App() {
       <Route element={<Layout token={accessToken} />}>
         <Route index element={<Welcome />} />
         <Route path="forms/:formId" element={<FormView token={accessToken} />} />
-        <Route path="builder" element={<BuilderHome token={accessToken} />} />
-        <Route path="builder/:formId" element={<FormBuilder token={accessToken} />} />
-        <Route path="admin/users" element={<UserManagement token={accessToken} />} />
+        <Route element={<RequireAdmin token={accessToken} />}>
+          <Route path="builder" element={<BuilderHome token={accessToken} />} />
+          <Route path="builder/:formId" element={<FormBuilder token={accessToken} />} />
+          <Route path="admin/users" element={<UserManagement token={accessToken} />} />
+        </Route>
       </Route>
     </Routes>
   );
