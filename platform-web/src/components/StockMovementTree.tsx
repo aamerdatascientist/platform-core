@@ -130,7 +130,16 @@ export function StockMovementTree({ movements }: StockMovementTreeProps) {
       {movementNodes.length === 0 ? (
         <p className="text-sm text-ink-soft">{t('executiveOverview.stockMovement.noMovements')}</p>
       ) : (
-        <svg viewBox={`0 0 ${VIEW_WIDTH} ${viewHeight}`} width="100%" height={viewHeight} role="img">
+        // dir="ltr" pinned on a wrapper, not the <svg> itself (React's SVG typings don't
+        // accept a dir prop, even though the DOM attribute is valid) - this is a
+        // left-to-right data-flow diagram (root -> movement -> destination) regardless of
+        // UI language, same reasoning as keeping the toggle row's physical order fixed
+        // elsewhere in this app. Without it, an inherited RTL context can flip SVG
+        // text-anchor/BiDi resolution for the text labels even though the rect/path
+        // geometry itself is direction-agnostic; dir cascades via CSS direction the same
+        // way whether set on the svg or a wrapping element.
+        <div dir="ltr">
+          <svg viewBox={`0 0 ${VIEW_WIDTH} ${viewHeight}`} width="100%" height={viewHeight} role="img">
           {/* Connectors first, so every node's bar renders on top of the curves reaching it. */}
           {movementNodes.map((node) => (
             <g key={`connectors-${node.type}`}>
@@ -177,7 +186,8 @@ export function StockMovementTree({ movements }: StockMovementTreeProps) {
               })}
             </g>
           ))}
-        </svg>
+          </svg>
+        </div>
       )}
     </div>
   );
