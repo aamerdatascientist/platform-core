@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { getMode, onModeChanged, toggleMode } from '../theme/mode';
 import { Switch } from './Switch';
 
@@ -12,6 +13,7 @@ interface ModeToggleProps {
  * state, so every mounted instance (sidebar + sign-in) stays in sync.
  */
 export function ModeToggle({ tone = 'dark' }: ModeToggleProps) {
+  const { t } = useTranslation();
   const [mode, setModeState] = useState(getMode());
 
   useEffect(() => onModeChanged(setModeState), []);
@@ -23,7 +25,7 @@ export function ModeToggle({ tone = 'dark' }: ModeToggleProps) {
       leftLabel="☀"
       rightLabel="☾"
       tone={tone}
-      ariaLabel="Toggle light/dark mode"
+      ariaLabel={t('common.toggleMode')}
     />
   );
 }

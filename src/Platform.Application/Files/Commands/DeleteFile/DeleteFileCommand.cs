@@ -6,7 +6,14 @@ using Platform.Application.Common.Interfaces;
 
 namespace Platform.Application.Files.Commands.DeleteFile;
 
-public record DeleteFileCommand(Guid FileId) : IRequest;
+public record DeleteFileCommand(Guid FileId) : IRequest, IFormScopeResolvingRequest
+{
+    public async Task<Guid?> ResolveFormDefinitionIdAsync(IApplicationDbContext db, CancellationToken cancellationToken) =>
+        await db.FileMetadataEntries
+            .Where(f => f.Id == FileId)
+            .Select(f => (Guid?)f.FormDefinitionId)
+            .SingleOrDefaultAsync(cancellationToken);
+}
 
 public class DeleteFileCommandValidator : AbstractValidator<DeleteFileCommand>
 {

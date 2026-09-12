@@ -106,7 +106,9 @@ export function WorkflowPanel({ token, recordId, onChanged }: WorkflowPanelProps
           <ul className="mt-2 space-y-1.5">
             {status.history.map((h, i) => (
               <li key={i} className="font-mono text-xs text-ink-soft">
-                <span className="text-ink">{h.fromStateLabel ?? t('workflowPanel.started')} → {h.toStateLabel}</span>
+                <span className="text-ink">
+                  <bdi>{h.fromStateLabel ?? t('workflowPanel.started')}</bdi> → <bdi>{h.toStateLabel}</bdi>
+                </span>
                 {h.transitionLabel ? ` · ${h.transitionLabel}` : ''} · {new Date(h.executedAtUtc).toLocaleString()}
                 {h.comment ? <span className="block italic">"{h.comment}"</span> : null}
               </li>

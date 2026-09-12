@@ -15,9 +15,16 @@ public class SetUserRolesCommandValidator : AbstractValidator<SetUserRolesComman
 
 public class SetUserRolesCommandHandler : IRequestHandler<SetUserRolesCommand>
 {
-    private readonly IApplicationDbContext _db;
+    private const string AdministratorRoleName = "Administrator";
 
-    public SetUserRolesCommandHandler(IApplicationDbContext db) => _db = db;
+    private readonly IApplicationDbContext _db;
+    private readonly ICurrentUserService _currentUser;
+
+    public SetUserRolesCommandHandler(IApplicationDbContext db, ICurrentUserService currentUser)
+    {
+        _db = db;
+        _currentUser = currentUser;
+    }
 
     public async Task Handle(SetUserRolesCommand request, CancellationToken cancellationToken)
     {
@@ -26,11 +33,27 @@ public class SetUserRolesCommandHandler : IRequestHandler<SetUserRolesCommand>
             throw new NotFoundException(nameof(Platform.Domain.Identity.User), request.UserId);
 
         var requestedRoleIds = request.RoleIds.Distinct().ToList();
-        var validRoleIds = await _db.Roles.Where(r => requestedRoleIds.Contains(r.Id)).Select(r => r.Id).ToListAsync(cancellationToken);
-        if (validRoleIds.Count != requestedRoleIds.Count)
+        var validRoles = await _db.Roles.Where(r => requestedRoleIds.Contains(r.Id)).ToListAsync(cancellationToken);
+        if (validRoles.Count != requestedRoleIds.Count)
             throw new Common.Exceptions.ValidationException(new[]
             {
                 new FluentValidation.Results.ValidationFailure(nameof(request.RoleIds), "One or more role IDs don't exist.")
+            });
+
+        // Mirrors SetUserActiveStatusCommand's self-deactivation guard - an admin removing
+        // their own Administrator role is the same class of mistake as deactivating their
+        // own account: both can permanently lock every admin out with no way back in
+        // (see the first-admin-bootstrap gap in CLAUDE.md - there's no recovery path).
+        var administratorRoleId = await _db.Roles
+            .Where(r => r.Name == AdministratorRoleName)
+            .Select(r => (Guid?)r.Id)
+            .SingleOrDefaultAsync(cancellationToken);
+        var isSelf = request.UserId == _currentUser.UserId;
+        var keepsAdministrator = administratorRoleId is null || requestedRoleIds.Contains(administratorRoleId.Value);
+        if (isSelf && !keepsAdministrator && user.UserRoles.Any(ur => ur.RoleId == administratorRoleId))
+            throw new Common.Exceptions.ValidationException(new[]
+            {
+                new FluentValidation.Results.ValidationFailure(nameof(request.RoleIds), "You can't remove your own Administrator role.")
             });
 
         var currentRoleIds = user.UserRoles.Select(ur => ur.RoleId).ToList();

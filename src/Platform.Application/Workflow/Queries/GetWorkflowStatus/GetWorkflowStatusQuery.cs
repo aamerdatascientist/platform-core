@@ -6,7 +6,14 @@ using Platform.Application.Workflow.Dtos;
 
 namespace Platform.Application.Workflow.Queries.GetWorkflowStatus;
 
-public record GetWorkflowStatusQuery(Guid RecordId) : IRequest<WorkflowStatusDto>;
+public record GetWorkflowStatusQuery(Guid RecordId) : IRequest<WorkflowStatusDto>, IFormScopeResolvingRequest
+{
+    public async Task<Guid?> ResolveFormDefinitionIdAsync(IApplicationDbContext db, CancellationToken cancellationToken) =>
+        await db.WorkflowInstances
+            .Where(i => i.RecordId == RecordId)
+            .Select(i => (Guid?)i.FormDefinitionId)
+            .SingleOrDefaultAsync(cancellationToken);
+}
 
 public class GetWorkflowStatusQueryHandler : IRequestHandler<GetWorkflowStatusQuery, WorkflowStatusDto>
 {

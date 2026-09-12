@@ -19,6 +19,11 @@ public static class SubmissionValueValidator
 {
     private static readonly JsonSerializerOptions CaseInsensitive = new() { PropertyNameCaseInsensitive = true };
 
+    // ValidationRulesJson's Regex is admin-authored, not developer-authored - a pattern with
+    // catastrophic backtracking (accidental or not) would otherwise hang the request thread
+    // on every submission against that field until the process itself is unresponsive.
+    private static readonly TimeSpan RegexMatchTimeout = TimeSpan.FromMilliseconds(250);
+
     public static IDictionary<string, string[]> Validate(
         IEnumerable<FieldDefinition> activeFields, IReadOnlyDictionary<string, object?> values)
     {
@@ -96,8 +101,13 @@ public static class SubmissionValueValidator
                     if (TryGetString(raw, out var textVal) && rules?.Regex is { Length: > 0 } pattern)
                     {
                         bool matches;
-                        try { matches = Regex.IsMatch(textVal, pattern); }
-                        catch (RegexParseException) { matches = true; } // malformed rule shouldn't block submission
+                        try { matches = Regex.IsMatch(textVal, pattern, RegexOptions.None, RegexMatchTimeout); }
+                        // Same "malformed rule shouldn't block submission" philosophy as the
+                        // RegexParseException case, applied to catastrophic backtracking too -
+                        // an admin-authored pattern that runs away on some input is still not
+                        // something the submitter should be blocked by.
+                        catch (RegexParseException) { matches = true; }
+                        catch (RegexMatchTimeoutException) { matches = true; }
                         if (!matches) AddError(field.Code, $"'{field.Label}' isn't in the expected format.");
                     }
                     break;

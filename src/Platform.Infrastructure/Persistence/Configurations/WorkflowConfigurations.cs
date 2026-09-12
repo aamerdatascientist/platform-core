@@ -73,6 +73,18 @@ public class WorkflowInstanceConfiguration : IEntityTypeConfiguration<WorkflowIn
         builder.HasIndex(i => i.CurrentStateId);
         builder.HasIndex(i => i.FormDefinitionId);
 
+        // Postgres's own per-row system column, not a new persisted column - two concurrent
+        // transitions loading the same instance (e.g. two people acting on the same record
+        // at once) now produce a clean DbUpdateConcurrencyException on the second SaveChanges
+        // instead of one silently overwriting the other's state change. The Npgsql-specific
+        // UseXminAsConcurrencyToken() helper that used to wrap exactly this is obsolete as of
+        // the version in use here - this is its documented replacement.
+        builder.Property<uint>("xmin")
+            .HasColumnName("xmin")
+            .HasColumnType("xid")
+            .ValueGeneratedOnAddOrUpdate()
+            .IsConcurrencyToken();
+
         builder.HasMany(i => i.History).WithOne().HasForeignKey(h => h.WorkflowInstanceId).OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(i => i.History).UsePropertyAccessMode(PropertyAccessMode.Field);
     }

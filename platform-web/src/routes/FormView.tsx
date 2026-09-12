@@ -70,6 +70,7 @@ export function FormView({ token }: FormViewProps) {
             {t('formView.recordsHeading')}
           </h3>
           <SubmissionsTable
+            token={token}
             fields={formDefinition.publishedVersion?.fields ?? []}
             rows={submissions}
             onRowClick={setSelectedRecordId}

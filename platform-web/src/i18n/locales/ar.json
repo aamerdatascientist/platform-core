@@ -18,7 +18,9 @@
     "yes": "نعم",
     "no": "لا",
     "remove": "إزالة",
-    "empty": "—"
+    "empty": "—",
+    "toggleLanguage": "تبديل اللغة",
+    "toggleMode": "تبديل الوضع الليلي/النهاري"
   },
   "signIn": {
     "subtitle": "سجّل الدخول للمتابعة",

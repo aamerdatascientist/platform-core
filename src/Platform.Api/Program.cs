@@ -52,8 +52,32 @@ builder.Services.AddSwaggerGen(options =>
     });
 });
 
-var jwtSecret = builder.Configuration["Jwt:Secret"]
-    ?? throw new InvalidOperationException("Jwt:Secret is not configured.");
+var jwtSecret = builder.Configuration["Jwt:Secret"];
+
+// Three different ways of "nobody set a real secret", told apart in the error message
+// since a developer debugging this benefits from knowing which one they hit: the tracked
+// appsettings.{Environment}.json now ships an empty string (see the .local.json migration
+// above) rather than the old literal "REPLACE_WITH_..." text - the string itself was the
+// active signing key as long as it stayed unreplaced, readable by anyone with repo access.
+if (string.IsNullOrWhiteSpace(jwtSecret))
+    throw new InvalidOperationException(
+        "Jwt:Secret is not configured - set a real value in appsettings.{Environment}.local.json " +
+        "(gitignored) or user-secrets, never in a tracked appsettings file.");
+
+if (jwtSecret.Contains("REPLACE", StringComparison.OrdinalIgnoreCase)
+    || jwtSecret.Contains("CHANGE_ME", StringComparison.OrdinalIgnoreCase)
+    || jwtSecret.Contains("PLACEHOLDER", StringComparison.OrdinalIgnoreCase)
+    || jwtSecret.Contains("TODO", StringComparison.OrdinalIgnoreCase))
+    throw new InvalidOperationException(
+        "Jwt:Secret still looks like a placeholder, not a real secret - generate one " +
+        "(e.g. `openssl rand -base64 48`) and set it in appsettings.{Environment}.local.json or user-secrets.");
+
+// HMAC-SHA256 (see IssuerSigningKey below) needs a real key, not a short/weak string - the
+// same 32-byte (256-bit) floor the old placeholder text itself named.
+if (Encoding.UTF8.GetByteCount(jwtSecret) < 32)
+    throw new InvalidOperationException(
+        "Jwt:Secret is too short - it must be at least 32 bytes (256 bits) for HMAC-SHA256, " +
+        "e.g. `openssl rand -base64 48`.");
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

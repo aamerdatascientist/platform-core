@@ -5,7 +5,17 @@ using Platform.Application.Files.Commands.UploadFile;
 
 namespace Platform.Application.Files.Queries.GetFilesForRecord;
 
-public record GetFilesForRecordQuery(Guid RecordId) : IRequest<IReadOnlyList<FileMetadataDto>>;
+public record GetFilesForRecordQuery(Guid RecordId) : IRequest<IReadOnlyList<FileMetadataDto>>, IFormScopeResolvingRequest
+{
+    // Null when this record has no files yet - nothing to check access against, and an
+    // empty result discloses nothing anyway, so the request is let through to the
+    // handler's own (already-correct) empty-list behavior.
+    public async Task<Guid?> ResolveFormDefinitionIdAsync(IApplicationDbContext db, CancellationToken cancellationToken) =>
+        await db.FileMetadataEntries
+            .Where(f => f.RecordId == RecordId)
+            .Select(f => (Guid?)f.FormDefinitionId)
+            .FirstOrDefaultAsync(cancellationToken);
+}
 
 public class GetFilesForRecordQueryHandler : IRequestHandler<GetFilesForRecordQuery, IReadOnlyList<FileMetadataDto>>
 {

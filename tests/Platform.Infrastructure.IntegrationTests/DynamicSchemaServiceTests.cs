@@ -1,36 +1,37 @@
 using FluentAssertions;
-using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
+using Npgsql;
 using Platform.Domain.Forms;
 using Platform.Domain.Forms.Enums;
 using Platform.Infrastructure.Persistence.DynamicSchema;
-using Testcontainers.MsSql;
+using Testcontainers.PostgreSql;
 using Xunit;
 
 namespace Platform.Infrastructure.IntegrationTests;
 
 /// <summary>
-/// These deliberately run against a real, throwaway SQL Server container rather than a
-/// mock - DynamicSchemaService's entire job is generating correct T-SQL, and a mock
-/// would only prove the test author's assumptions about SQL Server, not SQL Server's
-/// actual behavior. Requires Docker to be running.
+/// These deliberately run against a real, throwaway Postgres container rather than a mock -
+/// DynamicSchemaService's entire job is generating correct DDL/DML, and a mock would only
+/// prove the test author's assumptions about Postgres, not Postgres's actual behavior.
+/// Requires Docker to be running (not available in every environment - e.g. Claude Code's
+/// own sandbox can't run these; see CLAUDE.md).
 /// </summary>
 public class DynamicSchemaServiceTests : IAsyncLifetime
 {
-    private readonly MsSqlContainer _sqlContainer = new MsSqlBuilder().Build();
+    private readonly PostgreSqlContainer _postgresContainer = new PostgreSqlBuilder().Build();
     private DynamicSchemaService _sut = default!;
     private string _connectionString = default!;
 
     public async Task InitializeAsync()
     {
-        await _sqlContainer.StartAsync();
-        _connectionString = _sqlContainer.GetConnectionString();
+        await _postgresContainer.StartAsync();
+        _connectionString = _postgresContainer.GetConnectionString();
 
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["ConnectionStrings:DefaultConnection"] = _connectionString
+                ["ConnectionStrings:PostgresConnection"] = _connectionString
             })
             .Build();
 
@@ -38,14 +39,14 @@ public class DynamicSchemaServiceTests : IAsyncLifetime
 
         // RefreshReportingViewAsync joins to Users - a minimal stand-in table is enough
         // for these tests without pulling in the full ApplicationDbContext.
-        await using var connection = new SqlConnection(_connectionString);
+        await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
-        await using var command = new SqlCommand(
-            "CREATE TABLE [Users] ([Id] uniqueidentifier PRIMARY KEY, [DisplayName] nvarchar(200));", connection);
+        await using var command = new NpgsqlCommand(
+            """CREATE TABLE "Users" ("Id" uuid PRIMARY KEY, "DisplayName" varchar(200));""", connection);
         await command.ExecuteNonQueryAsync();
     }
 
-    public async Task DisposeAsync() => await _sqlContainer.DisposeAsync();
+    public async Task DisposeAsync() => await _postgresContainer.DisposeAsync();
 
     [Fact]
     public async Task EnsureTableForPublishedVersionAsync_CreatesTableWithColumnsForActiveFields()
@@ -95,21 +96,83 @@ public class DynamicSchemaServiceTests : IAsyncLifetime
 
         await _sut.RefreshReportingViewAsync(formDefinition, draft);
 
-        await using var connection = new SqlConnection(_connectionString);
+        await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync();
-        await using var command = new SqlCommand("SELECT COUNT(1) FROM [Report_SafetyCheck];", connection);
+        await using var command = new NpgsqlCommand("""SELECT COUNT(1) FROM "Report_SafetyCheck";""", connection);
         var act = async () => await command.ExecuteScalarAsync();
 
         await act.Should().NotThrowAsync("the generated view should be valid, queryable SQL");
     }
 
+    /// <summary>
+    /// The exact bug this session's diagnosis flagged: "lkp_" + a Lookup field's own Code can
+    /// exceed Postgres's 63-byte identifier limit even when the Code alone is well under it.
+    /// AddFieldDefinitionCommandValidator now blocks new Lookup fields from getting this long,
+    /// but this exercises DynamicSchemaService's own runtime safety net directly (a field
+    /// created before that validator existed, for instance), bypassing the command layer
+    /// entirely via the domain API the same way the other tests here do.
+    /// </summary>
+    [Fact]
+    public async Task RefreshReportingViewAsync_TruncatesAnOverlongLookupAlias_InsteadOfThrowing()
+    {
+        var targetForm = FormDefinition.Create("alias-target", "Alias Target", "StockManagement", null);
+        var targetDraft = targetForm.GetDraftVersion();
+        targetDraft.AddField("display_name", "Display Name", FieldType.ShortText, true, null, null, null);
+        targetDraft.MarkPublished();
+        var targetTableName = await _sut.EnsureTableForPublishedVersionAsync(targetForm, targetDraft);
+        targetForm.MarkPublished(targetDraft, targetTableName);
+
+        var overlongCode = "a" + new string('b', 60); // 61 chars - "lkp_" + this is 65, over the 63-byte limit
+        var referencingForm = FormDefinition.Create("alias-referencing", "Alias Referencing", "StockManagement", null);
+        var referencingDraft = referencingForm.GetDraftVersion();
+        referencingDraft.AddField(overlongCode, "Target Reference", FieldType.Lookup, false, null, targetForm.Id, null);
+        referencingDraft.MarkPublished();
+        var referencingTableName = await _sut.EnsureTableForPublishedVersionAsync(referencingForm, referencingDraft);
+        referencingForm.MarkPublished(referencingDraft, referencingTableName);
+
+        var lookupTargets = new Dictionary<Guid, FormDefinition> { [targetForm.Id] = targetForm };
+
+        var act = async () => await _sut.RefreshReportingViewAsync(referencingForm, referencingDraft, lookupTargets);
+
+        await act.Should().NotThrowAsync("an over-length Lookup code must degrade to a truncated alias, not crash the publish");
+    }
+
+    /// <summary>
+    /// Without the pg_advisory_xact_lock in EnsureTableForPublishedVersionAsync, two
+    /// concurrent first-publish calls for the same form can both observe "table doesn't
+    /// exist" via INFORMATION_SCHEMA before either commits its CREATE TABLE, and the loser
+    /// fails with a raw duplicate-table error instead of the clean, idempotent outcome two
+    /// concurrent publishes of the same form should have.
+    /// </summary>
+    [Fact]
+    public async Task EnsureTableForPublishedVersionAsync_HandlesConcurrentFirstPublish_ForTheSameForm()
+    {
+        var formA = FormDefinition.Create("concurrent-form", "Concurrent Form", "StockManagement", null);
+        var draftA = formA.GetDraftVersion();
+        draftA.AddField("field_one", "Field One", FieldType.ShortText, false, null, null, null);
+        draftA.MarkPublished();
+
+        var formB = FormDefinition.Create("concurrent-form", "Concurrent Form", "StockManagement", null);
+        var draftB = formB.GetDraftVersion();
+        draftB.AddField("field_one", "Field One", FieldType.ShortText, false, null, null, null);
+        draftB.MarkPublished();
+
+        var taskA = _sut.EnsureTableForPublishedVersionAsync(formA, draftA);
+        var taskB = _sut.EnsureTableForPublishedVersionAsync(formB, draftB);
+
+        var act = async () => await Task.WhenAll(taskA, taskB);
+
+        await act.Should().NotThrowAsync();
+        (await _sut.ColumnExistsAsync("Data_ConcurrentForm", "field_one")).Should().BeTrue();
+    }
+
     [Theory]
-    [InlineData("bad; DROP TABLE Users; --")]
+    [InlineData("bad; DROP TABLE \"Users\"; --")]
     [InlineData("has spaces")]
     [InlineData("")]
-    public void AssertSafeIdentifier_RejectsAnythingThatIsNotASafeIdentifier(string candidate)
+    public void AssertSafePostgresIdentifier_RejectsAnythingThatIsNotASafeIdentifier(string candidate)
     {
-        var act = () => SqlTypeMapper.AssertSafeIdentifier(candidate);
+        var act = () => SqlTypeMapper.AssertSafePostgresIdentifier(candidate);
         act.Should().Throw<ArgumentException>();
     }
 }

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
@@ -26,23 +27,41 @@ public class DynamicSchemaService : IDynamicSchemaService
         var tableName = formDefinition.TableName ?? $"Data_{SqlTypeMapper.ToPascalCase(formDefinition.Code)}";
         SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
 
+        var activeFields = version.Fields.Where(f => f.IsActive && f.FieldType != FieldType.Attachment).ToList();
+
         await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
-        var activeFields = version.Fields.Where(f => f.IsActive && f.FieldType != FieldType.Attachment).ToList();
+        // A transaction-scoped advisory lock, keyed on the table name (stable and unique
+        // per form once assigned), so two concurrent first-publish requests for the same
+        // form can't both observe "table doesn't exist" and race to CREATE TABLE - the
+        // loser would otherwise fail with a raw duplicate-table error instead of the clean,
+        // idempotent outcome a second publish is supposed to have. Transaction-scoped means
+        // it releases automatically on commit or rollback, no separate unlock call needed.
+        // Wrapping the whole create-or-alter decision (not just the CREATE branch) is what
+        // makes the re-check after acquiring the lock actually meaningful - checking
+        // existence before taking the lock would still leave the same race between the
+        // check and the lock acquisition.
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
-        if (!await TableExistsAsync(connection, tableName, cancellationToken))
+        await using (var lockCommand = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtext(@lockKey));", connection, transaction))
         {
-            await CreateTableAsync(connection, tableName, activeFields, cancellationToken);
+            lockCommand.Parameters.AddWithValue("@lockKey", tableName);
+            await lockCommand.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        if (!await TableExistsAsync(connection, transaction, tableName, cancellationToken))
+        {
+            await CreateTableAsync(connection, transaction, tableName, activeFields, cancellationToken);
             _logger.LogInformation("Created dynamic table {TableName} for form {FormCode}", tableName, formDefinition.Code);
         }
         else
         {
             foreach (var field in activeFields)
             {
-                if (!await ColumnExistsAsync(tableName, field.Code, connection, cancellationToken))
+                if (!await ColumnExistsAsync(connection, transaction, tableName, field.Code, cancellationToken))
                 {
-                    await AddColumnAsync(connection, tableName, field, cancellationToken);
+                    await AddColumnAsync(connection, transaction, tableName, field, cancellationToken);
                     _logger.LogInformation(
                         "Added column {ColumnName} to {TableName} for form {FormCode}",
                         field.Code, tableName, formDefinition.Code);
@@ -50,6 +69,7 @@ public class DynamicSchemaService : IDynamicSchemaService
             }
         }
 
+        await transaction.CommitAsync(cancellationToken);
         return tableName;
     }
 
@@ -106,7 +126,7 @@ public class DynamicSchemaService : IDynamicSchemaService
             else
             {
                 var (targetTable, displayColumn) = displaySource.Value;
-                var joinAlias = $"lkp_{field.Code}";
+                var joinAlias = BuildSafeJoinAlias(field.Code);
                 SqlTypeMapper.AssertSafePostgresIdentifier(joinAlias);
 
                 joins.Append($"\n        LEFT JOIN \"{targetTable}\" \"{joinAlias}\" ON \"{joinAlias}\".\"Id\" = d.\"{field.Code}\"");
@@ -125,15 +145,22 @@ public class DynamicSchemaService : IDynamicSchemaService
         await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
 
+        // Wrapped in a transaction so a CREATE VIEW failure (a bad join, an invalid column
+        // reference) rolls back the preceding DROP too - the old view survives intact
+        // instead of being left missing until the next successful publish.
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
         // Postgres can't CREATE OR REPLACE a view whose column shape changed (columns
         // added/removed/reordered/retyped) - unlike SQL Server's CREATE OR ALTER VIEW, which
         // handles that transparently. Drop and recreate unconditionally on every publish
         // instead; IF EXISTS covers the first-ever publish, where there's nothing to drop yet.
-        await using (var dropCommand = new NpgsqlCommand($"DROP VIEW IF EXISTS \"{viewName}\";", connection))
+        await using (var dropCommand = new NpgsqlCommand($"DROP VIEW IF EXISTS \"{viewName}\";", connection, transaction))
             await dropCommand.ExecuteNonQueryAsync(cancellationToken);
 
-        await using (var createCommand = new NpgsqlCommand($"CREATE VIEW \"{viewName}\" AS\n{selectSql};", connection))
+        await using (var createCommand = new NpgsqlCommand($"CREATE VIEW \"{viewName}\" AS\n{selectSql};", connection, transaction))
             await createCommand.ExecuteNonQueryAsync(cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
 
         _logger.LogInformation("Refreshed reporting view {ViewName} for form {FormCode}", viewName, formDefinition.Code);
     }
@@ -159,39 +186,63 @@ public class DynamicSchemaService : IDynamicSchemaService
         return displayField is null ? null : (targetTable, displayField.Code);
     }
 
+    /// <summary>
+    /// "lkp_" + field.Code, unless that would overflow Postgres's 63-byte identifier limit -
+    /// AddFieldDefinitionCommandValidator now caps new Lookup field Codes short enough to
+    /// never hit this path, but a Lookup field created before that cap existed could still
+    /// have a Code long enough to overflow once prefixed. Falling back to a deterministic
+    /// truncated-code + content-hash suffix here means a view refresh degrades to a slightly
+    /// less readable alias for that one legacy field, not a hard crash on every future
+    /// publish of the form.
+    /// </summary>
+    private static string BuildSafeJoinAlias(string fieldCode)
+    {
+        const string prefix = "lkp_";
+        const int maxLength = 63;
+
+        var full = prefix + fieldCode;
+        if (full.Length <= maxLength) return full;
+
+        var hash = Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(fieldCode))).ToLowerInvariant()[..8];
+        var truncatedCode = fieldCode[..(maxLength - prefix.Length - hash.Length - 1)];
+        return $"{prefix}{truncatedCode}_{hash}";
+    }
+
     public async Task<bool> ColumnExistsAsync(string tableName, string columnCode, CancellationToken cancellationToken = default)
     {
         await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
-        return await ColumnExistsAsync(tableName, columnCode, connection, cancellationToken);
+        return await ColumnExistsAsync(connection, null, tableName, columnCode, cancellationToken);
     }
 
-    private static async Task<bool> TableExistsAsync(NpgsqlConnection connection, string tableName, CancellationToken ct)
+    private static async Task<bool> TableExistsAsync(
+        NpgsqlConnection connection, NpgsqlTransaction? transaction, string tableName, CancellationToken ct)
     {
         const string sql = """
             SELECT COUNT(1) > 0 FROM INFORMATION_SCHEMA.TABLES
             WHERE TABLE_NAME = @tableName AND TABLE_TYPE = 'BASE TABLE';
             """;
-        await using var command = new NpgsqlCommand(sql, connection);
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
         command.Parameters.AddWithValue("@tableName", tableName);
         return (bool)(await command.ExecuteScalarAsync(ct))!;
     }
 
     private static async Task<bool> ColumnExistsAsync(
-        string tableName, string columnCode, NpgsqlConnection connection, CancellationToken ct)
+        NpgsqlConnection connection, NpgsqlTransaction? transaction, string tableName, string columnCode, CancellationToken ct)
     {
         const string sql = """
             SELECT COUNT(1) > 0 FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_NAME = @tableName AND COLUMN_NAME = @columnName;
             """;
-        await using var command = new NpgsqlCommand(sql, connection);
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
         command.Parameters.AddWithValue("@tableName", tableName);
         command.Parameters.AddWithValue("@columnName", columnCode);
         return (bool)(await command.ExecuteScalarAsync(ct))!;
     }
 
     private static async Task CreateTableAsync(
-        NpgsqlConnection connection, string tableName, IReadOnlyCollection<FieldDefinition> fields, CancellationToken ct)
+        NpgsqlConnection connection, NpgsqlTransaction transaction, string tableName,
+        IReadOnlyCollection<FieldDefinition> fields, CancellationToken ct)
     {
         var columns = new StringBuilder();
         foreach (var field in fields)
@@ -222,8 +273,8 @@ public class DynamicSchemaService : IDynamicSchemaService
             );
             """;
 
-        await using var command = new NpgsqlCommand(sql, connection);
-        await command.ExecuteNonQueryAsync(ct);
+        await using (var command = new NpgsqlCommand(sql, connection, transaction))
+            await command.ExecuteNonQueryAsync(ct);
 
         // IsDeleted and CreatedAtUtc are filtered/sorted on by every QueryAsync call
         // (DynamicDataRepository) and every Report_* view - not speculative. Index names
@@ -231,16 +282,16 @@ public class DynamicSchemaService : IDynamicSchemaService
         // one and truncates it safely, whereas hand-building "IX_" + tableName + "_IsDeleted"
         // risks exceeding the 63-byte identifier limit for a tableName already close to it.
         await using (var isDeletedIndexCommand = new NpgsqlCommand(
-            $"CREATE INDEX ON \"{tableName}\" (\"IsDeleted\");", connection))
+            $"CREATE INDEX ON \"{tableName}\" (\"IsDeleted\");", connection, transaction))
             await isDeletedIndexCommand.ExecuteNonQueryAsync(ct);
 
         await using (var createdAtIndexCommand = new NpgsqlCommand(
-            $"CREATE INDEX ON \"{tableName}\" (\"CreatedAtUtc\");", connection))
+            $"CREATE INDEX ON \"{tableName}\" (\"CreatedAtUtc\");", connection, transaction))
             await createdAtIndexCommand.ExecuteNonQueryAsync(ct);
     }
 
     private static async Task AddColumnAsync(
-        NpgsqlConnection connection, string tableName, FieldDefinition field, CancellationToken ct)
+        NpgsqlConnection connection, NpgsqlTransaction transaction, string tableName, FieldDefinition field, CancellationToken ct)
     {
         SqlTypeMapper.AssertSafePostgresIdentifier(field.Code);
 
@@ -250,7 +301,7 @@ public class DynamicSchemaService : IDynamicSchemaService
         // in the Application layer instead, see SubmitFormDataCommandHandler.
         var sql = $"ALTER TABLE \"{tableName}\" ADD COLUMN \"{field.Code}\" {SqlTypeMapper.ToPostgresColumnType(field.FieldType)} NULL;";
 
-        await using var command = new NpgsqlCommand(sql, connection);
+        await using var command = new NpgsqlCommand(sql, connection, transaction);
         await command.ExecuteNonQueryAsync(ct);
     }
 }
