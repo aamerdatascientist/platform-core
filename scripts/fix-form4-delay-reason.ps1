@@ -1,4 +1,4 @@
-# One-off remediation: corrects structural_progress_daily's delay_reason dropdown if
+﻿# One-off remediation: corrects structural_progress_daily's delay_reason dropdown if
 # Form 4 was already published (via seed-daily-report-forms.ps1) before its options were
 # fixed from Form 3's set (weather/labor/materials/equipment/access/other) to its own
 # (weather/labor/materials/equipment/formwork availability/other).

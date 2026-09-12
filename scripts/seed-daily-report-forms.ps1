@@ -1,4 +1,4 @@
-# Seeds the 5 Arabic daily-report forms via the API, then submits sample rows for two
+﻿# Seeds the 5 Arabic daily-report forms via the API, then submits sample rows for two
 # different projects into each one so Project-scoping (the "Project" Lookup filter added
 # to GetFormSubmissionsQuery/FormView) can be verified end-to-end: filtering by Project A
 # should never surface Project B's rows, and vice versa.

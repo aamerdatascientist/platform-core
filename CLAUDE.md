@@ -74,6 +74,17 @@ separate from the Form Engine.
   rely on a string body's implicit encoding. `scripts/*.ps1`'s shared `Invoke-JsonPost`
   helper has the fix in place; anything sending JSON over HTTP from PowerShell should
   route through something equivalent.
+- **Any `.ps1` file with Arabic (or other non-ASCII) text literally in its source needs
+  to be saved with a UTF-8 BOM (`EF BB BF`), not plain UTF-8.** Without it, Windows
+  PowerShell 5.1 misreads the file's own encoding and garbles the embedded Arabic at
+  parse time (e.g. "الطابق" becomes "Ø§Ù„Ø·Ø§Ø¨Ù‚") - a different failure from the
+  `-Body`/`Invoke-RestMethod` issue above (that one's about the HTTP request encoding;
+  this one's about the script file's own encoding, and hits even a script that never
+  sends a request). Hit twice now: once for the original Arabic seed scripts, and again
+  when `seed-daily-report-forms.ps1` was added without it. Check with
+  `Format-Hex script.ps1 -Count 3` (expect `EF BB BF`) before treating any new
+  Arabic-content `.ps1` file as done - a script with no Arabic literals at all (e.g.
+  `seed-stock-adjustment-workflow.ps1`) doesn't need this.
 - **Azure App Service (Linux) needs "Always On" enabled explicitly**, in Configuration ->
   General settings, or the worker process unloads after ~20 min with no requests and the
   next one pays a real cold-start cost. Unrelated to database auto-pausing - Postgres/
