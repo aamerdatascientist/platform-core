@@ -18,11 +18,10 @@
 #     uploaded by this script - file upload is a separate two-step API (create the record,
 #     then POST to the Files endpoint with the real RecordId), which no existing seed
 #     script demonstrates either. Upload real photos through the UI after seeding.
-#   - Form 4's delay-reason dropdown options weren't separately specified in the original
-#     brief (it said "alongside weather/headcount/m²/delay/reason/photo" without restating
-#     the option list) - reused Form 3's labor/material/equipment/access/other set for
-#     consistency. Flagged here as the one judgment call in this script; change
-#     $structuralDelayReasons below if a different set is wanted.
+#   - Form 4's delay-reason options are its own set (weather/labor/materials/equipment/
+#     formwork availability/other) - distinct from Form 3's (weather isn't a foundation-
+#     work blocker the same way, but formwork availability is a real structural-work one).
+#     Don't reuse Form 3's $foundationReasons here.
 #
 # Prerequisites: a running API, a JWT, and the Projects form from
 # seed-operations-forms.ps1 already published (pass its form Id as -ProjectsFormId).
@@ -198,9 +197,11 @@ Write-Host "  2 sample rows submitted (1 per project)."
 
 # --- Form 4: التقدم اليومي للهيكل الإنشائي (6 طوابق) -------------------------
 
-# See the header note: this reuses Form 3's reason set - the original brief didn't
-# restate delay-reason options for this form specifically.
-$structuralDelayReasons = $foundationReasons
+$structuralDelayReasons = Options @(
+    @{ value = "weather"; label = "الطقس" }, @{ value = "labor_shortage"; label = "نقص العمالة" },
+    @{ value = "material_shortage"; label = "المواد" }, @{ value = "equipment_shortage"; label = "المعدات" },
+    @{ value = "formwork_availability"; label = "توفر الشدة الخشبية" }, @{ value = "other"; label = "أخرى" }
+)
 
 $structuralId = New-Form "structural_progress_daily" "التقدم اليومي للهيكل الإنشائي (6 طوابق)" "Daily Reports" "Daily structural works progress"
 Add-Field $structuralId "report_date" "تاريخ التقرير" "DateTime" $true
