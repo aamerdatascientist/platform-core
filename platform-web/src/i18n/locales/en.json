@@ -124,7 +124,8 @@
     "recordsHeading": "Records - select one for workflow status",
     "selectRecordPrompt": "Select a record to see its workflow status",
     "andAttachments": " and attachments",
-    "loadError": "Could not load that form."
+    "loadError": "Could not load that form.",
+    "allScopes": "All"
   },
   "submissionsTable": {
     "noRecords": "No records yet - the first submission above will appear here."

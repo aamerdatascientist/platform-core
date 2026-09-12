@@ -26,7 +26,8 @@ public class GetProjectProgressQueryHandler : IRequestHandler<GetProjectProgress
         if (projectsForm is null) return Array.Empty<ProjectProgressDto>();
 
         var activeFields = projectsForm.GetPublishedVersion()!.Fields.Where(f => f.IsActive).ToList();
-        var page = await _dynamicDataRepository.QueryAsync(projectsForm.TableName!, activeFields, 1, 500, cancellationToken);
+        var page = await _dynamicDataRepository.QueryAsync(
+            projectsForm.TableName!, activeFields, 1, 500, cancellationToken: cancellationToken);
 
         var nowUtc = DateTime.UtcNow;
 

@@ -14,6 +14,11 @@ interface FormViewProps {
   token: string;
 }
 
+interface ScopeChoice {
+  id: string;
+  label: string;
+}
+
 export function FormView({ token }: FormViewProps) {
   const { t } = useTranslation();
   const { formId } = useParams<{ formId: string }>();
@@ -23,9 +28,23 @@ export function FormView({ token }: FormViewProps) {
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
   const [error, setError] = useErrorMessage();
 
+  // The first active Lookup field on a form is, by this platform's own convention (see
+  // every daily-report form seeded via scripts/seed-*-forms.ps1), the record's scoping
+  // reference - most commonly Project. Filtering submissions by it is a generic mechanism
+  // driven by field metadata, not a hardcoded "Project" special case, so it works for any
+  // form built the same way.
+  const [scopeChoices, setScopeChoices] = useState<ScopeChoice[]>([]);
+  const [scopeValue, setScopeValue] = useState<string>('');
+
+  const scopeField = formDefinition?.publishedVersion?.fields.find(
+    (f) => f.isActive && f.fieldType === 'Lookup' && f.lookupFormDefinitionId,
+  );
+
   useEffect(() => {
     if (!formId) return;
     setSelectedRecordId(null);
+    setScopeValue('');
+    setScopeChoices([]);
     setError(null);
     api.forms
       .get(token, formId)
@@ -38,8 +57,41 @@ export function FormView({ token }: FormViewProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formId, token]);
 
+  useEffect(() => {
+    if (!scopeField?.lookupFormDefinitionId) {
+      setScopeChoices([]);
+      return;
+    }
+    const targetFormId = scopeField.lookupFormDefinitionId;
+    (async () => {
+      try {
+        const targetDef = await api.forms.get(token, targetFormId);
+        const displayField = targetDef.publishedVersion?.fields.find((f) => f.isActive && f.fieldType === 'ShortText');
+        const page = await api.submissions.list(token, targetFormId, 1, 200);
+        setScopeChoices(
+          page.items.map((row) => ({
+            id: row.id,
+            label: displayField ? String(row.values[displayField.code] ?? row.id) : row.id,
+          })),
+        );
+      } catch {
+        // No scope choices just means the filter dropdown falls back to "All" only -
+        // shouldn't block the rest of the form/table from rendering.
+        setScopeChoices([]);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeField?.lookupFormDefinitionId, token]);
+
+  useEffect(() => {
+    if (!formId) return;
+    loadSubmissions(formId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scopeValue]);
+
   async function loadSubmissions(id: string) {
-    const page = await api.submissions.list(token, id);
+    const filter = scopeField && scopeValue ? { fieldCode: scopeField.code, value: scopeValue } : undefined;
+    const page = await api.submissions.list(token, id, 1, 25, filter);
     setSubmissions(page.items);
   }
 
@@ -66,9 +118,28 @@ export function FormView({ token }: FormViewProps) {
         />
 
         <div>
-          <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-soft">
-            {t('formView.recordsHeading')}
-          </h3>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-[11px] font-medium uppercase tracking-wider text-ink-soft">
+              {t('formView.recordsHeading')}
+            </h3>
+            {scopeField && (
+              <label className="flex items-center gap-2 text-xs text-ink-soft">
+                {scopeField.label}
+                <select
+                  className="rounded border border-border bg-bg px-2 py-1 text-ink"
+                  value={scopeValue}
+                  onChange={(e) => setScopeValue(e.target.value)}
+                >
+                  <option value="">{t('formView.allScopes')}</option>
+                  {scopeChoices.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
           <SubmissionsTable
             token={token}
             fields={formDefinition.publishedVersion?.fields ?? []}

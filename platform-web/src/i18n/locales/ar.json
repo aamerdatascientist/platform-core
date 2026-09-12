@@ -124,7 +124,8 @@
     "recordsHeading": "السجلات - اختر واحدًا لعرض حالة سير العمل",
     "selectRecordPrompt": "اختر سجلًا لعرض حالة سير العمل الخاصة به",
     "andAttachments": " والمرفقات",
-    "loadError": "تعذر تحميل هذا النموذج."
+    "loadError": "تعذر تحميل هذا النموذج.",
+    "allScopes": "الكل"
   },
   "submissionsTable": {
     "noRecords": "لا توجد سجلات بعد - ستظهر هنا أول عملية إرسال أعلاه."

@@ -175,8 +175,20 @@ export const api = {
     submit: (token: string, formId: string, values: Record<string, unknown>) =>
       request<{ id: string }>(`/api/forms/${formId}/submissions`, { method: 'POST', body: JSON.stringify(values) }, token),
 
-    list: (token: string, formId: string, page = 1, pageSize = 25) =>
-      request<PagedResult<DynamicRow>>(`/api/forms/${formId}/submissions?page=${page}&pageSize=${pageSize}`, {}, token),
+    list: (
+      token: string,
+      formId: string,
+      page = 1,
+      pageSize = 25,
+      filter?: { fieldCode: string; value: string },
+    ) => {
+      const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+      if (filter) {
+        params.set('filterFieldCode', filter.fieldCode);
+        params.set('filterValue', filter.value);
+      }
+      return request<PagedResult<DynamicRow>>(`/api/forms/${formId}/submissions?${params}`, {}, token);
+    },
   },
 
   analytics: {
