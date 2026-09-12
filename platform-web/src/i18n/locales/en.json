@@ -4,6 +4,7 @@
     "openMenu": "Open menu",
     "buildForms": "+ Build forms",
     "users": "Users",
+    "executiveOverview": "Executive overview",
     "loading": "Loading…",
     "noForms": "No forms exist yet.",
     "notPublished": "Not published yet",
@@ -198,5 +199,56 @@
     "saving": "Saving…",
     "toggleActiveError": "Could not update that user.",
     "saveRolesError": "Could not update roles for that user."
+  },
+  "projectSelector": {
+    "allProjects": "All projects"
+  },
+  "executiveOverview": {
+    "title": "Executive overview",
+    "subtitle": "Live status across every active project.",
+    "loadError": "Could not load the dashboard.",
+    "projectStatus": {
+      "planning": "Planning",
+      "active": "Active",
+      "on_hold": "On hold",
+      "completed": "Completed"
+    },
+    "priority": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "urgent": "Urgent"
+    },
+    "projectProgress": {
+      "title": "Project progress",
+      "empty": "No projects yet."
+    },
+    "crewCount": {
+      "title": "Crew on site",
+      "empty": "No labor log entries yet.",
+      "asOf": "as of {{date}}"
+    },
+    "weatherImpact": {
+      "title": "Weather impact",
+      "empty": "No daily site reports yet.",
+      "daysImpacted": "{{impacted}} of {{total}} days impacted"
+    },
+    "overdueTasks": {
+      "title": "Overdue tasks ({{count}})",
+      "empty": "Nothing overdue right now.",
+      "assignedTo": "Assigned to {{name}}",
+      "dueDate": "Due {{date}}"
+    },
+    "stockMovement": {
+      "title": "Stock movement breakdown",
+      "empty": "No stock movements recorded yet.",
+      "noMovements": "No movements recorded for this material.",
+      "movementType": {
+        "GoodsReceipt": "Goods receipt",
+        "MaterialIssue": "Material issue",
+        "StockTransfer": "Stock transfer",
+        "StockAdjustment": "Stock adjustment"
+      }
+    }
   }
 }

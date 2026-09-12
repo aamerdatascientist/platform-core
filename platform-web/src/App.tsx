@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { getTokens, subscribe } from './auth/tokenStore';
 import { BuilderHome } from './routes/BuilderHome';
+import { ExecutiveOverview } from './routes/ExecutiveOverview';
 import { FormBuilder } from './routes/FormBuilder';
 import { FormView } from './routes/FormView';
 import { Layout } from './routes/Layout';
@@ -26,6 +27,7 @@ export default function App() {
       <Route element={<Layout token={accessToken} />}>
         <Route index element={<Welcome />} />
         <Route path="forms/:formId" element={<FormView token={accessToken} />} />
+        <Route path="dashboards/executive-overview" element={<ExecutiveOverview token={accessToken} />} />
         <Route path="builder" element={<BuilderHome token={accessToken} />} />
         <Route path="builder/:formId" element={<FormBuilder token={accessToken} />} />
         <Route path="admin/users" element={<UserManagement token={accessToken} />} />

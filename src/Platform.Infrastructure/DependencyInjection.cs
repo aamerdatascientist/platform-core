@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Platform.Application.Analytics;
 using Platform.Application.Common.Interfaces;
 using Platform.Infrastructure.Files;
 using Platform.Infrastructure.Identity;
@@ -32,6 +33,7 @@ public static class DependencyInjection
 
         services.AddScoped<IDynamicSchemaService, DynamicSchemaService>();
         services.AddScoped<IDynamicDataRepository, DynamicDataRepository>();
+        services.AddScoped<IExecutiveOverviewRepository, ExecutiveOverviewRepository>();
         services.AddScoped<IBlobStorageService, BlobStorageService>();
 
         return services;
