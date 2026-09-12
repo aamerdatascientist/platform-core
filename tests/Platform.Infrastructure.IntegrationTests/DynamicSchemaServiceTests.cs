@@ -138,6 +138,45 @@ public class DynamicSchemaServiceTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// The real bug this reproduces: three Arabic field labels sharing the identical
+    /// 63-byte UTF-8 prefix (distinct C# strings, but Postgres truncates ANY identifier -
+    /// including a double-quoted alias - to 63 bytes). Before BuildSafeDisplayAlias existed,
+    /// this made CREATE VIEW fail with a duplicate-column error, and it's exactly what
+    /// happened publishing the real mep_progress_daily form. Asserts both that publishing
+    /// doesn't throw and that the view actually ends up with three distinct columns, not
+    /// silently collapsed to one.
+    /// </summary>
+    [Fact]
+    public async Task RefreshReportingViewAsync_DisambiguatesLabelsSharingA63ByteCommonPrefix()
+    {
+        var formDefinition = FormDefinition.Create("mep-alias-check", "MEP Alias Check", "Daily Reports", null);
+        var draft = formDefinition.GetDraftVersion();
+        // Same collision as the real bug: only the trade word differs, and it sits past
+        // byte 63 of the shared "...أعمال ال" prefix.
+        draft.AddField("electrical_area_sqm", "الأمتار المربعة المنفذة من أعمال الكهرباء اليوم", FieldType.Number, false, null, null, null);
+        draft.AddField("plumbing_area_sqm", "الأمتار المربعة المنفذة من أعمال السباكة اليوم", FieldType.Number, false, null, null, null);
+        draft.AddField("hvac_area_sqm", "الأمتار المربعة المنفذة من أعمال التكييف اليوم", FieldType.Number, false, null, null, null);
+        draft.MarkPublished();
+        var tableName = await _sut.EnsureTableForPublishedVersionAsync(formDefinition, draft);
+        formDefinition.MarkPublished(draft, tableName);
+
+        var act = async () => await _sut.RefreshReportingViewAsync(formDefinition, draft);
+
+        await act.Should().NotThrowAsync("colliding labels must be disambiguated, not crash the publish");
+
+        var viewName = $"Report_{SqlTypeMapper.ToPascalCase(formDefinition.Code)}";
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand(
+            $"""SELECT COUNT(*) FROM information_schema.columns WHERE table_name = '{viewName}';""", connection);
+        var columnCount = (long)(await command.ExecuteScalarAsync())!;
+
+        // Record Id, Submitted At, Submitted By + the 3 area fields = 6 - if two of the
+        // three collided, this would be 5.
+        columnCount.Should().Be(6, "all three colliding labels must survive as distinct columns");
+    }
+
+    /// <summary>
     /// Without the pg_advisory_xact_lock in EnsureTableForPublishedVersionAsync, two
     /// concurrent first-publish calls for the same form can both observe "table doesn't
     /// exist" via INFORMATION_SCHEMA before either commits its CREATE TABLE, and the loser

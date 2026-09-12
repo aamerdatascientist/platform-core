@@ -213,6 +213,26 @@ separate from the Form Engine.
 
 ## Known engineering gotchas - hit multiple times, check for this pattern in new code
 
+**Postgres silently truncates ANY identifier over 63 bytes (NAMEDATALEN) - including a
+double-quoted alias, not just a plain column/table name - and it's a byte limit, not a
+character limit.** Hit twice now, two different code paths: first as `"lkp_" + a Lookup
+field's Code` overflowing 63 bytes in a reporting-view join alias (fixed by
+`BuildSafeJoinAlias`'s truncate+hash fallback); then as three real Arabic field labels on
+the same form (`mep_progress_daily`) sharing an identical 63-byte UTF-8 prefix - distinct
+C# strings, but Postgres truncated all three reporting-view column aliases to the same
+name, and `CREATE VIEW` failed with a duplicate-column error. Arabic text is what actually
+surfaces this: at 2+ bytes/char, a shared prefix well under 63 *characters* can already be
+past 63 *bytes*.
+
+**Fix, now the established convention:** any identifier built from user-supplied text
+(a Code, or - as of `BuildSafeDisplayAlias` in `DynamicSchemaService` - a Label used as a
+display alias) gets checked for its real UTF-8 byte length, not `.Length` (char count),
+and any two identifiers that would collide after Postgres's truncation get disambiguated
+with a deterministic truncate + short content-hash suffix rather than left to collide or
+silently truncated by Postgres itself. Check any *new* place that turns free-text content
+into a Postgres identifier - alias, column, table, or otherwise - for the same risk before
+it bites a third time.
+
 **EF Core silently no-ops inserting a new child entity reached only through an
 already-tracked parent's navigation collection.** Client-generated GUID keys (every entity
 here uses `Guid.NewGuid()` at construction, never the CLR default `Guid.Empty`) defeat EF's

@@ -107,8 +107,7 @@ public class DynamicSchemaService : IDynamicSchemaService
         {
             SqlTypeMapper.AssertSafePostgresIdentifier(field.Code);
 
-            var displayLabel = usedColumnNames.Add(field.Label) ? field.Label : $"{field.Label} ({field.Code})";
-            usedColumnNames.Add(displayLabel);
+            var displayLabel = BuildSafeDisplayAlias(field.Label, field.Code, usedColumnNames);
 
             // Labels are free text, not identifiers - double-quoted aliases don't need to be
             // valid identifiers, but an embedded '"' must still be escaped to close the quote
@@ -206,6 +205,53 @@ public class DynamicSchemaService : IDynamicSchemaService
         var hash = Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(fieldCode))).ToLowerInvariant()[..8];
         var truncatedCode = fieldCode[..(maxLength - prefix.Length - hash.Length - 1)];
         return $"{prefix}{truncatedCode}_{hash}";
+    }
+
+    /// <summary>
+    /// Postgres silently truncates ANY identifier - including a double-quoted alias like
+    /// this view's display-label columns - to 63 bytes (NAMEDATALEN). That's a byte limit,
+    /// not a character limit: two field labels that are visually distinct C# strings can
+    /// still collide into the identical Postgres column name once truncated, if they share
+    /// a long enough common prefix before UTF-8 encoding - a real risk for Arabic text
+    /// (2-4 bytes/char) specifically. Hit for real: three MEP daily-report field labels
+    /// all shared the same 63-byte prefix, so CREATE VIEW failed with a duplicate-column
+    /// error at publish time.
+    ///
+    /// Rather than only reacting once two labels actually collide, every over-length label
+    /// is hash-disambiguated up front - same truncated-prefix + content-hash pattern as
+    /// BuildSafeJoinAlias above, keyed on Code (guaranteed unique within a form version by
+    /// FormVersion.AddField) rather than the label itself, so two different fields can never
+    /// land on the same suffix. An exact duplicate label (a plain copy-paste typo) is caught
+    /// by the same usedIdentifiers set and goes through the identical fallback.
+    /// </summary>
+    private static string BuildSafeDisplayAlias(string label, string fieldCode, HashSet<string> usedIdentifiers)
+    {
+        const int maxBytes = 63;
+
+        if (Encoding.UTF8.GetByteCount(label) <= maxBytes && usedIdentifiers.Add(label))
+            return label;
+
+        var hash = Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(fieldCode))).ToLowerInvariant()[..8];
+        var suffix = "_" + hash;
+        var maxLabelBytes = maxBytes - Encoding.UTF8.GetByteCount(suffix);
+        var candidate = TruncateToUtf8ByteLimit(label, maxLabelBytes) + suffix;
+
+        usedIdentifiers.Add(candidate);
+        return candidate;
+    }
+
+    /// <summary>Truncates to at most maxBytes UTF-8 bytes without splitting a multi-byte
+    /// character in half - backs off from the cut point until it lands outside a
+    /// continuation byte (10xxxxxx), rather than producing a mangled/invalid string.</summary>
+    private static string TruncateToUtf8ByteLimit(string value, int maxBytes)
+    {
+        var bytes = Encoding.UTF8.GetBytes(value);
+        if (bytes.Length <= maxBytes) return value;
+
+        var length = maxBytes;
+        while (length > 0 && (bytes[length] & 0xC0) == 0x80) length--;
+
+        return Encoding.UTF8.GetString(bytes, 0, length);
     }
 
     public async Task<bool> ColumnExistsAsync(string tableName, string columnCode, CancellationToken cancellationToken = default)

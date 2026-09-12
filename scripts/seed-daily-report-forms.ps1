@@ -237,11 +237,11 @@ Add-Field $mepId "report_date" "تاريخ التقرير" "DateTime" $true
 Add-Field $mepId "project" "المشروع" "Lookup" $true $null $ProjectsFormId
 Add-Field $mepId "floor" "أي طابق يتم العمل عليه اليوم؟" "Dropdown" $true $floorOptions
 Add-Field $mepId "electrical_crew_count" "عدد عمالة الكهرباء اليوم" "Number" $false
-Add-Field $mepId "electrical_area_sqm" "الأمتار المربعة المنفذة من أعمال الكهرباء اليوم" "Number" $false
+Add-Field $mepId "electrical_area_sqm" "كهرباء - الأمتار المربعة المنجزة اليوم" "Number" $false
 Add-Field $mepId "plumbing_crew_count" "عدد عمالة السباكة اليوم" "Number" $false
-Add-Field $mepId "plumbing_area_sqm" "الأمتار المربعة المنفذة من أعمال السباكة اليوم" "Number" $false
+Add-Field $mepId "plumbing_area_sqm" "سباكة - الأمتار المربعة المنجزة اليوم" "Number" $false
 Add-Field $mepId "hvac_crew_count" "عدد عمالة التكييف اليوم" "Number" $false
-Add-Field $mepId "hvac_area_sqm" "الأمتار المربعة المنفذة من أعمال التكييف اليوم" "Number" $false
+Add-Field $mepId "hvac_area_sqm" "تكييف - الأمتار المربعة المنجزة اليوم" "Number" $false
 Add-Field $mepId "is_blocked" "هل هناك ما يعيق العمل اليوم؟" "Boolean" $true
 Add-Field $mepId "blocked_details" "إذا كان الأمر كذلك، أي طاقم ولماذا؟" "LongText" $false
 Publish-Form $mepId "التقدم اليومي لأعمال الكهرباء والسباكة والتكييف"
