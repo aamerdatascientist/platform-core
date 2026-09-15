@@ -5,9 +5,16 @@ namespace Platform.Domain.Forms;
 
 /// <summary>
 /// One field on a form. Code becomes the physical column name (for every FieldType
-/// except Attachment, which never gets a physical column - see FieldType). Code is
-/// immutable once created; Label, IsRequired, DisplayOrder, and validation/options can
-/// still change on a draft version without touching the physical schema.
+/// except Attachment, which never gets a physical column - see FieldType).
+///
+/// Label, IsRequired, DisplayOrder and validation/options are pure metadata: changing them
+/// never touches the physical table. (Label does feed the reporting view's column aliases,
+/// so a relabel on a published form needs a view refresh to show up downstream - see
+/// DynamicSchemaService.RefreshReportingViewAsync.)
+///
+/// Code and FieldType are different: each one describes the physical column, so the
+/// mutators for them (RenameCode/ChangeType) are only valid when the caller is also running
+/// the matching DDL in the same operation. Don't call them on their own.
 /// </summary>
 public class FieldDefinition : AuditableEntity
 {
@@ -60,6 +67,40 @@ public class FieldDefinition : AuditableEntity
     public void Deactivate() => IsActive = false;
 
     public void UpdateLabel(string label) => Label = label.Trim();
+
+    public void UpdateDisplayOrder(int displayOrder) => DisplayOrder = displayOrder;
+
+    /// <summary>
+    /// Code is the physical column name, so this is only ever valid alongside a real
+    /// ALTER TABLE ... RENAME COLUMN on a published form's table (see
+    /// RenameFieldCodeCommand) - the two have to move together or the metadata stops
+    /// describing the actual column. Goes through the same NormalizeColumnName whitelist as
+    /// Create for exactly the same reason: this value ends up interpolated into DDL.
+    /// </summary>
+    public void RenameCode(string code) => Code = NormalizeColumnName(code);
+
+    /// <summary>
+    /// Only valid alongside a real ALTER TABLE ... ALTER COLUMN ... TYPE, and only once the
+    /// caller has confirmed every existing value actually converts (see
+    /// ChangeFieldTypeCommand) - the domain can't see the stored data, so it enforces the
+    /// per-type companion-data rules here and leaves convertibility to the caller.
+    /// </summary>
+    public void ChangeType(FieldType fieldType, string? optionsJson, Guid? lookupFormDefinitionId)
+    {
+        if (fieldType == FieldType.Dropdown && string.IsNullOrWhiteSpace(optionsJson))
+            throw new ArgumentException("Dropdown fields require OptionsJson.", nameof(optionsJson));
+        if (fieldType == FieldType.Lookup && lookupFormDefinitionId is null)
+            throw new ArgumentException("Lookup fields require LookupFormDefinitionId.", nameof(lookupFormDefinitionId));
+
+        FieldType = fieldType;
+        // Companion data belongs to the type that needs it - carrying a stale options list
+        // onto a Number field (or a stale target form onto a Dropdown) would leave the field
+        // describing a shape it no longer has.
+        OptionsJson = fieldType == FieldType.Dropdown ? optionsJson : null;
+        LookupFormDefinitionId = fieldType == FieldType.Lookup ? lookupFormDefinitionId : null;
+    }
+
+    public void Reactivate() => IsActive = true;
 
     /// <summary>
     /// Column names come from user-entered field codes and end up interpolated into DDL

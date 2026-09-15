@@ -3,23 +3,11 @@
 # fixed from Form 3's set (weather/labor/materials/equipment/access/other) to its own
 # (weather/labor/materials/equipment/formwork availability/other).
 #
-# There's no "edit a field in place" API - Code becomes a physical column, and
-# FieldDefinition is otherwise immutable once created (see FieldDefinition.cs) - so the
-# real mechanism here is the same one the Form Builder UI would use: open a new draft
-# version, remove the old field, add it back with corrected options, publish. The
-# physical column itself (delay_reason, still a Dropdown/text column) doesn't change -
-# only the OptionsJson metadata does, so this doesn't touch or lose any existing
-# submissions' data for every field except delay_reason itself. Any submission that
-# stored the now-removed "access" value keeps that raw string in its row - it just won't
-# match any current option's label in the UI anymore, so check for that before running
-# this against a form with real data.
-#
-# Side effect worth knowing about: DisplayOrder is assigned as "current field count" at
-# AddField time (see FormVersion.AddField), and removing a field doesn't renumber the
-# ones after it. So the re-added delay_reason lands at the END of the field order (after
-# formwork_shortage/photo) instead of back in its original spot before them - a cosmetic
-# field-ordering change in the form UI, not a data problem. There's no reorder API today;
-# fix it by hand afterward (Form Builder UI, once it supports reordering) if it matters.
+# Updated to use the real field-editing API. There is now a proper "change this field's
+# type/options" endpoint, so this is a single in-place metadata update rather than the
+# open-a-draft / remove-the-field / re-add-it / publish dance this script used to do. The
+# column and its data are untouched, and - the part that actually went wrong last time - the
+# field keeps its position on the form instead of being pushed to the end.
 #
 # Usage:
 #   .\fix-form4-delay-reason.ps1 -BaseUrl "http://localhost:5080" -Token "eyJhbGc..." -FormId "<structural_progress_daily's form id>"
@@ -32,11 +20,6 @@ param(
 
 $ErrorActionPreference = "Stop"
 $headers = @{ Authorization = "Bearer $Token" }
-
-function Invoke-JsonPost($uri, $json) {
-    $bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
-    return Invoke-RestMethod -Uri $uri -Method Post -Headers $headers -Body $bytes -ContentType "application/json; charset=utf-8"
-}
 
 $correctValues = @("weather", "labor_shortage", "material_shortage", "equipment_shortage", "formwork_availability", "other")
 $correctOptionsJson = (@(
@@ -65,31 +48,22 @@ if (@(Compare-Object $currentValues $correctValues -SyncWindow 0).Count -eq 0) {
 }
 
 Write-Host "Current options: $($currentField.optionsJson)"
-Write-Host "Opening a new draft version..."
-Invoke-RestMethod -Uri "$BaseUrl/api/forms/$FormId/versions" -Method Post -Headers $headers | Out-Null
+Write-Host "Updating 'delay_reason' options in place..."
 
-$draftForm = Invoke-RestMethod -Uri "$BaseUrl/api/forms/$FormId" -Headers $headers
-$draftField = $draftForm.draftVersion.fields | Where-Object { $_.code -eq "delay_reason" }
-if ($null -eq $draftField) {
-    throw "Draft version has no 'delay_reason' field - was it removed already? Check the form manually before re-running."
-}
-
-Write-Host "Removing the old 'delay_reason' field ($($draftField.id))..."
-Invoke-RestMethod -Uri "$BaseUrl/api/forms/$FormId/fields/$($draftField.id)" -Method Delete -Headers $headers | Out-Null
-
-Write-Host "Re-adding 'delay_reason' with corrected options..."
-$addFieldJson = @{
-    code                   = "delay_reason"
-    label                  = "السبب"
-    fieldType              = "Dropdown"
-    isRequired             = $false
+# One call, no draft cycle, no remove-and-re-add. The change-type endpoint takes the field's
+# EXISTING type plus new options, so this is a pure metadata update: the delay_reason column
+# and every value already recorded in it are untouched, and the field keeps its position on
+# the form. That position is the bit that used to break - the old version of this script
+# removed the field and re-added it, which pushed it to the end of the form because
+# DisplayOrder was assigned from the field count at the time of the add.
+$changeTypeJson = @{
+    newFieldType           = "Dropdown"
     optionsJson            = $correctOptionsJson
     lookupFormDefinitionId = $null
-    validationRulesJson    = $null
 } | ConvertTo-Json
-Invoke-JsonPost "$BaseUrl/api/forms/$FormId/fields" $addFieldJson | Out-Null
 
-Write-Host "Publishing the corrected version..."
-Invoke-RestMethod -Uri "$BaseUrl/api/forms/$FormId/publish" -Method Post -Headers $headers | Out-Null
+$bytes = [System.Text.Encoding]::UTF8.GetBytes($changeTypeJson)
+Invoke-RestMethod -Uri "$BaseUrl/api/forms/$FormId/fields/$($currentField.id)/type" -Method Put `
+    -Headers $headers -Body $bytes -ContentType "application/json; charset=utf-8" | Out-Null
 
 Write-Host "Done - structural_progress_daily's delay_reason now has: توفر الشدة الخشبية (in place of الوصول)."

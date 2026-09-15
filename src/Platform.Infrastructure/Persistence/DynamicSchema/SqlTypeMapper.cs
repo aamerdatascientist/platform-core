@@ -57,6 +57,20 @@ public static class SqlTypeMapper
     };
 
     /// <summary>
+    /// The character limit baked into <see cref="ToPostgresColumnType"/> for the length-capped
+    /// types, or null for the ones that have no cap. Exists because an explicit cast to
+    /// varchar(n) TRUNCATES rather than failing, so a type change into one of these needs a
+    /// separate length check to avoid silently shortening existing values - the cast alone
+    /// would report success. Keep in sync with ToPostgresColumnType.
+    /// </summary>
+    public static int? MaxLengthFor(FieldType fieldType) => fieldType switch
+    {
+        FieldType.ShortText => 400,
+        FieldType.Dropdown => 200,
+        _ => null
+    };
+
+    /// <summary>
     /// Hard boundary: table, view, and column names get interpolated directly into DDL
     /// text because SQL doesn't support parameterizing identifiers. Every identifier that
     /// reaches this method should already have passed domain-level normalization

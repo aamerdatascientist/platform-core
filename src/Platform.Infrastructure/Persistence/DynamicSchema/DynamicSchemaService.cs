@@ -44,11 +44,7 @@ public class DynamicSchemaService : IDynamicSchemaService
         // check and the lock acquisition.
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
-        await using (var lockCommand = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtext(@lockKey));", connection, transaction))
-        {
-            lockCommand.Parameters.AddWithValue("@lockKey", tableName);
-            await lockCommand.ExecuteNonQueryAsync(cancellationToken);
-        }
+        await TakeTableLockAsync(connection, transaction, tableName, cancellationToken);
 
         if (!await TableExistsAsync(connection, transaction, tableName, cancellationToken))
         {
@@ -259,6 +255,178 @@ public class DynamicSchemaService : IDynamicSchemaService
         await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
         return await ColumnExistsAsync(connection, null, tableName, columnCode, cancellationToken);
+    }
+
+    public async Task AddColumnForFieldAsync(
+        string tableName, FieldDefinition field, CancellationToken cancellationToken = default)
+    {
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
+        SqlTypeMapper.AssertSafePostgresIdentifier(field.Code);
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        // Same advisory lock and check-then-act shape as the publish-time path, for the same
+        // reason: two people adding a field to the same published form at once would
+        // otherwise race between "column doesn't exist" and the ADD COLUMN.
+        await TakeTableLockAsync(connection, transaction, tableName, cancellationToken);
+
+        if (!await ColumnExistsAsync(connection, transaction, tableName, field.Code, cancellationToken))
+        {
+            await AddColumnAsync(connection, transaction, tableName, field, cancellationToken);
+            _logger.LogInformation("Added column {ColumnName} to live table {TableName}", field.Code, tableName);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task RenameColumnAsync(
+        string tableName, string fromCode, string toCode, CancellationToken cancellationToken = default)
+    {
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
+        SqlTypeMapper.AssertSafePostgresIdentifier(fromCode);
+        SqlTypeMapper.AssertSafePostgresIdentifier(toCode);
+
+        var sql = $"ALTER TABLE \"{tableName}\" RENAME COLUMN \"{fromCode}\" TO \"{toCode}\";";
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Renamed column {FromCode} to {ToCode} on {TableName}", fromCode, toCode, tableName);
+    }
+
+    public async Task<IReadOnlyList<Guid>> FindRowsFailingTypeChangeAsync(
+        string tableName, FieldDefinition field, FieldType newType, int maxRows = 10,
+        CancellationToken cancellationToken = default)
+    {
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
+        SqlTypeMapper.AssertSafePostgresIdentifier(field.Code);
+
+        var targetType = SqlTypeMapper.ToPostgresColumnType(newType);
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await CreateConvertibilityProbeAsync(connection, cancellationToken);
+
+        // Two distinct ways a value can fail to survive the change, and both matter:
+        //   1. The cast itself throws ('abc' -> integer). The probe catches that using
+        //      Postgres's own cast semantics rather than a hand-rolled regex per type pair,
+        //      which is what makes timestamptz workable here at all.
+        //   2. The cast SUCCEEDS but silently truncates. An explicit cast to varchar(n) is
+        //      defined to truncate rather than error, so a 500-character answer "converts"
+        //      to ShortText by quietly losing 100 characters. A length guard is the only
+        //      thing standing between that and silent data loss.
+        var lengthGuard = SqlTypeMapper.MaxLengthFor(newType) is { } maxLength
+            ? $" OR length(d.\"{field.Code}\"::text) > {maxLength}"
+            : string.Empty;
+
+        var sql = $"""
+            SELECT d."Id" FROM "{tableName}" d
+            WHERE d."IsDeleted" = false
+              AND d."{field.Code}" IS NOT NULL
+              AND (NOT pg_temp.platform_converts_ok(d."{field.Code}"::text, @targetType::regtype){lengthGuard})
+            LIMIT @maxRows;
+            """;
+
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@targetType", targetType);
+        command.Parameters.AddWithValue("@maxRows", maxRows);
+
+        var failingIds = new List<Guid>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            failingIds.Add(reader.GetGuid(0));
+
+        return failingIds;
+    }
+
+    public async Task ChangeColumnTypeAsync(
+        string tableName, FieldDefinition field, FieldType newType, CancellationToken cancellationToken = default)
+    {
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
+        SqlTypeMapper.AssertSafePostgresIdentifier(field.Code);
+
+        var targetType = SqlTypeMapper.ToPostgresColumnType(newType);
+
+        // USING is always explicit, and always routes through ::text - Postgres rejects most
+        // direct cross-type changes outright, and the round-trip through text is the one
+        // expression that behaves for every pair this platform can produce (timestamptz
+        // renders with its offset, so the instant survives). It's also exactly the expression
+        // FindRowsFailingTypeChangeAsync probes, so the pre-flight check and the real change
+        // can't disagree about what "convertible" meant.
+        var sql = $"""
+            ALTER TABLE "{tableName}"
+            ALTER COLUMN "{field.Code}" TYPE {targetType}
+            USING "{field.Code}"::text::{targetType};
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Changed column {ColumnName} on {TableName} to {TargetType}", field.Code, tableName, targetType);
+    }
+
+    public async Task DropColumnAsync(string tableName, string columnCode, CancellationToken cancellationToken = default)
+    {
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
+        SqlTypeMapper.AssertSafePostgresIdentifier(columnCode);
+
+        var sql = $"ALTER TABLE \"{tableName}\" DROP COLUMN \"{columnCode}\";";
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+
+        // Logged at Warning, not Information: this is the one operation here that destroys
+        // data outright, and it should be conspicuous in a log someone is scanning after the
+        // fact to work out where a column's history went.
+        _logger.LogWarning(
+            "DROPPED column {ColumnName} from {TableName} - data in it is permanently gone", columnCode, tableName);
+    }
+
+    /// <summary>
+    /// A session-local probe function (pg_temp is dropped automatically when the connection
+    /// closes, so this leaves nothing behind in the schema) that answers "would this text
+    /// survive a cast to this type?" using Postgres's own casting rules plus its exception
+    /// handling. The alternative - a regex per source/target type pair - would be guesswork
+    /// for timestamptz in particular, and would drift from what the real ALTER does.
+    /// pg_input_is_valid would be neater but needs Postgres 16+, which isn't guaranteed here.
+    /// </summary>
+    private static async Task CreateConvertibilityProbeAsync(NpgsqlConnection connection, CancellationToken ct)
+    {
+        const string sql = """
+            CREATE OR REPLACE FUNCTION pg_temp.platform_converts_ok(val text, target regtype)
+            RETURNS boolean LANGUAGE plpgsql IMMUTABLE AS $probe$
+            BEGIN
+                IF val IS NULL THEN RETURN true; END IF;
+                EXECUTE format('SELECT %L::%s', val, target);
+                RETURN true;
+            EXCEPTION WHEN others THEN
+                RETURN false;
+            END;
+            $probe$;
+            """;
+
+        await using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync(ct);
+    }
+
+    private static async Task TakeTableLockAsync(
+        NpgsqlConnection connection, NpgsqlTransaction transaction, string tableName, CancellationToken ct)
+    {
+        await using var lockCommand = new NpgsqlCommand(
+            "SELECT pg_advisory_xact_lock(hashtext(@lockKey));", connection, transaction);
+        lockCommand.Parameters.AddWithValue("@lockKey", tableName);
+        await lockCommand.ExecuteNonQueryAsync(ct);
     }
 
     private static async Task<bool> TableExistsAsync(

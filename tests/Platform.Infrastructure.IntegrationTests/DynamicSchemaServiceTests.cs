@@ -214,4 +214,158 @@ public class DynamicSchemaServiceTests : IAsyncLifetime
         var act = () => SqlTypeMapper.AssertSafePostgresIdentifier(candidate);
         act.Should().Throw<ArgumentException>();
     }
+
+    /// <summary>
+    /// The whole point of the rename operation: the old mechanism (remove the field, re-add it
+    /// under a new code) created a brand-new empty column and stranded every existing value in
+    /// an orphaned one. A real RENAME COLUMN has to carry the data across.
+    /// </summary>
+    [Fact]
+    public async Task RenameColumnAsync_KeepsExistingValues()
+    {
+        var form = FormDefinition.Create("rename-keeps-data", "Rename Keeps Data", "Operations", null);
+        var draft = form.GetDraftVersion();
+        draft.AddField("old_code", "Old Code", FieldType.ShortText, false, null, null, null);
+        draft.MarkPublished();
+        var tableName = await _sut.EnsureTableForPublishedVersionAsync(form, draft);
+        form.MarkPublished(draft, tableName);
+
+        await InsertRowAsync(tableName, "old_code", "'keep me'");
+
+        await _sut.RenameColumnAsync(tableName, "old_code", "new_code");
+
+        (await _sut.ColumnExistsAsync(tableName, "old_code")).Should().BeFalse();
+        (await _sut.ColumnExistsAsync(tableName, "new_code")).Should().BeTrue();
+        (await ScalarAsync($"SELECT \"new_code\" FROM \"{tableName}\";"))
+            .Should().Be("keep me", "a rename must carry the column's data across, not start an empty column");
+    }
+
+    [Fact]
+    public async Task FindRowsFailingTypeChangeAsync_NamesOnlyTheRowsThatCannotConvert()
+    {
+        var form = FormDefinition.Create("retype-check", "Retype Check", "Operations", null);
+        var draft = form.GetDraftVersion();
+        var field = draft.AddField("amount", "Amount", FieldType.ShortText, false, null, null, null);
+        draft.MarkPublished();
+        var tableName = await _sut.EnsureTableForPublishedVersionAsync(form, draft);
+        form.MarkPublished(draft, tableName);
+
+        var convertible = await InsertRowAsync(tableName, "amount", "'42'");
+        var notConvertible = await InsertRowAsync(tableName, "amount", "'not a number'");
+        await InsertRowAsync(tableName, "amount", "NULL");
+
+        var failing = await _sut.FindRowsFailingTypeChangeAsync(tableName, field, FieldType.Number);
+
+        failing.Should().ContainSingle().Which.Should().Be(notConvertible);
+        failing.Should().NotContain(convertible, "'42' converts to an integer cleanly");
+    }
+
+    /// <summary>
+    /// The subtle half of the convertibility check. An explicit cast to varchar(n) TRUNCATES
+    /// rather than failing, so without a length guard this conversion would "succeed" while
+    /// quietly cutting the value short - exactly the silent lossy conversion the whole
+    /// pre-flight check exists to prevent.
+    /// </summary>
+    [Fact]
+    public async Task FindRowsFailingTypeChangeAsync_CatchesValuesThatWouldBeSilentlyTruncated()
+    {
+        var form = FormDefinition.Create("retype-truncation", "Retype Truncation", "Operations", null);
+        var draft = form.GetDraftVersion();
+        var field = draft.AddField("notes", "Notes", FieldType.LongText, false, null, null, null);
+        draft.MarkPublished();
+        var tableName = await _sut.EnsureTableForPublishedVersionAsync(form, draft);
+        form.MarkPublished(draft, tableName);
+
+        var tooLong = await InsertRowAsync(tableName, "notes", $"'{new string('x', 500)}'");
+        var fits = await InsertRowAsync(tableName, "notes", "'short enough'");
+
+        var failing = await _sut.FindRowsFailingTypeChangeAsync(tableName, field, FieldType.ShortText);
+
+        failing.Should().ContainSingle().Which.Should().Be(tooLong);
+        failing.Should().NotContain(fits);
+    }
+
+    [Fact]
+    public async Task ChangeColumnTypeAsync_ConvertsExistingValues()
+    {
+        var form = FormDefinition.Create("retype-applies", "Retype Applies", "Operations", null);
+        var draft = form.GetDraftVersion();
+        var field = draft.AddField("amount", "Amount", FieldType.ShortText, false, null, null, null);
+        draft.MarkPublished();
+        var tableName = await _sut.EnsureTableForPublishedVersionAsync(form, draft);
+        form.MarkPublished(draft, tableName);
+
+        await InsertRowAsync(tableName, "amount", "'42'");
+
+        await _sut.ChangeColumnTypeAsync(tableName, field, FieldType.Number);
+
+        (await ScalarAsync($"""
+            SELECT data_type FROM information_schema.columns
+            WHERE table_name = '{tableName}' AND column_name = 'amount';
+            """)).Should().Be("integer");
+        (await ScalarAsync($"SELECT \"amount\" FROM \"{tableName}\";")).Should().Be(42);
+    }
+
+    [Fact]
+    public async Task DropColumnAsync_RemovesTheColumn()
+    {
+        var form = FormDefinition.Create("drop-column", "Drop Column", "Operations", null);
+        var draft = form.GetDraftVersion();
+        draft.AddField("keep_me", "Keep Me", FieldType.ShortText, false, null, null, null);
+        draft.AddField("drop_me", "Drop Me", FieldType.ShortText, false, null, null, null);
+        draft.MarkPublished();
+        var tableName = await _sut.EnsureTableForPublishedVersionAsync(form, draft);
+        form.MarkPublished(draft, tableName);
+
+        await _sut.DropColumnAsync(tableName, "drop_me");
+
+        (await _sut.ColumnExistsAsync(tableName, "drop_me")).Should().BeFalse();
+        (await _sut.ColumnExistsAsync(tableName, "keep_me")).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task AddColumnForFieldAsync_IsIdempotentAndLeavesExistingRowsNull()
+    {
+        var form = FormDefinition.Create("live-add", "Live Add", "Operations", null);
+        var draft = form.GetDraftVersion();
+        draft.AddField("existing", "Existing", FieldType.ShortText, false, null, null, null);
+        draft.MarkPublished();
+        var tableName = await _sut.EnsureTableForPublishedVersionAsync(form, draft);
+        form.MarkPublished(draft, tableName);
+
+        await InsertRowAsync(tableName, "existing", "'already here'");
+
+        var added = draft.AddField("added_later", "Added Later", FieldType.Number, false, null, null, null);
+        await _sut.AddColumnForFieldAsync(tableName, added);
+        // Twice, because a published form can be edited from two places at once and this is
+        // the path that runs in both.
+        await _sut.AddColumnForFieldAsync(tableName, added);
+
+        (await _sut.ColumnExistsAsync(tableName, "added_later")).Should().BeTrue();
+        (await ScalarAsync($"SELECT COUNT(1) FROM \"{tableName}\" WHERE \"added_later\" IS NULL;"))
+            .Should().Be(1L, "a column added to a live table leaves existing rows null");
+    }
+
+    private async Task<Guid> InsertRowAsync(string tableName, string columnCode, string valueLiteral)
+    {
+        var id = Guid.NewGuid();
+        var sql = $"""
+            INSERT INTO "{tableName}" ("Id", "FormVersionId", "CreatedAtUtc", "CreatedByUserId", "IsDeleted", "{columnCode}")
+            VALUES ('{id}', '{Guid.NewGuid()}', now(), '{Guid.NewGuid()}', false, {valueLiteral});
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+        return id;
+    }
+
+    private async Task<object?> ScalarAsync(string sql)
+    {
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand(sql, connection);
+        return await command.ExecuteScalarAsync();
+    }
 }

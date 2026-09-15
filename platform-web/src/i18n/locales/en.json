@@ -86,7 +86,6 @@
     "addField": "Add field"
   },
   "formBuilder": {
-    "editingNewVersion": "Editing new version",
     "access": "Access",
     "accessOpenDescription": "Visible to everyone. Check a role or specific user below to restrict access.",
     "accessRestrictedDescription": "Restricted - access is allowed by role, by specific user, or both, below.",
@@ -96,17 +95,13 @@
     "noUsersYet": "No users exist yet.",
     "saveAccess": "Save access",
     "savingAccess": "Saving…",
-    "publishedNoDraftPrompt": "This form is published. To add more fields, start a new draft version - existing fields and submitted data carry forward untouched.",
-    "addMoreFields": "+ Add more fields",
-    "startingNewVersion": "Starting…",
-    "editingPublishedNote": "You're editing a new version of this published form. The currently live version keeps working exactly as it is until you publish these changes.",
     "fieldsCount": "Fields ({{count}})",
     "required": "required",
     "noFieldsYet": "No fields yet - add one below.",
     "addAField": "Add a field",
     "publishForm": "Publish form",
     "publishing": "Publishing…",
-    "publishNote": "Publishing creates or updates the real database table for this form. Fields can be removed freely until then - not after.",
+    "publishNote": "Publishing creates the real database table for this form. After that, fields stay editable - labels and order change instantly, and renaming a code, changing a type or removing a field each ask you to confirm first.",
     "goFillOutForm": "Go fill out this form →",
     "deleteThisForm": "Delete this form",
     "deleteConfirmPublished": "This form has been published - deleting it hides it everywhere, but any submitted data stays intact and isn't deleted. This can't be undone from here.",
@@ -114,11 +109,11 @@
     "yesDeleteIt": "Yes, delete it",
     "deleting": "Deleting…",
     "loadError": "Could not load this form.",
-    "removeFieldError": "Could not remove that field.",
     "publishError": "Could not publish this form.",
-    "startVersionError": "Could not start a new draft for this form.",
     "deleteError": "Could not delete this form.",
-    "accessError": "Could not update access for this form."
+    "accessError": "Could not update access for this form.",
+    "liveEditNote": "This form is published and holds live data. Changes to its fields apply immediately - renaming a label or reordering fields is instant and safe; renaming a code, changing a type or removing a field will ask you to confirm first.",
+    "reorderError": "Could not reorder the fields."
   },
   "formView": {
     "recordsHeading": "Records - select one for workflow status",
@@ -253,5 +248,37 @@
         "StockAdjustment": "Stock adjustment"
       }
     }
+  },
+  "fieldEditor": {
+    "clickToRelabel": "Click to rename this field's display label",
+    "archivedBadge": "archived",
+    "restore": "Restore",
+    "moveUp": "Move field up",
+    "moveDown": "Move field down",
+    "renameCode": "Rename code",
+    "changeType": "Change type",
+    "renameCodeConsequenceLive": "This renames the database column on a form that already holds data. Every existing value is kept. Anything outside this platform that reads the column by its old name - Power BI queries, Tableau, exports, integrations - will stop finding it until you update them.",
+    "renameCodeConsequenceDraft": "This form hasn't been published yet, so no column exists and no data is at risk. The new code is what the column will be created as at first publish.",
+    "confirmRenameCode": "Rename {{from}} → {{to}}",
+    "changeTypeConsequenceLive": "This converts every existing value in the column to the new type. If even one value can't be converted, nothing is changed and you'll be told which records are in the way - values are never silently dropped or truncated to make a conversion fit.",
+    "changeTypeConsequenceDraft": "This form hasn't been published yet, so there's no data to convert - only the field's definition changes.",
+    "confirmChangeType": "Convert {{from}} → {{to}}",
+    "chooseLookupTarget": "Choose a form to look up…",
+    "dropdownTypeUnsupported": "Converting a field to Dropdown needs an options list, which this editor can't collect yet. Add a new Dropdown field instead, then archive this one.",
+    "archiveHeading": "Archive (recommended)",
+    "archiveConsequenceLive": "The field disappears from the form and stops accepting new entries. Its column and every value already recorded stay exactly as they are, so past records keep their history. You can restore it later, with the data intact.",
+    "archiveConsequenceDraft": "The field is hidden from the form. You can restore it at any time.",
+    "archiveAction": "Archive field",
+    "deleteHeading": "Delete permanently",
+    "deleteConsequenceLive": "This drops the column and every value ever recorded in it. It cannot be undone - not by restoring, not by republishing. Only do this for data that should never have been collected. Type {{code}} below to confirm.",
+    "deleteConsequenceDraft": "This form has never been published, so there's no column and no data - the field is simply removed.",
+    "deleteConfirmLabel": "Type {{code}} to confirm permanent deletion",
+    "deleteAction": "Delete permanently",
+    "relabelError": "Could not rename this field.",
+    "renameCodeError": "Could not rename this field's code.",
+    "changeTypeError": "Could not change this field's type.",
+    "archiveError": "Could not archive this field.",
+    "restoreError": "Could not restore this field.",
+    "deleteError": "Could not delete this field."
   }
 }

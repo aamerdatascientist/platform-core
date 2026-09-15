@@ -155,8 +155,61 @@ export const api = {
         token,
       ),
 
-    removeField: (token: string, formId: string, fieldId: string) =>
-      request<void>(`/api/forms/${formId}/fields/${fieldId}`, { method: 'DELETE' }, token),
+    // --- Safe field edits: metadata only, no confirmation needed even on a published form ---
+
+    updateFieldLabel: (token: string, formId: string, fieldId: string, label: string) =>
+      request<void>(
+        `/api/forms/${formId}/fields/${fieldId}/label`,
+        { method: 'PUT', body: JSON.stringify({ label }) },
+        token,
+      ),
+
+    /** Takes the complete ordered list of ACTIVE field ids - a partial list is rejected. */
+    reorderFields: (token: string, formId: string, orderedFieldIds: string[]) =>
+      request<void>(
+        `/api/forms/${formId}/fields/order`,
+        { method: 'PUT', body: JSON.stringify({ orderedFieldIds }) },
+        token,
+      ),
+
+    // --- Risky field edits: each needs its own explicit confirmation in the UI ---
+
+    /** Real ALTER TABLE ... RENAME COLUMN on a published form. Data survives; external
+     *  references to the old column name do not. */
+    renameFieldCode: (token: string, formId: string, fieldId: string, newCode: string) =>
+      request<void>(
+        `/api/forms/${formId}/fields/${fieldId}/code`,
+        { method: 'PUT', body: JSON.stringify({ newCode }) },
+        token,
+      ),
+
+    /** Rejected with a 400 naming the offending record ids if any stored value can't convert. */
+    changeFieldType: (
+      token: string,
+      formId: string,
+      fieldId: string,
+      input: { newFieldType: string; optionsJson?: string | null; lookupFormDefinitionId?: string | null },
+    ) =>
+      request<void>(
+        `/api/forms/${formId}/fields/${fieldId}/type`,
+        { method: 'PUT', body: JSON.stringify(input) },
+        token,
+      ),
+
+    /** Recommended way to take a field off a form: keeps the column and all history. */
+    archiveField: (token: string, formId: string, fieldId: string) =>
+      request<void>(`/api/forms/${formId}/fields/${fieldId}/archive`, { method: 'POST' }, token),
+
+    restoreField: (token: string, formId: string, fieldId: string) =>
+      request<void>(`/api/forms/${formId}/fields/${fieldId}/restore`, { method: 'POST' }, token),
+
+    /** Irreversible: drops the column and its data. confirmFieldCode must equal the field's
+     *  own code on a published form; it's not required on a form that was never published,
+     *  where there is no column and no data yet. */
+    deleteField: (token: string, formId: string, fieldId: string, confirmFieldCode?: string) => {
+      const query = confirmFieldCode ? `?confirmFieldCode=${encodeURIComponent(confirmFieldCode)}` : '';
+      return request<void>(`/api/forms/${formId}/fields/${fieldId}${query}`, { method: 'DELETE' }, token);
+    },
 
     startNewVersion: (token: string, formId: string) =>
       request<{ id: string }>(`/api/forms/${formId}/versions`, { method: 'POST' }, token),

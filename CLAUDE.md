@@ -21,6 +21,37 @@ Workflow state lives in the **static** schema (`WorkflowInstance.RecordId` refer
 dynamic table row by GUID), not bolted onto the dynamic tables. Keeps Workflow cleanly
 separate from the Form Engine.
 
+## Field editing: the draft cycle vs. live edits - decided, don't re-derive
+
+A form that has **never been published** works the way it always has: field changes land on
+its draft, nothing physical exists yet, and every bit of schema work happens at once during
+its first publish.
+
+Once a form **is published**, the draft cycle is retired for field edits. All six operations
+apply directly to the published version and carry their own DDL immediately - there is no
+staging, no "start a new version to edit", and no draft/published pair to reconcile. Which
+branch applies is decided in exactly one place, `FormEditTargetResolver.ResolveFieldEditTarget`,
+and the frontend's `resolveEditableFields` has to keep agreeing with it or the builder will
+display one version's fields while editing another's.
+
+Operations are split by risk, and that split is the contract:
+- **Safe - no confirmation, works on live data**: relabel (`Label` only), reorder
+  (`DisplayOrder` only), add field (`ALTER TABLE ADD COLUMN`, nullable, existing rows get
+  NULL). A relabel still refreshes the reporting view, because the view's column aliases are
+  built from `Label`.
+- **Risky - always an explicit, informed choice**: rename code (real
+  `ALTER TABLE ... RENAME COLUMN`, never drop-and-recreate), change type (refused outright,
+  naming the offending record Ids, if any existing value wouldn't survive - never a lossy
+  conversion), and remove, which is deliberately **two** operations: Archive (default - hides
+  the field, keeps the column and all history, reversible) and Delete (real `DROP COLUMN`,
+  irreversible, gated behind typing the field's code).
+
+Ordering rule when an operation spans both stores (EF metadata + raw DDL): neither is atomic
+with the other, so each operation is ordered so the surviving half is the harmless one. Rename
+does DDL first and renames back if the metadata save fails. Delete saves metadata first and
+drops the column last, because an orphaned column is inert while metadata pointing at a
+missing column breaks every submission.
+
 ## Established code conventions
 
 - Domain entities: private setters, static `Create` factories, `AuditableEntity` base.

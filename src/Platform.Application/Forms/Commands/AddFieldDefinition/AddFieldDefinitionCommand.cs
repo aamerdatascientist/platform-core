@@ -37,8 +37,13 @@ public class AddFieldDefinitionCommandValidator : AbstractValidator<AddFieldDefi
 public class AddFieldDefinitionCommandHandler : IRequestHandler<AddFieldDefinitionCommand, Guid>
 {
     private readonly IApplicationDbContext _db;
+    private readonly IDynamicSchemaService _schemaService;
 
-    public AddFieldDefinitionCommandHandler(IApplicationDbContext db) => _db = db;
+    public AddFieldDefinitionCommandHandler(IApplicationDbContext db, IDynamicSchemaService schemaService)
+    {
+        _db = db;
+        _schemaService = schemaService;
+    }
 
     public async Task<Guid> Handle(AddFieldDefinitionCommand request, CancellationToken cancellationToken)
     {
@@ -49,12 +54,12 @@ public class AddFieldDefinitionCommandHandler : IRequestHandler<AddFieldDefiniti
         if (formDefinition is null)
             throw new NotFoundException(nameof(Platform.Domain.Forms.FormDefinition), request.FormDefinitionId);
 
-        var draft = formDefinition.GetDraftVersionOrThrow();
+        var target = formDefinition.ResolveFieldEditTarget();
 
         Platform.Domain.Forms.FieldDefinition field;
         try
         {
-            field = draft.AddField(
+            field = target.Version.AddField(
                 request.Code, request.Label, request.FieldType, request.IsRequired,
                 request.OptionsJson, request.LookupFormDefinitionId, request.ValidationRulesJson);
         }
@@ -76,8 +81,33 @@ public class AddFieldDefinitionCommandHandler : IRequestHandler<AddFieldDefiniti
                 "the human-readable label shown on the form, which can be in any language.");
         }
 
+        catch (InvalidOperationException ex)
+        {
+            // Duplicate code on this version. Cheap to hit now that fields can be added
+            // straight to a published form from more than one place at once.
+            throw new Common.Exceptions.ValidationException(new[]
+            {
+                new FluentValidation.Results.ValidationFailure(nameof(request.Code), ex.Message)
+            });
+        }
+
         _db.FieldDefinitions.Add(field);
         await _db.SaveChangesAsync(cancellationToken);
+
+        // On a published form the column has to exist before anyone can submit against the
+        // new field, so the DDL runs now rather than waiting for a publish that may never
+        // come. Existing rows get NULL (AddColumnAsync always emits a nullable column, even
+        // for a required field - there's nothing to backfill, and required-ness is enforced
+        // at submission time). An unpublished form keeps the original behaviour exactly:
+        // metadata only, all schema work batched into its first publish.
+        if (target.IsLive && field.FieldType != FieldType.Attachment)
+        {
+            await _schemaService.AddColumnForFieldAsync(target.LiveTableName, field, cancellationToken);
+
+            var lookupTargets = await _db.LoadLookupTargetsAsync(target.Version, cancellationToken);
+            await _schemaService.RefreshReportingViewAsync(
+                formDefinition, target.Version, lookupTargets, cancellationToken);
+        }
 
         return field.Id;
     }
