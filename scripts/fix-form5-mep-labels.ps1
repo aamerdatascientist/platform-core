@@ -25,6 +25,25 @@
 # It refuses to delete anything if the form turns out to already be published (unexpected
 # given the diagnosis, but checked rather than assumed).
 #
+# Correction from an earlier version of this script/diagnosis: the pre-check below (GET
+# /api/forms?moduleName=...) does NOT filter by Status - a genuine Draft form IS visible
+# through it. If this script prints "No existing form found" and then New-Form still fails
+# with a raw 23505 on IX_FormDefinitions_Code, the real cause is a SOFT-DELETED leftover
+# row: FormDefinition is soft-deletable (AuditableEntity.IsDeleted), every app-level query
+# (this pre-check, GetFormDefinitionQuery, and CreateFormDefinitionCommandHandler's own
+# internal uniqueness check) is filtered to hide IsDeleted=true rows - so a soft-deleted
+# row is invisible everywhere in the app, yet still occupies its Code at the database level
+# forever, since a plain unique index doesn't know about soft-delete. There's no API-level
+# way to find or clean up a row in that state (its own DELETE endpoint would 404 on it for
+# the same reason) - the actual fix is
+# src/Platform.Infrastructure/Persistence/Configurations/FormConfigurations.cs's Code index
+# now being a PARTIAL unique index (`WHERE "IsDeleted" = false`), migration
+# AddPartialUniqueIndexOnFormDefinitionCode. That migration must be applied to the live
+# database (`dotnet ef database update`, run somewhere with real Postgres connectivity)
+# before re-running this script, or the same raw 23505 will recur. The New-Form call below
+# now fails with a clear, actionable error instead of a raw exception if that migration
+# hasn't landed yet.
+#
 # Forms 1-4 are untouched by this script - they published and seeded correctly already.
 #
 # Usage:
@@ -103,7 +122,14 @@ $floorOptions = (@(
     @{ value = "floor_5"; label = "الطابق 5" }, @{ value = "floor_6"; label = "الطابق 6" }
 ) | ConvertTo-Json -Compress)
 
-$mepId = New-Form "mep_progress_daily" "التقدم اليومي لأعمال الكهرباء والسباكة والتكييف" "Daily Reports" "Daily MEP works progress"
+try {
+    $mepId = New-Form "mep_progress_daily" "التقدم اليومي لأعمال الكهرباء والسباكة والتكييف" "Daily Reports" "Daily MEP works progress"
+} catch {
+    if ($_.Exception.Message -match "23505" -or $_.Exception.Message -match "IX_FormDefinitions_Code" -or $_.ErrorDetails.Message -match "23505") {
+        throw "New-Form failed on mep_progress_daily's Code with what looks like the raw unique-index conflict (IX_FormDefinitions_Code), even though the pre-check above found nothing. This means a soft-deleted leftover row still occupies that Code - the pre-check can't see it (see the comment near the top of this script), and no API call can clean it up directly. Apply migration AddPartialUniqueIndexOnFormDefinitionCode (`dotnet ef database update`, from somewhere with real Postgres connectivity) first, then re-run this script. Original error: $($_.Exception.Message)"
+    }
+    throw
+}
 Add-Field $mepId "report_date" "تاريخ التقرير" "DateTime" $true
 Add-Field $mepId "project" "المشروع" "Lookup" $true $null $ProjectsFormId
 Add-Field $mepId "floor" "أي طابق يتم العمل عليه اليوم؟" "Dropdown" $true $floorOptions

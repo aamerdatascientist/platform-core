@@ -11,7 +11,16 @@ public class FormDefinitionConfiguration : IEntityTypeConfiguration<FormDefiniti
         builder.ToTable("FormDefinitions");
         builder.HasKey(f => f.Id);
         builder.Property(f => f.Code).IsRequired().HasMaxLength(64);
-        builder.HasIndex(f => f.Code).IsUnique();
+        // Partial index, not a plain unique constraint: FormDefinition is soft-deletable
+        // (AuditableEntity.IsDeleted + ApplicationDbContext's global query filter), and a
+        // plain unique index doesn't know about that - a soft-deleted row keeps permanently
+        // occupying its Code, invisible to every app-level query (including this handler's
+        // own AnyAsync uniqueness pre-check, which goes through the same filtered DbSet) but
+        // still enforced by Postgres, so re-creating a form with that Code fails with a raw
+        // 23505 instead of a clean "already exists" error. Scoping the index to
+        // WHERE "IsDeleted" = false is what actually frees the Code once its old row is
+        // soft-deleted - the standard fix for unique-business-key + soft-delete.
+        builder.HasIndex(f => f.Code).IsUnique().HasFilter("\"IsDeleted\" = false");
         builder.Property(f => f.Name).IsRequired().HasMaxLength(200);
         builder.Property(f => f.ModuleName).IsRequired().HasMaxLength(100);
         builder.Property(f => f.TableName).HasMaxLength(128);

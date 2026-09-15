@@ -213,6 +213,31 @@ separate from the Form Engine.
 
 ## Known engineering gotchas - hit multiple times, check for this pattern in new code
 
+**A plain unique index on a soft-deletable entity (`AuditableEntity`/`IsDeleted`) lets a
+soft-deleted row permanently squat on its own unique key, invisible to every app-level
+query yet still enforced by Postgres.** Hit on `FormDefinition.Code`: a form that was
+soft-deleted (`DeleteFormCommand`'s `IsDeleted = true` branch) stayed invisible to
+`GetFormsListQuery`, `GetFormDefinitionQuery`, and - critically -
+`CreateFormDefinitionCommandHandler`'s own internal `AnyAsync` uniqueness pre-check, since
+all three go through the same `IsDeleted`-filtered `_db.FormDefinitions`. Recreating a form
+with that Code didn't get a clean "already exists" error - it hit a raw
+`23505 duplicate key value violates unique constraint "IX_FormDefinitions_Code"` at
+`SaveChangesAsync`, because the plain unique index has no concept of soft-delete. Worse:
+there's no way to find-and-clean-up the offending row through the API either, since its own
+DELETE endpoint 404s on it for the same filtering reason - the row is a genuine dead end
+without direct database access.
+
+**Fix, now the established convention:** any unique index on a soft-deletable entity's
+business key should be a **partial/filtered index** scoped to `WHERE "IsDeleted" = false`
+(`builder.HasIndex(...).IsUnique().HasFilter("\"IsDeleted\" = false")`), not a plain unique
+index - see `FormConfigurations.cs`. That's what actually frees the key once the old row is
+soft-deleted, and it fixes the app-level uniqueness check for free (no code changes needed
+there) since that check already goes through the same filtered DbSet. Check any *new*
+unique index on an `AuditableEntity` type for this before it bites a second time -
+`WorkflowDefinition.Code` has the identical plain-unique-index shape today, just not yet
+exploitable because nothing deletes a `WorkflowDefinition` (no delete command exists for
+it) - if one is ever added, give its unique index(es) the same filter at the same time.
+
 **Postgres silently truncates ANY identifier over 63 bytes (NAMEDATALEN) - including a
 double-quoted alias, not just a plain column/table name - and it's a byte limit, not a
 character limit.** Hit twice now, two different code paths: first as `"lkp_" + a Lookup
