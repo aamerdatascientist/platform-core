@@ -41,7 +41,8 @@ internal static class ExecutiveOverviewSupport
         string codeField, string nameField, CancellationToken cancellationToken)
     {
         var activeFields = form.GetPublishedVersion()!.Fields.Where(f => f.IsActive).ToList();
-        var page = await dynamicDataRepository.QueryAsync(form.TableName!, activeFields, 1, 500, cancellationToken);
+        var page = await dynamicDataRepository.QueryAsync(
+            form.TableName!, activeFields, 1, 500, cancellationToken: cancellationToken);
 
         return page.Items.ToDictionary(
             row => row.Id,

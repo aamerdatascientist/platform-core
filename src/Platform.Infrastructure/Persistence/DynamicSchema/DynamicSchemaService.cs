@@ -44,11 +44,7 @@ public class DynamicSchemaService : IDynamicSchemaService
         // check and the lock acquisition.
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
-        await using (var lockCommand = new NpgsqlCommand("SELECT pg_advisory_xact_lock(hashtext(@lockKey));", connection, transaction))
-        {
-            lockCommand.Parameters.AddWithValue("@lockKey", tableName);
-            await lockCommand.ExecuteNonQueryAsync(cancellationToken);
-        }
+        await TakeTableLockAsync(connection, transaction, tableName, cancellationToken);
 
         if (!await TableExistsAsync(connection, transaction, tableName, cancellationToken))
         {
@@ -78,13 +74,54 @@ public class DynamicSchemaService : IDynamicSchemaService
         IReadOnlyDictionary<Guid, FormDefinition>? lookupTargets = null,
         CancellationToken cancellationToken = default)
     {
+        var (viewName, selectSql) = BuildReportingViewSql(formDefinition, version, lookupTargets);
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        // Wrapped in a transaction so a CREATE VIEW failure (a bad join, an invalid column
+        // reference) rolls back the preceding DROP too - the old view survives intact
+        // instead of being left missing until the next successful publish.
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        await RebuildViewAsync(connection, transaction, viewName, selectSql, cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
+
+        _logger.LogInformation("Refreshed reporting view {ViewName} for form {FormCode}", viewName, formDefinition.Code);
+    }
+
+    /// <summary>
+    /// Builds the reporting view's name and SELECT body without executing anything, so the
+    /// same definition can be rebuilt either standalone (RefreshReportingViewAsync) or inside
+    /// a caller's existing transaction. That second case is what ALTER COLUMN TYPE and DROP
+    /// COLUMN need: Postgres refuses both outright while a view depends on the column
+    /// (0A000 / 2BP01), so the view has to be dropped and rebuilt around the real DDL - and
+    /// it has to happen on the SAME connection, because a second connection would just block
+    /// on the locks the first one is holding.
+    /// </summary>
+    /// <param name="excludeFieldCode">
+    /// A column that must not appear in the rebuilt view because it's being dropped in the
+    /// same transaction. DropColumnAsync passes this rather than trusting its caller to have
+    /// already taken the field off the version: if the caller did, this is a no-op, and if it
+    /// didn't, the view is still built correctly instead of the whole operation failing on a
+    /// cryptic "column d.x does not exist" from the rebuild.
+    /// </param>
+    private static (string ViewName, string SelectSql) BuildReportingViewSql(
+        FormDefinition formDefinition, FormVersion version,
+        IReadOnlyDictionary<Guid, FormDefinition>? lookupTargets,
+        string? excludeFieldCode = null)
+    {
         var tableName = formDefinition.TableName
             ?? throw new InvalidOperationException("Cannot build a reporting view before the table has been created.");
         var viewName = $"Report_{SqlTypeMapper.ToPascalCase(formDefinition.Code)}";
         SqlTypeMapper.AssertSafePostgresIdentifier(viewName);
         SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
 
-        var activeFields = version.Fields.Where(f => f.IsActive && f.FieldType != FieldType.Attachment).ToList();
+        var activeFields = version.Fields
+            .Where(f => f.IsActive && f.FieldType != FieldType.Attachment)
+            .Where(f => excludeFieldCode is null || !string.Equals(f.Code, excludeFieldCode, StringComparison.Ordinal))
+            .ToList();
 
         var selectColumns = new StringBuilder();
         var joins = new StringBuilder();
@@ -107,8 +144,7 @@ public class DynamicSchemaService : IDynamicSchemaService
         {
             SqlTypeMapper.AssertSafePostgresIdentifier(field.Code);
 
-            var displayLabel = usedColumnNames.Add(field.Label) ? field.Label : $"{field.Label} ({field.Code})";
-            usedColumnNames.Add(displayLabel);
+            var displayLabel = BuildSafeDisplayAlias(field.Label, field.Code, usedColumnNames);
 
             // Labels are free text, not identifiers - double-quoted aliases don't need to be
             // valid identifiers, but an embedded '"' must still be escaped to close the quote
@@ -142,27 +178,26 @@ public class DynamicSchemaService : IDynamicSchemaService
             WHERE d."IsDeleted" = false
             """;
 
-        await using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        return (viewName, selectSql);
+    }
 
-        // Wrapped in a transaction so a CREATE VIEW failure (a bad join, an invalid column
-        // reference) rolls back the preceding DROP too - the old view survives intact
-        // instead of being left missing until the next successful publish.
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-
-        // Postgres can't CREATE OR REPLACE a view whose column shape changed (columns
-        // added/removed/reordered/retyped) - unlike SQL Server's CREATE OR ALTER VIEW, which
-        // handles that transparently. Drop and recreate unconditionally on every publish
-        // instead; IF EXISTS covers the first-ever publish, where there's nothing to drop yet.
+    /// <summary>
+    /// Drops and recreates the view on the caller's connection/transaction.
+    ///
+    /// Postgres can't CREATE OR REPLACE a view whose column shape changed (columns
+    /// added/removed/reordered/retyped) - unlike SQL Server's CREATE OR ALTER VIEW, which
+    /// handles that transparently. Drop and recreate unconditionally instead; IF EXISTS
+    /// covers the first-ever publish, where there's nothing to drop yet.
+    /// </summary>
+    private static async Task RebuildViewAsync(
+        NpgsqlConnection connection, NpgsqlTransaction transaction, string viewName, string selectSql,
+        CancellationToken cancellationToken)
+    {
         await using (var dropCommand = new NpgsqlCommand($"DROP VIEW IF EXISTS \"{viewName}\";", connection, transaction))
             await dropCommand.ExecuteNonQueryAsync(cancellationToken);
 
         await using (var createCommand = new NpgsqlCommand($"CREATE VIEW \"{viewName}\" AS\n{selectSql};", connection, transaction))
             await createCommand.ExecuteNonQueryAsync(cancellationToken);
-
-        await transaction.CommitAsync(cancellationToken);
-
-        _logger.LogInformation("Refreshed reporting view {ViewName} for form {FormCode}", viewName, formDefinition.Code);
     }
 
     /// <summary>
@@ -208,11 +243,278 @@ public class DynamicSchemaService : IDynamicSchemaService
         return $"{prefix}{truncatedCode}_{hash}";
     }
 
+    /// <summary>
+    /// Postgres silently truncates ANY identifier - including a double-quoted alias like
+    /// this view's display-label columns - to 63 bytes (NAMEDATALEN). That's a byte limit,
+    /// not a character limit: two field labels that are visually distinct C# strings can
+    /// still collide into the identical Postgres column name once truncated, if they share
+    /// a long enough common prefix before UTF-8 encoding - a real risk for Arabic text
+    /// (2-4 bytes/char) specifically. Hit for real: three MEP daily-report field labels
+    /// all shared the same 63-byte prefix, so CREATE VIEW failed with a duplicate-column
+    /// error at publish time.
+    ///
+    /// Rather than only reacting once two labels actually collide, every over-length label
+    /// is hash-disambiguated up front - same truncated-prefix + content-hash pattern as
+    /// BuildSafeJoinAlias above, keyed on Code (guaranteed unique within a form version by
+    /// FormVersion.AddField) rather than the label itself, so two different fields can never
+    /// land on the same suffix. An exact duplicate label (a plain copy-paste typo) is caught
+    /// by the same usedIdentifiers set and goes through the identical fallback.
+    /// </summary>
+    private static string BuildSafeDisplayAlias(string label, string fieldCode, HashSet<string> usedIdentifiers)
+    {
+        const int maxBytes = 63;
+
+        if (Encoding.UTF8.GetByteCount(label) <= maxBytes && usedIdentifiers.Add(label))
+            return label;
+
+        var hash = Convert.ToHexString(MD5.HashData(Encoding.UTF8.GetBytes(fieldCode))).ToLowerInvariant()[..8];
+        var suffix = "_" + hash;
+        var maxLabelBytes = maxBytes - Encoding.UTF8.GetByteCount(suffix);
+        var candidate = TruncateToUtf8ByteLimit(label, maxLabelBytes) + suffix;
+
+        usedIdentifiers.Add(candidate);
+        return candidate;
+    }
+
+    /// <summary>Truncates to at most maxBytes UTF-8 bytes without splitting a multi-byte
+    /// character in half - backs off from the cut point until it lands outside a
+    /// continuation byte (10xxxxxx), rather than producing a mangled/invalid string.</summary>
+    private static string TruncateToUtf8ByteLimit(string value, int maxBytes)
+    {
+        var bytes = Encoding.UTF8.GetBytes(value);
+        if (bytes.Length <= maxBytes) return value;
+
+        var length = maxBytes;
+        while (length > 0 && (bytes[length] & 0xC0) == 0x80) length--;
+
+        return Encoding.UTF8.GetString(bytes, 0, length);
+    }
+
     public async Task<bool> ColumnExistsAsync(string tableName, string columnCode, CancellationToken cancellationToken = default)
     {
         await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
         return await ColumnExistsAsync(connection, null, tableName, columnCode, cancellationToken);
+    }
+
+    public async Task AddColumnForFieldAsync(
+        string tableName, FieldDefinition field, CancellationToken cancellationToken = default)
+    {
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
+        SqlTypeMapper.AssertSafePostgresIdentifier(field.Code);
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        // Same advisory lock and check-then-act shape as the publish-time path, for the same
+        // reason: two people adding a field to the same published form at once would
+        // otherwise race between "column doesn't exist" and the ADD COLUMN.
+        await TakeTableLockAsync(connection, transaction, tableName, cancellationToken);
+
+        if (!await ColumnExistsAsync(connection, transaction, tableName, field.Code, cancellationToken))
+        {
+            await AddColumnAsync(connection, transaction, tableName, field, cancellationToken);
+            _logger.LogInformation("Added column {ColumnName} to live table {TableName}", field.Code, tableName);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task RenameColumnAsync(
+        string tableName, string fromCode, string toCode, CancellationToken cancellationToken = default)
+    {
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
+        SqlTypeMapper.AssertSafePostgresIdentifier(fromCode);
+        SqlTypeMapper.AssertSafePostgresIdentifier(toCode);
+
+        var sql = $"ALTER TABLE \"{tableName}\" RENAME COLUMN \"{fromCode}\" TO \"{toCode}\";";
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Renamed column {FromCode} to {ToCode} on {TableName}", fromCode, toCode, tableName);
+    }
+
+    public async Task<IReadOnlyList<Guid>> FindRowsFailingTypeChangeAsync(
+        string tableName, FieldDefinition field, FieldType newType, int maxRows = 10,
+        CancellationToken cancellationToken = default)
+    {
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
+        SqlTypeMapper.AssertSafePostgresIdentifier(field.Code);
+
+        var targetType = SqlTypeMapper.ToPostgresColumnType(newType);
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await CreateConvertibilityProbeAsync(connection, cancellationToken);
+
+        // Two distinct ways a value can fail to survive the change, and both matter:
+        //   1. The cast itself throws ('abc' -> integer). The probe catches that using
+        //      Postgres's own cast semantics rather than a hand-rolled regex per type pair,
+        //      which is what makes timestamptz workable here at all.
+        //   2. The cast SUCCEEDS but silently truncates. An explicit cast to varchar(n) is
+        //      defined to truncate rather than error, so a 500-character answer "converts"
+        //      to ShortText by quietly losing 100 characters. A length guard is the only
+        //      thing standing between that and silent data loss.
+        var lengthGuard = SqlTypeMapper.MaxLengthFor(newType) is { } maxLength
+            ? $" OR length(d.\"{field.Code}\"::text) > {maxLength}"
+            : string.Empty;
+
+        var sql = $"""
+            SELECT d."Id" FROM "{tableName}" d
+            WHERE d."IsDeleted" = false
+              AND d."{field.Code}" IS NOT NULL
+              AND (NOT pg_temp.platform_converts_ok(d."{field.Code}"::text, @targetType::regtype){lengthGuard})
+            LIMIT @maxRows;
+            """;
+
+        await using var command = new NpgsqlCommand(sql, connection);
+        command.Parameters.AddWithValue("@targetType", targetType);
+        command.Parameters.AddWithValue("@maxRows", maxRows);
+
+        var failingIds = new List<Guid>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            failingIds.Add(reader.GetGuid(0));
+
+        return failingIds;
+    }
+
+    public async Task ChangeColumnTypeAsync(
+        FormDefinition formDefinition, FormVersion version, FieldDefinition field, FieldType newType,
+        IReadOnlyDictionary<Guid, FormDefinition>? lookupTargets = null,
+        CancellationToken cancellationToken = default)
+    {
+        var tableName = formDefinition.TableName
+            ?? throw new InvalidOperationException("Cannot change a column's type before the table has been created.");
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
+        SqlTypeMapper.AssertSafePostgresIdentifier(field.Code);
+
+        var targetType = SqlTypeMapper.ToPostgresColumnType(newType);
+
+        // USING is always explicit, and always routes through ::text - Postgres rejects most
+        // direct cross-type changes outright, and the round-trip through text is the one
+        // expression that behaves for every pair this platform can produce (timestamptz
+        // renders with its offset, so the instant survives). It's also exactly the expression
+        // FindRowsFailingTypeChangeAsync probes, so the pre-flight check and the real change
+        // can't disagree about what "convertible" meant.
+        var sql = $"""
+            ALTER TABLE "{tableName}"
+            ALTER COLUMN "{field.Code}" TYPE {targetType}
+            USING "{field.Code}"::text::{targetType};
+            """;
+
+        await RunDdlAroundViewRebuildAsync(
+            formDefinition, version, lookupTargets, tableName, sql, excludeFieldCode: null, cancellationToken);
+
+        _logger.LogInformation(
+            "Changed column {ColumnName} on {TableName} to {TargetType}", field.Code, tableName, targetType);
+    }
+
+    public async Task DropColumnAsync(
+        FormDefinition formDefinition, FormVersion version, string columnCode,
+        IReadOnlyDictionary<Guid, FormDefinition>? lookupTargets = null,
+        CancellationToken cancellationToken = default)
+    {
+        var tableName = formDefinition.TableName
+            ?? throw new InvalidOperationException("Cannot drop a column before the table has been created.");
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
+        SqlTypeMapper.AssertSafePostgresIdentifier(columnCode);
+
+        var sql = $"ALTER TABLE \"{tableName}\" DROP COLUMN \"{columnCode}\";";
+
+        await RunDdlAroundViewRebuildAsync(
+            formDefinition, version, lookupTargets, tableName, sql, excludeFieldCode: columnCode, cancellationToken);
+
+        // Logged at Warning, not Information: this is the one operation here that destroys
+        // data outright, and it should be conspicuous in a log someone is scanning after the
+        // fact to work out where a column's history went.
+        _logger.LogWarning(
+            "DROPPED column {ColumnName} from {TableName} - data in it is permanently gone", columnCode, tableName);
+    }
+
+    /// <summary>
+    /// Runs column DDL that Postgres refuses to perform while the reporting view depends on
+    /// the column: ALTER COLUMN ... TYPE fails with 0A000 ("cannot alter type of a column used
+    /// by a view or rule") and DROP COLUMN with 2BP01 ("cannot drop column ... because other
+    /// objects depend on it"). A plain RENAME COLUMN is exempt - Postgres rewrites the view's
+    /// own reference to follow it - which is why only these two paths need this.
+    ///
+    /// So the view is dropped, the real DDL runs, and the view is rebuilt from the version's
+    /// current field metadata, all in ONE transaction on ONE connection. Both parts matter:
+    /// the transaction means a failure anywhere (an unconvertible value, an invalid rebuilt
+    /// view) rolls the whole thing back rather than leaving the form with no reporting view,
+    /// and the single connection is required because a second one would simply block on the
+    /// locks this transaction already holds.
+    /// </summary>
+    private async Task RunDdlAroundViewRebuildAsync(
+        FormDefinition formDefinition, FormVersion version,
+        IReadOnlyDictionary<Guid, FormDefinition>? lookupTargets,
+        string tableName, string ddlSql, string? excludeFieldCode, CancellationToken cancellationToken)
+    {
+        // Built before anything is dropped: if the metadata can't produce a valid view
+        // definition, fail before touching the schema rather than halfway through.
+        var (viewName, selectSql) = BuildReportingViewSql(formDefinition, version, lookupTargets, excludeFieldCode);
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        // Same table-scoped advisory lock the other schema-changing paths take, so two
+        // concurrent edits to one published form serialise instead of interleaving their
+        // drop/alter/rebuild steps.
+        await TakeTableLockAsync(connection, transaction, tableName, cancellationToken);
+
+        await using (var dropViewCommand = new NpgsqlCommand($"DROP VIEW IF EXISTS \"{viewName}\";", connection, transaction))
+            await dropViewCommand.ExecuteNonQueryAsync(cancellationToken);
+
+        await using (var ddlCommand = new NpgsqlCommand(ddlSql, connection, transaction))
+            await ddlCommand.ExecuteNonQueryAsync(cancellationToken);
+
+        await RebuildViewAsync(connection, transaction, viewName, selectSql, cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// A session-local probe function (pg_temp is dropped automatically when the connection
+    /// closes, so this leaves nothing behind in the schema) that answers "would this text
+    /// survive a cast to this type?" using Postgres's own casting rules plus its exception
+    /// handling. The alternative - a regex per source/target type pair - would be guesswork
+    /// for timestamptz in particular, and would drift from what the real ALTER does.
+    /// pg_input_is_valid would be neater but needs Postgres 16+, which isn't guaranteed here.
+    /// </summary>
+    private static async Task CreateConvertibilityProbeAsync(NpgsqlConnection connection, CancellationToken ct)
+    {
+        const string sql = """
+            CREATE OR REPLACE FUNCTION pg_temp.platform_converts_ok(val text, target regtype)
+            RETURNS boolean LANGUAGE plpgsql IMMUTABLE AS $probe$
+            BEGIN
+                IF val IS NULL THEN RETURN true; END IF;
+                EXECUTE format('SELECT %L::%s', val, target);
+                RETURN true;
+            EXCEPTION WHEN others THEN
+                RETURN false;
+            END;
+            $probe$;
+            """;
+
+        await using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync(ct);
+    }
+
+    private static async Task TakeTableLockAsync(
+        NpgsqlConnection connection, NpgsqlTransaction transaction, string tableName, CancellationToken ct)
+    {
+        await using var lockCommand = new NpgsqlCommand(
+            "SELECT pg_advisory_xact_lock(hashtext(@lockKey));", connection, transaction);
+        lockCommand.Parameters.AddWithValue("@lockKey", tableName);
+        await lockCommand.ExecuteNonQueryAsync(ct);
     }
 
     private static async Task<bool> TableExistsAsync(

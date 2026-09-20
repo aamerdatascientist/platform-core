@@ -14,8 +14,8 @@ namespace Platform.Infrastructure.IntegrationTests;
 /// These deliberately run against a real, throwaway Postgres container rather than a mock -
 /// DynamicSchemaService's entire job is generating correct DDL/DML, and a mock would only
 /// prove the test author's assumptions about Postgres, not Postgres's actual behavior.
-/// Requires Docker to be running (not available in every environment - e.g. Claude Code's
-/// own sandbox can't run these; see CLAUDE.md).
+/// Requires a running Docker daemon and a reachable image registry; see CLAUDE.md for the
+/// exact invocation that works inside Claude Code's sandbox, where both need a nudge.
 /// </summary>
 public class DynamicSchemaServiceTests : IAsyncLifetime
 {
@@ -138,6 +138,45 @@ public class DynamicSchemaServiceTests : IAsyncLifetime
     }
 
     /// <summary>
+    /// The real bug this reproduces: three Arabic field labels sharing the identical
+    /// 63-byte UTF-8 prefix (distinct C# strings, but Postgres truncates ANY identifier -
+    /// including a double-quoted alias - to 63 bytes). Before BuildSafeDisplayAlias existed,
+    /// this made CREATE VIEW fail with a duplicate-column error, and it's exactly what
+    /// happened publishing the real mep_progress_daily form. Asserts both that publishing
+    /// doesn't throw and that the view actually ends up with three distinct columns, not
+    /// silently collapsed to one.
+    /// </summary>
+    [Fact]
+    public async Task RefreshReportingViewAsync_DisambiguatesLabelsSharingA63ByteCommonPrefix()
+    {
+        var formDefinition = FormDefinition.Create("mep-alias-check", "MEP Alias Check", "Daily Reports", null);
+        var draft = formDefinition.GetDraftVersion();
+        // Same collision as the real bug: only the trade word differs, and it sits past
+        // byte 63 of the shared "...أعمال ال" prefix.
+        draft.AddField("electrical_area_sqm", "الأمتار المربعة المنفذة من أعمال الكهرباء اليوم", FieldType.Number, false, null, null, null);
+        draft.AddField("plumbing_area_sqm", "الأمتار المربعة المنفذة من أعمال السباكة اليوم", FieldType.Number, false, null, null, null);
+        draft.AddField("hvac_area_sqm", "الأمتار المربعة المنفذة من أعمال التكييف اليوم", FieldType.Number, false, null, null, null);
+        draft.MarkPublished();
+        var tableName = await _sut.EnsureTableForPublishedVersionAsync(formDefinition, draft);
+        formDefinition.MarkPublished(draft, tableName);
+
+        var act = async () => await _sut.RefreshReportingViewAsync(formDefinition, draft);
+
+        await act.Should().NotThrowAsync("colliding labels must be disambiguated, not crash the publish");
+
+        var viewName = $"Report_{SqlTypeMapper.ToPascalCase(formDefinition.Code)}";
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand(
+            $"""SELECT COUNT(*) FROM information_schema.columns WHERE table_name = '{viewName}';""", connection);
+        var columnCount = (long)(await command.ExecuteScalarAsync())!;
+
+        // Record Id, Submitted At, Submitted By + the 3 area fields = 6 - if two of the
+        // three collided, this would be 5.
+        columnCount.Should().Be(6, "all three colliding labels must survive as distinct columns");
+    }
+
+    /// <summary>
     /// Without the pg_advisory_xact_lock in EnsureTableForPublishedVersionAsync, two
     /// concurrent first-publish calls for the same form can both observe "table doesn't
     /// exist" via INFORMATION_SCHEMA before either commits its CREATE TABLE, and the loser
@@ -174,5 +213,229 @@ public class DynamicSchemaServiceTests : IAsyncLifetime
     {
         var act = () => SqlTypeMapper.AssertSafePostgresIdentifier(candidate);
         act.Should().Throw<ArgumentException>();
+    }
+
+    /// <summary>
+    /// The whole point of the rename operation: the old mechanism (remove the field, re-add it
+    /// under a new code) created a brand-new empty column and stranded every existing value in
+    /// an orphaned one. A real RENAME COLUMN has to carry the data across.
+    /// </summary>
+    [Fact]
+    public async Task RenameColumnAsync_KeepsExistingValues()
+    {
+        var form = FormDefinition.Create("rename-keeps-data", "Rename Keeps Data", "Operations", null);
+        var draft = form.GetDraftVersion();
+        draft.AddField("old_code", "Old Code", FieldType.ShortText, false, null, null, null);
+        draft.MarkPublished();
+        var tableName = await _sut.EnsureTableForPublishedVersionAsync(form, draft);
+        form.MarkPublished(draft, tableName);
+
+        await InsertRowAsync(tableName, "old_code", "'keep me'");
+
+        await _sut.RenameColumnAsync(tableName, "old_code", "new_code");
+
+        (await _sut.ColumnExistsAsync(tableName, "old_code")).Should().BeFalse();
+        (await _sut.ColumnExistsAsync(tableName, "new_code")).Should().BeTrue();
+        (await ScalarAsync($"SELECT \"new_code\" FROM \"{tableName}\";"))
+            .Should().Be("keep me", "a rename must carry the column's data across, not start an empty column");
+    }
+
+    [Fact]
+    public async Task FindRowsFailingTypeChangeAsync_NamesOnlyTheRowsThatCannotConvert()
+    {
+        var form = FormDefinition.Create("retype-check", "Retype Check", "Operations", null);
+        var draft = form.GetDraftVersion();
+        var field = draft.AddField("amount", "Amount", FieldType.ShortText, false, null, null, null);
+        draft.MarkPublished();
+        var tableName = await _sut.EnsureTableForPublishedVersionAsync(form, draft);
+        form.MarkPublished(draft, tableName);
+
+        var convertible = await InsertRowAsync(tableName, "amount", "'42'");
+        var notConvertible = await InsertRowAsync(tableName, "amount", "'not a number'");
+        await InsertRowAsync(tableName, "amount", "NULL");
+
+        var failing = await _sut.FindRowsFailingTypeChangeAsync(tableName, field, FieldType.Number);
+
+        failing.Should().ContainSingle().Which.Should().Be(notConvertible);
+        failing.Should().NotContain(convertible, "'42' converts to an integer cleanly");
+    }
+
+    /// <summary>
+    /// The subtle half of the convertibility check. An explicit cast to varchar(n) TRUNCATES
+    /// rather than failing, so without a length guard this conversion would "succeed" while
+    /// quietly cutting the value short - exactly the silent lossy conversion the whole
+    /// pre-flight check exists to prevent.
+    /// </summary>
+    [Fact]
+    public async Task FindRowsFailingTypeChangeAsync_CatchesValuesThatWouldBeSilentlyTruncated()
+    {
+        var form = FormDefinition.Create("retype-truncation", "Retype Truncation", "Operations", null);
+        var draft = form.GetDraftVersion();
+        var field = draft.AddField("notes", "Notes", FieldType.LongText, false, null, null, null);
+        draft.MarkPublished();
+        var tableName = await _sut.EnsureTableForPublishedVersionAsync(form, draft);
+        form.MarkPublished(draft, tableName);
+
+        var tooLong = await InsertRowAsync(tableName, "notes", $"'{new string('x', 500)}'");
+        var fits = await InsertRowAsync(tableName, "notes", "'short enough'");
+
+        var failing = await _sut.FindRowsFailingTypeChangeAsync(tableName, field, FieldType.ShortText);
+
+        failing.Should().ContainSingle().Which.Should().Be(tooLong);
+        failing.Should().NotContain(fits);
+    }
+
+    [Fact]
+    public async Task ChangeColumnTypeAsync_ConvertsExistingValues()
+    {
+        var form = FormDefinition.Create("retype-applies", "Retype Applies", "Operations", null);
+        var draft = form.GetDraftVersion();
+        var field = draft.AddField("amount", "Amount", FieldType.ShortText, false, null, null, null);
+        draft.MarkPublished();
+        var tableName = await _sut.EnsureTableForPublishedVersionAsync(form, draft);
+        form.MarkPublished(draft, tableName);
+
+        await InsertRowAsync(tableName, "amount", "'42'");
+
+        await _sut.ChangeColumnTypeAsync(form, draft, field, FieldType.Number);
+
+        (await ScalarAsync($"""
+            SELECT data_type FROM information_schema.columns
+            WHERE table_name = '{tableName}' AND column_name = 'amount';
+            """)).Should().Be("integer");
+        (await ScalarAsync($"SELECT \"amount\" FROM \"{tableName}\";")).Should().Be(42);
+    }
+
+    /// <summary>
+    /// The live-trace failure: Postgres refuses ALTER COLUMN ... TYPE outright with
+    /// 0A000 "cannot alter type of a column used by a view or rule" while the reporting view
+    /// selects that column. Asserts the whole round trip, not just that the DDL stopped
+    /// throwing - the view has to be back afterwards AND still return the row, because a fix
+    /// that dropped the view and forgot to rebuild it would also make the DDL "succeed".
+    /// </summary>
+    [Fact]
+    public async Task ChangeColumnTypeAsync_WithAReportingView_SucceedsAndLeavesTheViewQueryable()
+    {
+        var form = FormDefinition.Create("retype-with-view", "Retype With View", "Operations", null);
+        var draft = form.GetDraftVersion();
+        var field = draft.AddField("amount", "Amount", FieldType.ShortText, false, null, null, null);
+        draft.MarkPublished();
+        var tableName = await _sut.EnsureTableForPublishedVersionAsync(form, draft);
+        form.MarkPublished(draft, tableName);
+        await _sut.RefreshReportingViewAsync(form, draft);
+
+        await InsertRowAsync(tableName, "amount", "'42'");
+
+        var act = async () => await _sut.ChangeColumnTypeAsync(form, draft, field, FieldType.Number);
+
+        await act.Should().NotThrowAsync("the view has to be dropped and rebuilt around the type change");
+
+        (await ScalarAsync("SELECT COUNT(1) FROM information_schema.views WHERE table_name = 'Report_RetypeWithView';"))
+            .Should().Be(1L, "the view must be rebuilt, not just dropped to let the ALTER through");
+        (await ScalarAsync("SELECT \"Amount\" FROM \"Report_RetypeWithView\";"))
+            .Should().Be(42, "the rebuilt view must still return the converted data");
+    }
+
+    [Fact]
+    public async Task DropColumnAsync_RemovesTheColumn()
+    {
+        var form = FormDefinition.Create("drop-column", "Drop Column", "Operations", null);
+        var draft = form.GetDraftVersion();
+        draft.AddField("keep_me", "Keep Me", FieldType.ShortText, false, null, null, null);
+        draft.AddField("drop_me", "Drop Me", FieldType.ShortText, false, null, null, null);
+        draft.MarkPublished();
+        var tableName = await _sut.EnsureTableForPublishedVersionAsync(form, draft);
+        form.MarkPublished(draft, tableName);
+
+        await _sut.DropColumnAsync(form, draft, "drop_me");
+
+        (await _sut.ColumnExistsAsync(tableName, "drop_me")).Should().BeFalse();
+        (await _sut.ColumnExistsAsync(tableName, "keep_me")).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// The other live-trace failure: 2BP01 "cannot drop column ... because other objects
+    /// depend on it" - the reporting view being the dependent object. Same shape of assertion
+    /// as the type-change test: the view has to survive, and it has to have dropped the gone
+    /// column while still returning the surviving one's data.
+    /// </summary>
+    [Fact]
+    public async Task DropColumnAsync_WithAReportingView_SucceedsAndLeavesTheViewQueryable()
+    {
+        var form = FormDefinition.Create("drop-with-view", "Drop With View", "Operations", null);
+        var draft = form.GetDraftVersion();
+        draft.AddField("keep_me", "Keep Me", FieldType.ShortText, false, null, null, null);
+        var doomed = draft.AddField("drop_me", "Drop Me", FieldType.ShortText, false, null, null, null);
+        draft.MarkPublished();
+        var tableName = await _sut.EnsureTableForPublishedVersionAsync(form, draft);
+        form.MarkPublished(draft, tableName);
+        await _sut.RefreshReportingViewAsync(form, draft);
+
+        await InsertRowAsync(tableName, "keep_me", "'still here'");
+
+        // The field has to be off the version before the drop, or the rebuilt view would
+        // still reference the column being removed - this mirrors DeleteFieldCommand, which
+        // removes it from the version before calling in.
+        draft.RemoveField(doomed.Id);
+
+        var act = async () => await _sut.DropColumnAsync(form, draft, "drop_me");
+
+        await act.Should().NotThrowAsync("the view has to be dropped and rebuilt around the column drop");
+
+        (await _sut.ColumnExistsAsync(tableName, "drop_me")).Should().BeFalse();
+        (await ScalarAsync("SELECT COUNT(1) FROM information_schema.views WHERE table_name = 'Report_DropWithView';"))
+            .Should().Be(1L, "the view must be rebuilt, not just dropped to let the DROP COLUMN through");
+        (await ScalarAsync("SELECT \"Keep Me\" FROM \"Report_DropWithView\";"))
+            .Should().Be("still here", "the rebuilt view must still return the surviving column's data");
+        (await ScalarAsync("""
+            SELECT COUNT(1) FROM information_schema.columns
+            WHERE table_name = 'Report_DropWithView' AND column_name = 'Drop Me';
+            """)).Should().Be(0L, "the dropped field must be gone from the rebuilt view too");
+    }
+
+    [Fact]
+    public async Task AddColumnForFieldAsync_IsIdempotentAndLeavesExistingRowsNull()
+    {
+        var form = FormDefinition.Create("live-add", "Live Add", "Operations", null);
+        var draft = form.GetDraftVersion();
+        draft.AddField("existing", "Existing", FieldType.ShortText, false, null, null, null);
+        draft.MarkPublished();
+        var tableName = await _sut.EnsureTableForPublishedVersionAsync(form, draft);
+        form.MarkPublished(draft, tableName);
+
+        await InsertRowAsync(tableName, "existing", "'already here'");
+
+        var added = draft.AddField("added_later", "Added Later", FieldType.Number, false, null, null, null);
+        await _sut.AddColumnForFieldAsync(tableName, added);
+        // Twice, because a published form can be edited from two places at once and this is
+        // the path that runs in both.
+        await _sut.AddColumnForFieldAsync(tableName, added);
+
+        (await _sut.ColumnExistsAsync(tableName, "added_later")).Should().BeTrue();
+        (await ScalarAsync($"SELECT COUNT(1) FROM \"{tableName}\" WHERE \"added_later\" IS NULL;"))
+            .Should().Be(1L, "a column added to a live table leaves existing rows null");
+    }
+
+    private async Task<Guid> InsertRowAsync(string tableName, string columnCode, string valueLiteral)
+    {
+        var id = Guid.NewGuid();
+        var sql = $"""
+            INSERT INTO "{tableName}" ("Id", "FormVersionId", "CreatedAtUtc", "CreatedByUserId", "IsDeleted", "{columnCode}")
+            VALUES ('{id}', '{Guid.NewGuid()}', now(), '{Guid.NewGuid()}', false, {valueLiteral});
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync();
+        return id;
+    }
+
+    private async Task<object?> ScalarAsync(string sql)
+    {
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync();
+        await using var command = new NpgsqlCommand(sql, connection);
+        return await command.ExecuteScalarAsync();
     }
 }

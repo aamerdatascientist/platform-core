@@ -21,6 +21,37 @@ Workflow state lives in the **static** schema (`WorkflowInstance.RecordId` refer
 dynamic table row by GUID), not bolted onto the dynamic tables. Keeps Workflow cleanly
 separate from the Form Engine.
 
+## Field editing: the draft cycle vs. live edits - decided, don't re-derive
+
+A form that has **never been published** works the way it always has: field changes land on
+its draft, nothing physical exists yet, and every bit of schema work happens at once during
+its first publish.
+
+Once a form **is published**, the draft cycle is retired for field edits. All six operations
+apply directly to the published version and carry their own DDL immediately - there is no
+staging, no "start a new version to edit", and no draft/published pair to reconcile. Which
+branch applies is decided in exactly one place, `FormEditTargetResolver.ResolveFieldEditTarget`,
+and the frontend's `resolveEditableFields` has to keep agreeing with it or the builder will
+display one version's fields while editing another's.
+
+Operations are split by risk, and that split is the contract:
+- **Safe - no confirmation, works on live data**: relabel (`Label` only), reorder
+  (`DisplayOrder` only), add field (`ALTER TABLE ADD COLUMN`, nullable, existing rows get
+  NULL). A relabel still refreshes the reporting view, because the view's column aliases are
+  built from `Label`.
+- **Risky - always an explicit, informed choice**: rename code (real
+  `ALTER TABLE ... RENAME COLUMN`, never drop-and-recreate), change type (refused outright,
+  naming the offending record Ids, if any existing value wouldn't survive - never a lossy
+  conversion), and remove, which is deliberately **two** operations: Archive (default - hides
+  the field, keeps the column and all history, reversible) and Delete (real `DROP COLUMN`,
+  irreversible, gated behind typing the field's code).
+
+Ordering rule when an operation spans both stores (EF metadata + raw DDL): neither is atomic
+with the other, so each operation is ordered so the surviving half is the harmless one. Rename
+does DDL first and renames back if the metadata save fails. Delete saves metadata first and
+drops the column last, because an orphaned column is inert while metadata pointing at a
+missing column breaks every submission.
+
 ## Established code conventions
 
 - Domain entities: private setters, static `Create` factories, `AuditableEntity` base.
@@ -53,8 +84,28 @@ separate from the Form Engine.
 - **Enums serialize as strings** (`JsonStringEnumConverter` registered in `Program.cs`) -
   the PowerShell seed scripts and the frontend both depend on this. Don't remove it.
 - Local dev DB is **Postgres** (Railway-hosted), not Docker/local Postgres - Docker
-  doesn't work on this machine (corporate-locked virtualization). Don't suggest Docker
-  again. Azure SQL was the original dev/prod database; it's been **fully decommissioned**
+  doesn't work on **Aamer's** machine (corporate-locked virtualization). Don't suggest Docker
+  as a local dev database again.
+- **Claude Code's sandbox CAN run the Testcontainers integration tests**, contrary to what
+  was assumed for several sessions - it just needs two things set up first, neither of them
+  obvious:
+  1. **The Docker daemon isn't running at boot**, though the binary is installed. Start it:
+     `sudo -n dockerd >/tmp/dockerd.log 2>&1 &` then give it ~10s.
+  2. **Docker Hub pulls fail** - the agent proxy 403s Hub's blob CDN
+     (`production.cloudfront.docker.com`), and configuring dockerd's own proxy settings
+     doesn't help. A registry mirror does: Testcontainers has a built-in env var for exactly
+     this, so no code or test changes are needed.
+
+  Full working invocation:
+  ```
+  TESTCONTAINERS_RYUK_DISABLED=true TESTCONTAINERS_HUB_IMAGE_NAME_PREFIX=mirror.gcr.io \
+    dotnet test tests/Platform.Infrastructure.IntegrationTests
+  ```
+  Ryuk (Testcontainers' cleanup sidecar) has to be disabled because it needs privileged mode
+  and the Docker socket mounted, which fails here; the tradeoff is that containers aren't
+  auto-reaped, which doesn't matter in a throwaway sandbox. Verified: 54/54 green against a
+  real Postgres 15.1. Don't write off a Postgres-backed test as unverifiable here without
+  trying this first. Azure SQL was the original dev/prod database; it's been **fully decommissioned**
   since the Postgres migration completed (see `docs/PROJECT_STATUS.md`) - don't
   reintroduce it as a reference point, and don't assume any Azure SQL-specific gotcha
   below this point still applies to the live database.
@@ -74,6 +125,17 @@ separate from the Form Engine.
   rely on a string body's implicit encoding. `scripts/*.ps1`'s shared `Invoke-JsonPost`
   helper has the fix in place; anything sending JSON over HTTP from PowerShell should
   route through something equivalent.
+- **Any `.ps1` file with Arabic (or other non-ASCII) text literally in its source needs
+  to be saved with a UTF-8 BOM (`EF BB BF`), not plain UTF-8.** Without it, Windows
+  PowerShell 5.1 misreads the file's own encoding and garbles the embedded Arabic at
+  parse time (e.g. "الطابق" becomes "Ø§Ù„Ø·Ø§Ø¨Ù‚") - a different failure from the
+  `-Body`/`Invoke-RestMethod` issue above (that one's about the HTTP request encoding;
+  this one's about the script file's own encoding, and hits even a script that never
+  sends a request). Hit twice now: once for the original Arabic seed scripts, and again
+  when `seed-daily-report-forms.ps1` was added without it. Check with
+  `Format-Hex script.ps1 -Count 3` (expect `EF BB BF`) before treating any new
+  Arabic-content `.ps1` file as done - a script with no Arabic literals at all (e.g.
+  `seed-stock-adjustment-workflow.ps1`) doesn't need this.
 - **Azure App Service (Linux) needs "Always On" enabled explicitly**, in Configuration ->
   General settings, or the worker process unloads after ~20 min with no requests and the
   next one pays a real cold-start cost. Unrelated to database auto-pausing - Postgres/
@@ -201,6 +263,51 @@ separate from the Form Engine.
   convenient; not blocking anything.
 
 ## Known engineering gotchas - hit multiple times, check for this pattern in new code
+
+**A plain unique index on a soft-deletable entity (`AuditableEntity`/`IsDeleted`) lets a
+soft-deleted row permanently squat on its own unique key, invisible to every app-level
+query yet still enforced by Postgres.** Hit on `FormDefinition.Code`: a form that was
+soft-deleted (`DeleteFormCommand`'s `IsDeleted = true` branch) stayed invisible to
+`GetFormsListQuery`, `GetFormDefinitionQuery`, and - critically -
+`CreateFormDefinitionCommandHandler`'s own internal `AnyAsync` uniqueness pre-check, since
+all three go through the same `IsDeleted`-filtered `_db.FormDefinitions`. Recreating a form
+with that Code didn't get a clean "already exists" error - it hit a raw
+`23505 duplicate key value violates unique constraint "IX_FormDefinitions_Code"` at
+`SaveChangesAsync`, because the plain unique index has no concept of soft-delete. Worse:
+there's no way to find-and-clean-up the offending row through the API either, since its own
+DELETE endpoint 404s on it for the same filtering reason - the row is a genuine dead end
+without direct database access.
+
+**Fix, now the established convention:** any unique index on a soft-deletable entity's
+business key should be a **partial/filtered index** scoped to `WHERE "IsDeleted" = false`
+(`builder.HasIndex(...).IsUnique().HasFilter("\"IsDeleted\" = false")`), not a plain unique
+index - see `FormConfigurations.cs`. That's what actually frees the key once the old row is
+soft-deleted, and it fixes the app-level uniqueness check for free (no code changes needed
+there) since that check already goes through the same filtered DbSet. Check any *new*
+unique index on an `AuditableEntity` type for this before it bites a second time -
+`WorkflowDefinition.Code` has the identical plain-unique-index shape today, just not yet
+exploitable because nothing deletes a `WorkflowDefinition` (no delete command exists for
+it) - if one is ever added, give its unique index(es) the same filter at the same time.
+
+**Postgres silently truncates ANY identifier over 63 bytes (NAMEDATALEN) - including a
+double-quoted alias, not just a plain column/table name - and it's a byte limit, not a
+character limit.** Hit twice now, two different code paths: first as `"lkp_" + a Lookup
+field's Code` overflowing 63 bytes in a reporting-view join alias (fixed by
+`BuildSafeJoinAlias`'s truncate+hash fallback); then as three real Arabic field labels on
+the same form (`mep_progress_daily`) sharing an identical 63-byte UTF-8 prefix - distinct
+C# strings, but Postgres truncated all three reporting-view column aliases to the same
+name, and `CREATE VIEW` failed with a duplicate-column error. Arabic text is what actually
+surfaces this: at 2+ bytes/char, a shared prefix well under 63 *characters* can already be
+past 63 *bytes*.
+
+**Fix, now the established convention:** any identifier built from user-supplied text
+(a Code, or - as of `BuildSafeDisplayAlias` in `DynamicSchemaService` - a Label used as a
+display alias) gets checked for its real UTF-8 byte length, not `.Length` (char count),
+and any two identifiers that would collide after Postgres's truncation get disambiguated
+with a deterministic truncate + short content-hash suffix rather than left to collide or
+silently truncated by Postgres itself. Check any *new* place that turns free-text content
+into a Postgres identifier - alias, column, table, or otherwise - for the same risk before
+it bites a third time.
 
 **EF Core silently no-ops inserting a new child entity reached only through an
 already-tracked parent's navigation collection.** Client-generated GUID keys (every entity

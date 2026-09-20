@@ -92,7 +92,7 @@ public class DynamicDataRepository : IDynamicDataRepository
 
     public async Task<PagedResult<DynamicRow>> QueryAsync(
         string tableName, IReadOnlyCollection<FieldDefinition> activeFields, int page, int pageSize,
-        CancellationToken cancellationToken = default)
+        DynamicRowFilter? filter = null, CancellationToken cancellationToken = default)
     {
         SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
         page = Math.Max(page, 1);
@@ -101,10 +101,25 @@ public class DynamicDataRepository : IDynamicDataRepository
         var readableFields = activeFields.Where(f => f.FieldType != FieldType.Attachment).ToList();
         var selectColumns = BuildSelectColumnList(readableFields);
 
-        var countSql = $"SELECT COUNT(1) FROM \"{tableName}\" WHERE \"IsDeleted\" = false;";
+        var parameters = new DynamicParameters();
+        parameters.Add("Offset", (page - 1) * pageSize);
+        parameters.Add("PageSize", pageSize);
+
+        var whereClause = "\"IsDeleted\" = false";
+        if (filter is not null)
+        {
+            // Same identifier boundary as every other column reference here - FieldCode is
+            // caller-resolved from a FieldDefinition, but that's not a security boundary on
+            // its own (see the class doc comment).
+            SqlTypeMapper.AssertSafePostgresIdentifier(filter.FieldCode);
+            whereClause += $" AND \"{filter.FieldCode}\" = @FilterValue";
+            parameters.Add("FilterValue", filter.Value);
+        }
+
+        var countSql = $"SELECT COUNT(1) FROM \"{tableName}\" WHERE {whereClause};";
         var pageSql = $"""
             SELECT "Id"{selectColumns} FROM "{tableName}"
-            WHERE "IsDeleted" = false
+            WHERE {whereClause}
             ORDER BY "CreatedAtUtc" DESC
             OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY;
             """;
@@ -113,10 +128,10 @@ public class DynamicDataRepository : IDynamicDataRepository
         await connection.OpenAsync(cancellationToken);
 
         var totalCount = await connection.ExecuteScalarAsync<int>(
-            new CommandDefinition(countSql, cancellationToken: cancellationToken));
+            new CommandDefinition(countSql, parameters, cancellationToken: cancellationToken));
 
         IEnumerable<object> rows = await connection.QueryAsync(new CommandDefinition(
-            pageSql, new { Offset = (page - 1) * pageSize, PageSize = pageSize }, cancellationToken: cancellationToken));
+            pageSql, parameters, cancellationToken: cancellationToken));
 
         var items = rows.Select(row => ToDynamicRow(row, readableFields)).ToList();
 

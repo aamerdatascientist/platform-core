@@ -28,8 +28,10 @@ public class FakeDynamicDataRepository : IDynamicDataRepository
 
     public Task<PagedResult<DynamicRow>> QueryAsync(
         string tableName, IReadOnlyCollection<FieldDefinition> activeFields, int page, int pageSize,
-        CancellationToken cancellationToken = default)
+        DynamicRowFilter? filter = null, CancellationToken cancellationToken = default)
     {
+        if (filter is not null)
+            throw new NotSupportedException("Not used by the analytics query handler tests.");
         if (!Rows.TryGetValue(tableName, out var rows))
             throw new InvalidOperationException($"Test bug: no fake rows registered for table '{tableName}'.");
 
