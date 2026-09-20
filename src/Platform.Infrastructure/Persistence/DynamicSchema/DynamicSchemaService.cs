@@ -74,13 +74,54 @@ public class DynamicSchemaService : IDynamicSchemaService
         IReadOnlyDictionary<Guid, FormDefinition>? lookupTargets = null,
         CancellationToken cancellationToken = default)
     {
+        var (viewName, selectSql) = BuildReportingViewSql(formDefinition, version, lookupTargets);
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        // Wrapped in a transaction so a CREATE VIEW failure (a bad join, an invalid column
+        // reference) rolls back the preceding DROP too - the old view survives intact
+        // instead of being left missing until the next successful publish.
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        await RebuildViewAsync(connection, transaction, viewName, selectSql, cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
+
+        _logger.LogInformation("Refreshed reporting view {ViewName} for form {FormCode}", viewName, formDefinition.Code);
+    }
+
+    /// <summary>
+    /// Builds the reporting view's name and SELECT body without executing anything, so the
+    /// same definition can be rebuilt either standalone (RefreshReportingViewAsync) or inside
+    /// a caller's existing transaction. That second case is what ALTER COLUMN TYPE and DROP
+    /// COLUMN need: Postgres refuses both outright while a view depends on the column
+    /// (0A000 / 2BP01), so the view has to be dropped and rebuilt around the real DDL - and
+    /// it has to happen on the SAME connection, because a second connection would just block
+    /// on the locks the first one is holding.
+    /// </summary>
+    /// <param name="excludeFieldCode">
+    /// A column that must not appear in the rebuilt view because it's being dropped in the
+    /// same transaction. DropColumnAsync passes this rather than trusting its caller to have
+    /// already taken the field off the version: if the caller did, this is a no-op, and if it
+    /// didn't, the view is still built correctly instead of the whole operation failing on a
+    /// cryptic "column d.x does not exist" from the rebuild.
+    /// </param>
+    private static (string ViewName, string SelectSql) BuildReportingViewSql(
+        FormDefinition formDefinition, FormVersion version,
+        IReadOnlyDictionary<Guid, FormDefinition>? lookupTargets,
+        string? excludeFieldCode = null)
+    {
         var tableName = formDefinition.TableName
             ?? throw new InvalidOperationException("Cannot build a reporting view before the table has been created.");
         var viewName = $"Report_{SqlTypeMapper.ToPascalCase(formDefinition.Code)}";
         SqlTypeMapper.AssertSafePostgresIdentifier(viewName);
         SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
 
-        var activeFields = version.Fields.Where(f => f.IsActive && f.FieldType != FieldType.Attachment).ToList();
+        var activeFields = version.Fields
+            .Where(f => f.IsActive && f.FieldType != FieldType.Attachment)
+            .Where(f => excludeFieldCode is null || !string.Equals(f.Code, excludeFieldCode, StringComparison.Ordinal))
+            .ToList();
 
         var selectColumns = new StringBuilder();
         var joins = new StringBuilder();
@@ -137,27 +178,26 @@ public class DynamicSchemaService : IDynamicSchemaService
             WHERE d."IsDeleted" = false
             """;
 
-        await using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
+        return (viewName, selectSql);
+    }
 
-        // Wrapped in a transaction so a CREATE VIEW failure (a bad join, an invalid column
-        // reference) rolls back the preceding DROP too - the old view survives intact
-        // instead of being left missing until the next successful publish.
-        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
-
-        // Postgres can't CREATE OR REPLACE a view whose column shape changed (columns
-        // added/removed/reordered/retyped) - unlike SQL Server's CREATE OR ALTER VIEW, which
-        // handles that transparently. Drop and recreate unconditionally on every publish
-        // instead; IF EXISTS covers the first-ever publish, where there's nothing to drop yet.
+    /// <summary>
+    /// Drops and recreates the view on the caller's connection/transaction.
+    ///
+    /// Postgres can't CREATE OR REPLACE a view whose column shape changed (columns
+    /// added/removed/reordered/retyped) - unlike SQL Server's CREATE OR ALTER VIEW, which
+    /// handles that transparently. Drop and recreate unconditionally instead; IF EXISTS
+    /// covers the first-ever publish, where there's nothing to drop yet.
+    /// </summary>
+    private static async Task RebuildViewAsync(
+        NpgsqlConnection connection, NpgsqlTransaction transaction, string viewName, string selectSql,
+        CancellationToken cancellationToken)
+    {
         await using (var dropCommand = new NpgsqlCommand($"DROP VIEW IF EXISTS \"{viewName}\";", connection, transaction))
             await dropCommand.ExecuteNonQueryAsync(cancellationToken);
 
         await using (var createCommand = new NpgsqlCommand($"CREATE VIEW \"{viewName}\" AS\n{selectSql};", connection, transaction))
             await createCommand.ExecuteNonQueryAsync(cancellationToken);
-
-        await transaction.CommitAsync(cancellationToken);
-
-        _logger.LogInformation("Refreshed reporting view {ViewName} for form {FormCode}", viewName, formDefinition.Code);
     }
 
     /// <summary>
@@ -346,8 +386,12 @@ public class DynamicSchemaService : IDynamicSchemaService
     }
 
     public async Task ChangeColumnTypeAsync(
-        string tableName, FieldDefinition field, FieldType newType, CancellationToken cancellationToken = default)
+        FormDefinition formDefinition, FormVersion version, FieldDefinition field, FieldType newType,
+        IReadOnlyDictionary<Guid, FormDefinition>? lookupTargets = null,
+        CancellationToken cancellationToken = default)
     {
+        var tableName = formDefinition.TableName
+            ?? throw new InvalidOperationException("Cannot change a column's type before the table has been created.");
         SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
         SqlTypeMapper.AssertSafePostgresIdentifier(field.Code);
 
@@ -365,32 +409,76 @@ public class DynamicSchemaService : IDynamicSchemaService
             USING "{field.Code}"::text::{targetType};
             """;
 
-        await using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        await RunDdlAroundViewRebuildAsync(
+            formDefinition, version, lookupTargets, tableName, sql, excludeFieldCode: null, cancellationToken);
 
         _logger.LogInformation(
             "Changed column {ColumnName} on {TableName} to {TargetType}", field.Code, tableName, targetType);
     }
 
-    public async Task DropColumnAsync(string tableName, string columnCode, CancellationToken cancellationToken = default)
+    public async Task DropColumnAsync(
+        FormDefinition formDefinition, FormVersion version, string columnCode,
+        IReadOnlyDictionary<Guid, FormDefinition>? lookupTargets = null,
+        CancellationToken cancellationToken = default)
     {
+        var tableName = formDefinition.TableName
+            ?? throw new InvalidOperationException("Cannot drop a column before the table has been created.");
         SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
         SqlTypeMapper.AssertSafePostgresIdentifier(columnCode);
 
         var sql = $"ALTER TABLE \"{tableName}\" DROP COLUMN \"{columnCode}\";";
 
-        await using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(sql, connection);
-        await command.ExecuteNonQueryAsync(cancellationToken);
+        await RunDdlAroundViewRebuildAsync(
+            formDefinition, version, lookupTargets, tableName, sql, excludeFieldCode: columnCode, cancellationToken);
 
         // Logged at Warning, not Information: this is the one operation here that destroys
         // data outright, and it should be conspicuous in a log someone is scanning after the
         // fact to work out where a column's history went.
         _logger.LogWarning(
             "DROPPED column {ColumnName} from {TableName} - data in it is permanently gone", columnCode, tableName);
+    }
+
+    /// <summary>
+    /// Runs column DDL that Postgres refuses to perform while the reporting view depends on
+    /// the column: ALTER COLUMN ... TYPE fails with 0A000 ("cannot alter type of a column used
+    /// by a view or rule") and DROP COLUMN with 2BP01 ("cannot drop column ... because other
+    /// objects depend on it"). A plain RENAME COLUMN is exempt - Postgres rewrites the view's
+    /// own reference to follow it - which is why only these two paths need this.
+    ///
+    /// So the view is dropped, the real DDL runs, and the view is rebuilt from the version's
+    /// current field metadata, all in ONE transaction on ONE connection. Both parts matter:
+    /// the transaction means a failure anywhere (an unconvertible value, an invalid rebuilt
+    /// view) rolls the whole thing back rather than leaving the form with no reporting view,
+    /// and the single connection is required because a second one would simply block on the
+    /// locks this transaction already holds.
+    /// </summary>
+    private async Task RunDdlAroundViewRebuildAsync(
+        FormDefinition formDefinition, FormVersion version,
+        IReadOnlyDictionary<Guid, FormDefinition>? lookupTargets,
+        string tableName, string ddlSql, string? excludeFieldCode, CancellationToken cancellationToken)
+    {
+        // Built before anything is dropped: if the metadata can't produce a valid view
+        // definition, fail before touching the schema rather than halfway through.
+        var (viewName, selectSql) = BuildReportingViewSql(formDefinition, version, lookupTargets, excludeFieldCode);
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        // Same table-scoped advisory lock the other schema-changing paths take, so two
+        // concurrent edits to one published form serialise instead of interleaving their
+        // drop/alter/rebuild steps.
+        await TakeTableLockAsync(connection, transaction, tableName, cancellationToken);
+
+        await using (var dropViewCommand = new NpgsqlCommand($"DROP VIEW IF EXISTS \"{viewName}\";", connection, transaction))
+            await dropViewCommand.ExecuteNonQueryAsync(cancellationToken);
+
+        await using (var ddlCommand = new NpgsqlCommand(ddlSql, connection, transaction))
+            await ddlCommand.ExecuteNonQueryAsync(cancellationToken);
+
+        await RebuildViewAsync(connection, transaction, viewName, selectSql, cancellationToken);
+
+        await transaction.CommitAsync(cancellationToken);
     }
 
     /// <summary>

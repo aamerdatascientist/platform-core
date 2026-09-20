@@ -84,8 +84,28 @@ missing column breaks every submission.
 - **Enums serialize as strings** (`JsonStringEnumConverter` registered in `Program.cs`) -
   the PowerShell seed scripts and the frontend both depend on this. Don't remove it.
 - Local dev DB is **Postgres** (Railway-hosted), not Docker/local Postgres - Docker
-  doesn't work on this machine (corporate-locked virtualization). Don't suggest Docker
-  again. Azure SQL was the original dev/prod database; it's been **fully decommissioned**
+  doesn't work on **Aamer's** machine (corporate-locked virtualization). Don't suggest Docker
+  as a local dev database again.
+- **Claude Code's sandbox CAN run the Testcontainers integration tests**, contrary to what
+  was assumed for several sessions - it just needs two things set up first, neither of them
+  obvious:
+  1. **The Docker daemon isn't running at boot**, though the binary is installed. Start it:
+     `sudo -n dockerd >/tmp/dockerd.log 2>&1 &` then give it ~10s.
+  2. **Docker Hub pulls fail** - the agent proxy 403s Hub's blob CDN
+     (`production.cloudfront.docker.com`), and configuring dockerd's own proxy settings
+     doesn't help. A registry mirror does: Testcontainers has a built-in env var for exactly
+     this, so no code or test changes are needed.
+
+  Full working invocation:
+  ```
+  TESTCONTAINERS_RYUK_DISABLED=true TESTCONTAINERS_HUB_IMAGE_NAME_PREFIX=mirror.gcr.io \
+    dotnet test tests/Platform.Infrastructure.IntegrationTests
+  ```
+  Ryuk (Testcontainers' cleanup sidecar) has to be disabled because it needs privileged mode
+  and the Docker socket mounted, which fails here; the tradeoff is that containers aren't
+  auto-reaped, which doesn't matter in a throwaway sandbox. Verified: 54/54 green against a
+  real Postgres 15.1. Don't write off a Postgres-backed test as unverifiable here without
+  trying this first. Azure SQL was the original dev/prod database; it's been **fully decommissioned**
   since the Postgres migration completed (see `docs/PROJECT_STATUS.md`) - don't
   reintroduce it as a reference point, and don't assume any Azure SQL-specific gotcha
   below this point still applies to the live database.

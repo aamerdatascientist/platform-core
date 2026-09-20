@@ -94,11 +94,13 @@ public class DeleteFieldCommandHandler : IRequestHandler<DeleteFieldCommand>
 
         if (target.IsLive && !isAttachment)
         {
-            await _schemaService.DropColumnAsync(target.LiveTableName, code, cancellationToken);
-
+            // DropColumnAsync rebuilds the reporting view itself, in the same transaction as
+            // the DROP - Postgres refuses to drop a column the view still depends on. The
+            // field is already off target.Version above, so the rebuilt view won't reference
+            // the column that's going away.
             var lookupTargets = await _db.LoadLookupTargetsAsync(target.Version, cancellationToken);
-            await _schemaService.RefreshReportingViewAsync(
-                formDefinition, target.Version, lookupTargets, cancellationToken);
+            await _schemaService.DropColumnAsync(
+                formDefinition, target.Version, code, lookupTargets, cancellationToken);
         }
     }
 }

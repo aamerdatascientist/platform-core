@@ -102,17 +102,17 @@ public class ChangeFieldTypeCommandHandler : IRequestHandler<ChangeFieldTypeComm
         ApplyTypeChange(field, request);
 
         if (target.IsLive)
+        {
+            // ChangeColumnTypeAsync rebuilds the reporting view itself, as part of the same
+            // transaction as the ALTER - Postgres won't alter a column the view depends on, so
+            // the view has to come down and go back up around it. Nothing to refresh here
+            // afterwards; doing so would just rebuild an identical view a second time.
+            var lookupTargets = await _db.LoadLookupTargetsAsync(target.Version, cancellationToken);
             await _schemaService.ChangeColumnTypeAsync(
-                target.LiveTableName, field, request.NewFieldType, cancellationToken);
+                formDefinition, target.Version, field, request.NewFieldType, lookupTargets, cancellationToken);
+        }
 
         await _db.SaveChangesAsync(cancellationToken);
-
-        if (target.IsLive)
-        {
-            var lookupTargets = await _db.LoadLookupTargetsAsync(target.Version, cancellationToken);
-            await _schemaService.RefreshReportingViewAsync(
-                formDefinition, target.Version, lookupTargets, cancellationToken);
-        }
     }
 
     private static void ApplyTypeChange(Domain.Forms.FieldDefinition field, ChangeFieldTypeCommand request)

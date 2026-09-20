@@ -77,13 +77,32 @@ public interface IDynamicSchemaService
     /// allow aren't the ones this platform needs. Call
     /// <see cref="FindRowsFailingTypeChangeAsync"/> first - this will fail loudly rather than
     /// silently coercing if a value doesn't convert.
+    ///
+    /// Takes the whole FormDefinition/FormVersion rather than just a table name because
+    /// Postgres won't alter a column the reporting view depends on (0A000), so this has to
+    /// drop that view, run the change, and rebuild it - which needs the same field metadata
+    /// and lookupTargets <see cref="RefreshReportingViewAsync"/> does. The rebuild happens
+    /// inside this call; callers must NOT refresh the view separately afterwards.
+    /// <paramref name="version"/> must already reflect the change being made.
     /// </summary>
     Task ChangeColumnTypeAsync(
-        string tableName, FieldDefinition field, FieldType newType, CancellationToken cancellationToken = default);
+        FormDefinition formDefinition, FormVersion version, FieldDefinition field, FieldType newType,
+        IReadOnlyDictionary<Guid, FormDefinition>? lookupTargets = null,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Permanently drops a column and everything in it. See the removal policy on this
     /// interface - Archive (deactivating the field) is the default; this is the escape hatch.
+    ///
+    /// Like <see cref="ChangeColumnTypeAsync"/>, this drops and rebuilds the reporting view
+    /// around the real DDL, because Postgres refuses to drop a column the view depends on
+    /// (2BP01). The rebuild happens inside this call; callers must NOT refresh the view
+    /// separately afterwards. The dropped column is excluded from the rebuilt view whether or
+    /// not <paramref name="version"/> still lists it, so callers that haven't yet taken the
+    /// field off the version get a correct view rather than a failed rebuild.
     /// </summary>
-    Task DropColumnAsync(string tableName, string columnCode, CancellationToken cancellationToken = default);
+    Task DropColumnAsync(
+        FormDefinition formDefinition, FormVersion version, string columnCode,
+        IReadOnlyDictionary<Guid, FormDefinition>? lookupTargets = null,
+        CancellationToken cancellationToken = default);
 }

@@ -14,8 +14,8 @@ namespace Platform.Infrastructure.IntegrationTests;
 /// These deliberately run against a real, throwaway Postgres container rather than a mock -
 /// DynamicSchemaService's entire job is generating correct DDL/DML, and a mock would only
 /// prove the test author's assumptions about Postgres, not Postgres's actual behavior.
-/// Requires Docker to be running (not available in every environment - e.g. Claude Code's
-/// own sandbox can't run these; see CLAUDE.md).
+/// Requires a running Docker daemon and a reachable image registry; see CLAUDE.md for the
+/// exact invocation that works inside Claude Code's sandbox, where both need a nudge.
 /// </summary>
 public class DynamicSchemaServiceTests : IAsyncLifetime
 {
@@ -297,13 +297,43 @@ public class DynamicSchemaServiceTests : IAsyncLifetime
 
         await InsertRowAsync(tableName, "amount", "'42'");
 
-        await _sut.ChangeColumnTypeAsync(tableName, field, FieldType.Number);
+        await _sut.ChangeColumnTypeAsync(form, draft, field, FieldType.Number);
 
         (await ScalarAsync($"""
             SELECT data_type FROM information_schema.columns
             WHERE table_name = '{tableName}' AND column_name = 'amount';
             """)).Should().Be("integer");
         (await ScalarAsync($"SELECT \"amount\" FROM \"{tableName}\";")).Should().Be(42);
+    }
+
+    /// <summary>
+    /// The live-trace failure: Postgres refuses ALTER COLUMN ... TYPE outright with
+    /// 0A000 "cannot alter type of a column used by a view or rule" while the reporting view
+    /// selects that column. Asserts the whole round trip, not just that the DDL stopped
+    /// throwing - the view has to be back afterwards AND still return the row, because a fix
+    /// that dropped the view and forgot to rebuild it would also make the DDL "succeed".
+    /// </summary>
+    [Fact]
+    public async Task ChangeColumnTypeAsync_WithAReportingView_SucceedsAndLeavesTheViewQueryable()
+    {
+        var form = FormDefinition.Create("retype-with-view", "Retype With View", "Operations", null);
+        var draft = form.GetDraftVersion();
+        var field = draft.AddField("amount", "Amount", FieldType.ShortText, false, null, null, null);
+        draft.MarkPublished();
+        var tableName = await _sut.EnsureTableForPublishedVersionAsync(form, draft);
+        form.MarkPublished(draft, tableName);
+        await _sut.RefreshReportingViewAsync(form, draft);
+
+        await InsertRowAsync(tableName, "amount", "'42'");
+
+        var act = async () => await _sut.ChangeColumnTypeAsync(form, draft, field, FieldType.Number);
+
+        await act.Should().NotThrowAsync("the view has to be dropped and rebuilt around the type change");
+
+        (await ScalarAsync("SELECT COUNT(1) FROM information_schema.views WHERE table_name = 'Report_RetypeWithView';"))
+            .Should().Be(1L, "the view must be rebuilt, not just dropped to let the ALTER through");
+        (await ScalarAsync("SELECT \"Amount\" FROM \"Report_RetypeWithView\";"))
+            .Should().Be(42, "the rebuilt view must still return the converted data");
     }
 
     [Fact]
@@ -317,10 +347,50 @@ public class DynamicSchemaServiceTests : IAsyncLifetime
         var tableName = await _sut.EnsureTableForPublishedVersionAsync(form, draft);
         form.MarkPublished(draft, tableName);
 
-        await _sut.DropColumnAsync(tableName, "drop_me");
+        await _sut.DropColumnAsync(form, draft, "drop_me");
 
         (await _sut.ColumnExistsAsync(tableName, "drop_me")).Should().BeFalse();
         (await _sut.ColumnExistsAsync(tableName, "keep_me")).Should().BeTrue();
+    }
+
+    /// <summary>
+    /// The other live-trace failure: 2BP01 "cannot drop column ... because other objects
+    /// depend on it" - the reporting view being the dependent object. Same shape of assertion
+    /// as the type-change test: the view has to survive, and it has to have dropped the gone
+    /// column while still returning the surviving one's data.
+    /// </summary>
+    [Fact]
+    public async Task DropColumnAsync_WithAReportingView_SucceedsAndLeavesTheViewQueryable()
+    {
+        var form = FormDefinition.Create("drop-with-view", "Drop With View", "Operations", null);
+        var draft = form.GetDraftVersion();
+        draft.AddField("keep_me", "Keep Me", FieldType.ShortText, false, null, null, null);
+        var doomed = draft.AddField("drop_me", "Drop Me", FieldType.ShortText, false, null, null, null);
+        draft.MarkPublished();
+        var tableName = await _sut.EnsureTableForPublishedVersionAsync(form, draft);
+        form.MarkPublished(draft, tableName);
+        await _sut.RefreshReportingViewAsync(form, draft);
+
+        await InsertRowAsync(tableName, "keep_me", "'still here'");
+
+        // The field has to be off the version before the drop, or the rebuilt view would
+        // still reference the column being removed - this mirrors DeleteFieldCommand, which
+        // removes it from the version before calling in.
+        draft.RemoveField(doomed.Id);
+
+        var act = async () => await _sut.DropColumnAsync(form, draft, "drop_me");
+
+        await act.Should().NotThrowAsync("the view has to be dropped and rebuilt around the column drop");
+
+        (await _sut.ColumnExistsAsync(tableName, "drop_me")).Should().BeFalse();
+        (await ScalarAsync("SELECT COUNT(1) FROM information_schema.views WHERE table_name = 'Report_DropWithView';"))
+            .Should().Be(1L, "the view must be rebuilt, not just dropped to let the DROP COLUMN through");
+        (await ScalarAsync("SELECT \"Keep Me\" FROM \"Report_DropWithView\";"))
+            .Should().Be("still here", "the rebuilt view must still return the surviving column's data");
+        (await ScalarAsync("""
+            SELECT COUNT(1) FROM information_schema.columns
+            WHERE table_name = 'Report_DropWithView' AND column_name = 'Drop Me';
+            """)).Should().Be(0L, "the dropped field must be gone from the rebuilt view too");
     }
 
     [Fact]
