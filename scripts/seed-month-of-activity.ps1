@@ -143,12 +143,16 @@ function PickWeather() {
 
 # --- Pre-flight: resolve the 5 forms ----------------------------------------------------
 
+# The live forms use Aamer's manual f-00N numbering, not the descriptive codes the older
+# seed-daily-report-forms.ps1 script creates. f-005 is deliberately ABSENT: it is a
+# separate project-intake form, not part of this five-form daily set, and nothing here
+# should read or write it. MEP is f-006.
 $formCodes = [ordered]@{
-    paperwork   = "paperwork_mobilization_daily"
-    excavation  = "excavation_shoring_daily"
-    foundation  = "foundation_progress_daily"
-    structural  = "structural_progress_daily"
-    mep         = "mep_progress_daily"
+    paperwork   = "f-001"
+    excavation  = "f-002"
+    foundation  = "f-003"
+    structural  = "f-004"
+    mep         = "f-006"
 }
 
 $allForms = Get-Json "$BaseUrl/api/forms"
@@ -157,7 +161,7 @@ foreach ($key in $formCodes.Keys) {
     $code = $formCodes[$key]
     $match = $allForms | Where-Object { $_.code -eq $code } | Select-Object -First 1
     if ($null -eq $match) {
-        throw "Form '$code' not found. Run seed-daily-report-forms.ps1 first - this script only adds data, it does not create forms."
+        throw "Form '$code' not found. This script only adds data, it does not create forms - check the code is right (the live forms use f-00N numbering; MEP is f-006, created by create-mep-form-f006.ps1)."
     }
     if ($match.status -ne "Published") {
         throw "Form '$code' is $($match.status), not Published - submissions would be rejected. Publish it first."
