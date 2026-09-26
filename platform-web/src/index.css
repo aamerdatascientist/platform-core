@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Page-level horizontal overflow is never wanted: the app has no horizontally-scrolling
+   page, and on mobile WebKit/Blink an off-canvas fixed element can get miscounted into the
+   document's scrollable width, letting the user pan into empty space beside the layout.
+   This is the safety net; Layout.tsx's drawer separately collapses its own box to zero
+   width when closed, which removes the phantom width at source rather than just hiding the
+   symptom. Deliberately scoped to html/body - SubmissionsTable's own overflow-x-auto box
+   scrolls independently and is unaffected, since this constrains the document root only. */
+html,
+body {
+  overflow-x: hidden;
+}
+
 /* "Structural steel" design tokens. Light values are the :root default; the dark
    set overrides them under [data-mode="dark"] (set on <html> - see
    src/theme/mode.ts and index.html's pre-mount script). Referenced from

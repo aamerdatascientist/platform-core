@@ -68,9 +68,33 @@ export function Layout({ token }: LayoutProps) {
         <div className="fixed inset-0 z-30 bg-black/40 lg:hidden" onClick={() => setMobileMenuOpen(false)} />
       )}
 
+      {/* Closed-state width collapse (max-lg:w-0 + max-lg:overflow-hidden) is what actually
+          stops the page panning sideways on mobile: translating a fixed element off-canvas
+          leaves its 256px box counted in the document's scrollable width on mobile
+          WebKit/Blink, so the browser hands the user 256px of empty space to drag into.
+          A zero-width box has nothing to miscount. index.css's html/body overflow-x is the
+          backstop for anything else; this removes this particular cause.
+
+          Three details that are load-bearing, not incidental:
+          - max-lg: scoping. mobileMenuOpen is false on desktop too, so an unscoped w-0
+            would collapse the static desktop sidebar, and an unscoped overflow-hidden
+            would override its overflow-y-auto and kill its vertical scrolling.
+          - w-0 replaces w-64 rather than sitting beside it. Both are plain utilities at
+            equal specificity, so which one won would depend on Tailwind's emission order,
+            not on the order they appear in this string.
+          - px-0 goes with w-0. Tailwind sets box-sizing: border-box, so w-0 alone still
+            leaves a 24px box here (px-3 padding floors it) - measured, not assumed. The
+            padding has to collapse too for the box to actually reach zero.
+          - the arbitrary transition delays *only* the width/padding changes by the slide
+            Collapsing the width the instant the class flips would make the drawer vanish
+            rather than slide out; this way transform animates for 200ms and the box
+            collapses after it has finished leaving. Opening is unaffected - these classes
+            are gone by then, so width snaps to 64 and the base transition-transform runs. */}
       <aside
-        className={`fixed inset-y-0 start-0 z-40 flex w-64 shrink-0 flex-col overflow-y-auto bg-sidebar px-3 py-5 transition-transform duration-200 lg:static lg:z-auto lg:w-56 lg:translate-x-0 ${
-          mobileMenuOpen ? 'translate-x-0' : '-translate-x-full max-lg:rtl:translate-x-full'
+        className={`fixed inset-y-0 start-0 z-40 flex shrink-0 flex-col overflow-y-auto bg-sidebar px-3 py-5 transition-transform duration-200 lg:static lg:z-auto lg:w-56 lg:translate-x-0 ${
+          mobileMenuOpen
+            ? 'w-64 translate-x-0'
+            : 'w-64 -translate-x-full max-lg:w-0 max-lg:overflow-hidden max-lg:px-0 max-lg:[transition:transform_200ms_ease-in-out,width_0s_200ms,padding_0s_200ms] max-lg:rtl:translate-x-full'
         }`}
       >
         <div className="mb-3 flex items-center justify-between px-1">
