@@ -36,6 +36,25 @@ body {
   touch-action: pan-y;
 }
 
+/* iOS Safari auto-zooms the whole page when a focused text input/select/textarea has a
+   font-size under 16px, and because this is a single-page app, the zoom doesn't reset on
+   the client-side route change after sign-in - it looks like "the app opens zoomed in,"
+   but really any small-font field triggers it and it just sticks. Almost every form
+   control app-wide uses Tailwind's text-sm (14px) or text-xs (12px), across a dozen-plus
+   components (SignIn, FormRenderer, FormBuilder, UserManagement, ...) - global mobile-only
+   override here instead of hunting down every input individually and risking missing one.
+   !important is deliberate: it has to beat every text-sm/text-xs utility class site-wide,
+   which are equal-or-higher specificity than a bare element selector. Scoped to the same
+   width iOS actually cares about, so desktop's smaller, denser text is untouched - this
+   changes nothing about how the app looks or reads above that breakpoint. */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* "Structural steel" design tokens. Light values are the :root default; the dark
    set overrides them under [data-mode="dark"] (set on <html> - see
    src/theme/mode.ts and index.html's pre-mount script). Referenced from
