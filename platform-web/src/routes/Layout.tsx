@@ -138,7 +138,18 @@ export function Layout({ token }: LayoutProps) {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto px-4 pb-6 pt-20 sm:px-6 sm:pb-8 lg:px-6 lg:py-8 lg:pt-8">
+      {/* overflow-x-hidden / overscroll-x-none / touch-pan-y here, not just on html/body in
+          index.css: THIS element, not body, is the app's real scrolling box (the root div
+          two levels up is h-screen + overflow-hidden specifically so body/html never scroll
+          at all - see that comment above). Every earlier attempt at this bug (overflow-x on
+          html/body, overscroll-behavior-x, touch-action: pan-y) targeted a box that was
+          already static and never scrolling in the first place, so none of it could have
+          touched the actual symptom - confirmed by the original screen recording, which
+          shows the horizontal drift correlated with vertical scroll position (drifts left
+          while actively scrolling a long form, snaps back to 0 at rest), i.e. diagonal
+          bleed on this container's own touch-scroll, not a document-level overflow or
+          bounce. Same three properties, right element this time. */}
+      <main className="flex-1 overflow-x-hidden overflow-y-auto overscroll-x-none touch-pan-y px-4 pb-6 pt-20 sm:px-6 sm:pb-8 lg:px-6 lg:py-8 lg:pt-8">
         <Outlet />
       </main>
     </div>
