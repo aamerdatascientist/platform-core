@@ -2,6 +2,28 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Page-level horizontal overflow is never wanted: the app has no horizontally-scrolling
+   page, and on mobile WebKit/Blink an off-canvas fixed element can get miscounted into the
+   document's scrollable width, letting the user pan into empty space beside the layout.
+   This is the safety net; Layout.tsx's drawer separately collapses its own box to zero
+   width when closed, which removes the phantom width at source rather than just hiding the
+   symptom. Deliberately scoped to html/body - SubmissionsTable's own overflow-x-auto box
+   scrolls independently and is unaffected, since this constrains the document root only.
+
+   overscroll-behavior-x backs up overflow-x rather than duplicating it: they stop two
+   different things. overflow-x governs whether there is scrollable width to reach;
+   overscroll-behavior-x: none suppresses iOS Safari's elastic/rubber-band pan, which can
+   shift the whole document on a touch gesture even when nothing actually overflows
+   (documentElement.scrollWidth === innerWidth at rest). Carried over from PR #28, which
+   observed exactly that on a real device - #28 is superseded by this branch and closed,
+   since it only ever added these CSS lines and never addressed the drawer's own 256px box,
+   which is the phantom width underneath the symptom. */
+html,
+body {
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
 /* "Structural steel" design tokens. Light values are the :root default; the dark
    set overrides them under [data-mode="dark"] (set on <html> - see
    src/theme/mode.ts and index.html's pre-mount script). Referenced from
