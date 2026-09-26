@@ -17,11 +17,23 @@
    (documentElement.scrollWidth === innerWidth at rest). Carried over from PR #28, which
    observed exactly that on a real device - #28 is superseded by this branch and closed,
    since it only ever added these CSS lines and never addressed the drawer's own 256px box,
-   which is the phantom width underneath the symptom. */
+   which is the phantom width underneath the symptom.
+
+   Real-device retest after both of the above shipped: still panned. Neither property stops
+   the browser from treating a horizontal swipe as a valid pan gesture in the first place -
+   they only govern what happens once a pan is already underway (whether there's overflow to
+   reach, whether the boundary rubber-bands). touch-action: pan-y is the actual gesture-level
+   fix: it tells the browser only vertical panning is a recognized touch gesture on this
+   element, so a horizontal swipe is never accepted as a pan to begin with, regardless of
+   overflow or bounce physics. Pinch-zoom is a distinct gesture type and is unaffected - the
+   requirement was "no horizontal movement unless zoomed in," not "no zooming." Keeping the
+   other two properties as defense-in-depth costs nothing, but this is the one that should
+   actually stop the reported symptom. */
 html,
 body {
   overflow-x: hidden;
   overscroll-behavior-x: none;
+  touch-action: pan-y;
 }
 
 /* "Structural steel" design tokens. Light values are the :root default; the dark
