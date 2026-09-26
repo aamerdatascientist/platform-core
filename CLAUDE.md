@@ -363,6 +363,43 @@ gave it something to contrast against.
 ones that look fine in whichever mode you happen to be testing in at the time - "looks
 right in light mode" isn't evidence it has a background class at all.
 
+**A CSS scroll/touch fix applied to `html`/`body` does nothing if `html`/`body` aren't
+the element that's actually scrolling.** This app's root layout div (`Layout.tsx`) is
+deliberately `h-screen overflow-hidden` specifically so the page itself never scrolls -
+`<main className="overflow-y-auto">` is the real scrolling box, and the sidebar `<aside>`
+has its own independent one. Spent three separate real-device-confirmed-broken iterations
+(`overflow-x: hidden`, then `overscroll-behavior-x: none`, then `touch-action: pan-y`, all
+on `html, body` in `index.css`) fixing a mobile bug where the page could be panned/drifted
+left-right on touch, and none of them changed anything on a real phone - because none of
+them were ever touching the element where the scrolling was actually happening. Root cause
+was only found by extracting frames from the user's own screen-recording video (never
+actually watched until the third failed attempt) and noticing the horizontal drift was
+*coupled to vertical scroll position* - drifting left while actively scrolling a form,
+snapping back to 0 at rest - which is diagonal bleed on a touch-scroll, not page overflow
+or elastic bounce.
+
+**Fix, now the established convention:** scroll/touch behavior properties
+(`overflow-x`, `overscroll-behavior-x`, `touch-action`) go on the actual scrolling
+container (check for `overflow-y-auto`/`overflow-auto` first), never assumed onto
+`html`/`body` by default. Before trusting a "verified" fix for a scroll/touch/pan bug,
+identify which element's own overflow box the bug actually lives in - grep for where
+`overflow-y-auto` is set in the layout, don't assume it's the document root. Headless
+browser automation could not reproduce this bug in either direction (pre-fix or post-fix),
+so it gave zero real signal either way - real-device testing was the only thing that ever
+told the truth here, and even a real screen-recording is only useful diagnostic evidence
+if someone actually opens and watches it frame-by-frame, not just reads it.
+
+**A related but separate mobile bug found in the same session: iOS Safari auto-zooms the
+page when a focused text input/select/textarea has `font-size` under 16px**, and because
+this is an SPA, the zoom doesn't reliably reset on a client-side route change - surfaced as
+"the app opens zoomed in after signing in," but the real trigger is any small-font field
+anywhere, not sign-in specifically. Nearly every form control app-wide used Tailwind's
+`text-sm` (14px) or `text-xs` (12px). *Fix:* a global, mobile-only (`max-width: 767px`)
+override forcing `font-size: 16px !important` on `input`/`select`/`textarea`, rather than
+hunting down every input's className individually - `!important` is deliberate here since
+it has to beat every `text-sm`/`text-xs` utility class site-wide, and the media query keeps
+desktop's actual text sizing untouched.
+
 ## The one rule that's mattered most
 
 **Every phase gets tested end-to-end against real data before moving to the next phase -
