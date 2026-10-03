@@ -70,22 +70,24 @@ the current database.
   `FormDefinitionUsers` row left `FormDefinitionRoles` completely untouched, and a
   different user's role-based access kept working the whole time). Not yet tested in the
   actual browser UI.
-- **Conditional field visibility ("branching")** - a field can now declare it's only
-  shown/required when another field on the same form has a certain value (see
-  `CLAUDE.md`'s "Field editing" section for the full design). Built across the domain
-  model, both commands, the DTO/API surface, submission validation, and both the Form
-  Builder and the real submission form's frontend - and used to build the single
-  phase-branching "Daily Progress Report" form (`scripts/seed-daily-progress-report-form.ps1`)
-  that replaces the earlier plan of several separate per-phase forms.
-  **Lower confidence than anything else in this section**: this sandbox had no .NET SDK at
-  all this session, and once installed, NuGet itself turned out to be blocked by
-  organization policy (see `CLAUDE.md`'s new gotcha on this) - so none of the backend C#
-  was ever actually compiled, let alone run against a real database. It was written
-  carefully and self-reviewed line by line (including hand-writing the EF migration without
-  `dotnet ef`, also documented in `CLAUDE.md`), but **a real `dotnet build` is the first
-  thing that needs to happen here**, before the usual "run it against Postgres" bar even
-  applies. The frontend half did get a real `npm run build`/`tsc --noEmit` pass in this
-  sandbox and came back clean.
+- **Conditional field visibility ("branching")** - **done and verified end-to-end against
+  real data, 2026-10-03.** A field can declare it's only shown/required when another field
+  on the same form has a certain value (see `CLAUDE.md`'s "Field editing" section for the
+  full design). Built across the domain model, both commands, the DTO/API surface,
+  submission validation, and both the Form Builder and the real submission form's
+  frontend. The backend was hand-written without a compiler available in Code's sandbox
+  that session (NuGet blocked - see `CLAUDE.md`'s gotcha on this) and was genuinely unverified
+  at the time, including the hand-written EF migration - but has since cleared every bar
+  that matters: `deploy-api.yml` ran a real `dotnet build`/`publish` on push and succeeded
+  (GitHub Actions run 37131578092), the project owner applied the migration with real
+  `dotnet ef database update` against the live Railway Postgres (clean `migrations list`
+  showed it correctly pending beforehand, confirming the hand-written Designer.cs was
+  well-formed), and `scripts/seed-daily-progress-report-form.ps1` was run against the live
+  production API to build the real single phase-branching "Daily Progress Report" form
+  (replacing the earlier plan of several separate per-phase forms). The project owner then
+  confirmed in the live app itself: phase-dependent unit-selector fields show/hide correctly
+  per phase, and both demo conditions (`delay_cause` on `had_delay`, `problem_description`
+  on `has_problem_today`) show/hide correctly. Nothing left open on this feature.
 
 ## What just got fixed along the way (worth knowing, not just "it works now")
 
@@ -126,11 +128,9 @@ not yet visually confirmed by the project owner in a real browser - Code's sandb
 verified it via headless-Chromium screenshots and computed-style checks, not a person
 actually looking at it.
 
-1. **Build and run the conditional-field-visibility backend changes** - see "Built and
-   verified in Code's sandbox" above. Unlike everything else in that section, this one was
-   never even compiled - run `dotnet build`, then the integration test suite (per
-   `CLAUDE.md`'s Testcontainers gotcha), then `scripts/seed-daily-progress-report-form.ps1`
-   against a real running API before trusting any of it.
+1. ~~Build and run the conditional-field-visibility backend changes~~ - **done.** Migration
+   applied to the live database, seed script run against production, branching confirmed
+   by the project owner in the real app - see "Conditional field visibility" above.
 2. **Verify the Form Builder UI against the real Postgres/Railway database** - see
    "Built and verified in Code's sandbox" above. Same bar every other phase has already
    cleared; the target database changed (Azure SQL -> Postgres) since this was written.
