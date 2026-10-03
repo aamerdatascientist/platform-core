@@ -51,6 +51,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
   const [values, setValues] = useState<Record<string, string>>({});
   const [attachmentFiles, setAttachmentFiles] = useState<Record<string, File>>({});
   const [lookupChoices, setLookupChoices] = useState<Record<string, LookupChoice[]>>({});
+  const [dynamicDropdownOptions, setDynamicDropdownOptions] = useState<Record<string, string[]>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useErrorMessage();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -60,6 +61,22 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
     setAttachmentFiles({});
     setError(null);
     setFieldErrors({});
+
+    // Dynamic-options Dropdowns (e.g. Outflow's "material" sourced from Inflow's "material")
+    // fetch once per form load, same cadence as an unfiltered Lookup - their live distinct-
+    // values set doesn't depend on anything else on THIS form the way a filtered Lookup's does.
+    const dynamicDropdownFields = activeFields.filter(
+      (f) => f.fieldType === 'Dropdown' && f.dynamicOptionsSourceFormDefinitionId && f.dynamicOptionsSourceFieldCode,
+    );
+    dynamicDropdownFields.forEach(async (field) => {
+      try {
+        const opts = await api.forms.getFieldDynamicOptions(token, formDefinition.id, field.id);
+        setDynamicDropdownOptions((prev) => ({ ...prev, [field.code]: opts }));
+      } catch {
+        // Same philosophy as the Lookup fetches below - a failed fetch just leaves this
+        // field without options rather than blocking the rest of the form.
+      }
+    });
 
     // Filtered (cascading) Lookups are excluded here - they have no single fixed choice list
     // to fetch once at load, since their candidates depend on another field's current value.
@@ -328,6 +345,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
           onFileChange={(file) => setAttachmentFile(field.code, file)}
           error={fieldErrors[field.code]}
           options={parseOptions(field.optionsJson)}
+          dynamicOptions={dynamicDropdownOptions[field.code]}
           lookupChoices={lookupChoices[field.code]}
           // Only set for a filtered Lookup whose filter-source field has no value yet - lets
           // FieldInput show "pick X first" instead of a plain, unexplained empty dropdown.
@@ -360,6 +378,7 @@ function FieldInput({
   onFileChange,
   error,
   options,
+  dynamicOptions,
   lookupChoices,
   filterWaitingOnLabel,
 }: {
@@ -370,6 +389,9 @@ function FieldInput({
   onFileChange: (file: File | null) => void;
   error?: string;
   options: DropdownOption[];
+  /** Live distinct values from another form's field - set only for a Dropdown with
+   *  dynamicOptionsSourceFormDefinitionId/FieldCode. Undefined while still loading. */
+  dynamicOptions?: string[];
   lookupChoices?: LookupChoice[];
   filterWaitingOnLabel?: string;
 }) {
@@ -403,6 +425,15 @@ function FieldInput({
           <option value="">{t('common.select')}</option>
           <option value="true">{t('common.yes')}</option>
           <option value="false">{t('common.no')}</option>
+        </select>
+      ) : field.fieldType === 'Dropdown' && field.dynamicOptionsSourceFormDefinitionId ? (
+        <select className={baseClass} value={value} onChange={(e) => onChange(e.target.value)}>
+          <option value="">{dynamicOptions ? t('common.select') : t('formRenderer.loadingOptions')}</option>
+          {(dynamicOptions ?? []).map((v) => (
+            <option key={v} value={v}>
+              {v}
+            </option>
+          ))}
         </select>
       ) : field.fieldType === 'Dropdown' ? (
         <select className={baseClass} value={value} onChange={(e) => onChange(e.target.value)}>

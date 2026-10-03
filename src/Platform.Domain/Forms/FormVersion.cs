@@ -50,7 +50,8 @@ public class FormVersion : AuditableEntity
             draft._fields.Add(FieldDefinition.Create(
                 draft.Id, field.Code, field.Label, field.FieldType, field.IsRequired,
                 field.DisplayOrder, field.OptionsJson, field.LookupFormDefinitionId, field.ValidationRulesJson,
-                field.VisibleWhenFieldCode, field.VisibleWhenValuesJson, field.FilterByFieldCode));
+                field.VisibleWhenFieldCode, field.VisibleWhenValuesJson, field.FilterByFieldCode,
+                field.DynamicOptionsSourceFormDefinitionId, field.DynamicOptionsSourceFieldCode));
         }
 
         return draft;
@@ -68,7 +69,8 @@ public class FormVersion : AuditableEntity
     public FieldDefinition AddField(string code, string label, FieldType type, bool isRequired,
         string? optionsJson, Guid? lookupFormDefinitionId, string? validationRulesJson,
         string? visibleWhenFieldCode = null, string? visibleWhenValuesJson = null,
-        string? filterByFieldCode = null)
+        string? filterByFieldCode = null, Guid? dynamicOptionsSourceFormDefinitionId = null,
+        string? dynamicOptionsSourceFieldCode = null)
     {
         if (_fields.Any(f => f.Code == code))
             throw new InvalidOperationException($"Field code '{code}' already exists on this version.");
@@ -95,7 +97,8 @@ public class FormVersion : AuditableEntity
 
         var field = FieldDefinition.Create(Id, code, label, type, isRequired,
             NextDisplayOrder(), optionsJson, lookupFormDefinitionId, validationRulesJson,
-            visibleWhenFieldCode, visibleWhenValuesJson, filterByFieldCode);
+            visibleWhenFieldCode, visibleWhenValuesJson, filterByFieldCode,
+            dynamicOptionsSourceFormDefinitionId, dynamicOptionsSourceFieldCode);
         _fields.Add(field);
         return field;
     }

@@ -56,6 +56,9 @@ public class FieldDefinitionConfiguration : IEntityTypeConfiguration<FieldDefini
         // Same 63-char cap as Code itself - this stores another field's Code verbatim.
         builder.Property(fd => fd.VisibleWhenFieldCode).HasMaxLength(63);
         builder.Property(fd => fd.FilterByFieldCode).HasMaxLength(63);
+        // Same 63-char cap, same reason: stores another field's Code verbatim (on another
+        // FORM this time, rather than a same-version sibling, but the cap is identical).
+        builder.Property(fd => fd.DynamicOptionsSourceFieldCode).HasMaxLength(63);
         // No explicit HasColumnType - an unbounded string (no HasMaxLength) already maps to
         // each provider's own "unlimited text" type by default (nvarchar(max) on SQL Server,
         // text on Npgsql), so leaving it unset gets the right column type on both without

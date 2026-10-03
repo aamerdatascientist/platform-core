@@ -41,6 +41,13 @@ export interface FieldDefinitionDto {
    *  convention the target form must have an active field with this identical Code. Null =
    *  show every target-form row (default, unchanged behaviour). */
   filterByFieldCode: string | null;
+  /** Dynamic options: this Dropdown's option list is computed live as the distinct values
+   *  currently submitted for DynamicOptionsSourceFieldCode on this form (not a sibling on
+   *  THIS form - see FieldDefinition.DynamicOptionsSourceFieldCode on the backend). Null =
+   *  use this field's own static optionsJson (default, unchanged behaviour). Only meaningful
+   *  when fieldType is Dropdown. */
+  dynamicOptionsSourceFormDefinitionId: string | null;
+  dynamicOptionsSourceFieldCode: string | null;
 }
 
 export interface FormVersionDto {

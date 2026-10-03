@@ -89,7 +89,17 @@ public static class SubmissionValueValidator
                     break;
 
                 case FieldType.Dropdown:
-                    if (!TryGetString(raw, out var optVal) || !IsAllowedDropdownValue(field.OptionsJson, optVal))
+                    // A dynamic-options-source Dropdown (see FieldDefinition.
+                    // DynamicOptionsSourceFormDefinitionId) has no fixed OptionsJson to check
+                    // against by design - its valid set is whatever's currently in the source
+                    // form, which can grow between when the frontend fetched it and when this
+                    // submission arrives. Checked here as "any non-blank string", the same
+                    // bar as a free-text field, rather than re-querying the source form from a
+                    // validator that deliberately never reaches into dynamic data tables (see
+                    // the Lookup case below).
+                    if (!TryGetString(raw, out var optVal))
+                        AddError(field.Code, $"'{field.Label}' must be one of the allowed options.");
+                    else if (field.DynamicOptionsSourceFormDefinitionId is null && !IsAllowedDropdownValue(field.OptionsJson, optVal))
                         AddError(field.Code, $"'{field.Label}' must be one of the allowed options.");
                     break;
 

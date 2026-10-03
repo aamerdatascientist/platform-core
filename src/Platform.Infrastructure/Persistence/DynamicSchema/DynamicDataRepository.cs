@@ -148,6 +148,27 @@ public class DynamicDataRepository : IDynamicDataRepository
             new CommandDefinition(countSql, cancellationToken: cancellationToken));
     }
 
+    public async Task<IReadOnlyList<string>> GetDistinctColumnValuesAsync(
+        string tableName, string columnCode, CancellationToken cancellationToken = default)
+    {
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
+        SqlTypeMapper.AssertSafePostgresIdentifier(columnCode);
+
+        // Text-only by design (see interface doc) - a dynamic options source always points at
+        // another Dropdown/ShortText column, never Number/Lookup/etc, so there's no FieldType
+        // to branch on here the way ToDynamicRow/ConvertFieldValue do.
+        var sql = $"""
+            SELECT DISTINCT "{columnCode}" FROM "{tableName}"
+            WHERE "IsDeleted" = false AND "{columnCode}" IS NOT NULL AND "{columnCode}" <> ''
+            ORDER BY "{columnCode}";
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        var values = await connection.QueryAsync<string>(
+            new CommandDefinition(sql, cancellationToken: cancellationToken));
+        return values.ToList();
+    }
+
     private static string BuildSelectColumnList(IEnumerable<FieldDefinition> fields)
     {
         var codes = fields.Select(f =>

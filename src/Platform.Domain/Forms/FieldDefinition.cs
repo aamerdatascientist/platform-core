@@ -71,22 +71,48 @@ public class FieldDefinition : AuditableEntity
     /// </summary>
     public string? FilterByFieldCode { get; private set; }
 
+    /// <summary>
+    /// Dynamic-options support: only meaningful for FieldType.Dropdown. Null means the normal,
+    /// static OptionsJson list (the default, unchanged behaviour for every existing Dropdown).
+    /// Non-null (always paired with DynamicOptionsSourceFieldCode) means this Dropdown's option
+    /// list is NOT fixed at design time - it's computed live as the distinct, non-null values
+    /// currently submitted for a given field on ANOTHER form. E.g. Outflow's "material" Dropdown
+    /// sourced from Inflow's "material" field always offers exactly what's actually been
+    /// received (including anything typed into an "other" box), with nothing to keep in sync by
+    /// hand and no separate master-data form needed. Pure metadata - the physical column is
+    /// still a plain string either way (same as any other Dropdown), so this is a Safe edit even
+    /// on a published form with live data, same bucket as FilterByFieldCode.
+    /// </summary>
+    public Guid? DynamicOptionsSourceFormDefinitionId { get; private set; }
+
+    /// <summary>The source form's field Code to pull distinct values from. Required together
+    /// with DynamicOptionsSourceFormDefinitionId - same "required together" shape as
+    /// OptionsJson/FieldType.Dropdown.</summary>
+    public string? DynamicOptionsSourceFieldCode { get; private set; }
+
     private FieldDefinition() { }
 
     public static FieldDefinition Create(Guid formVersionId, string code, string label, FieldType fieldType,
         bool isRequired, int displayOrder, string? optionsJson, Guid? lookupFormDefinitionId,
         string? validationRulesJson, string? visibleWhenFieldCode = null, string? visibleWhenValuesJson = null,
-        string? filterByFieldCode = null)
+        string? filterByFieldCode = null, Guid? dynamicOptionsSourceFormDefinitionId = null,
+        string? dynamicOptionsSourceFieldCode = null)
     {
         var normalizedCode = NormalizeColumnName(code);
 
-        if (fieldType == FieldType.Dropdown && string.IsNullOrWhiteSpace(optionsJson))
-            throw new ArgumentException("Dropdown fields require OptionsJson.", nameof(optionsJson));
+        if (fieldType == FieldType.Dropdown && string.IsNullOrWhiteSpace(optionsJson)
+            && string.IsNullOrWhiteSpace(dynamicOptionsSourceFieldCode))
+            throw new ArgumentException(
+                "Dropdown fields require either OptionsJson or a dynamic options source.", nameof(optionsJson));
         if (fieldType == FieldType.Lookup && lookupFormDefinitionId is null)
             throw new ArgumentException("Lookup fields require LookupFormDefinitionId.", nameof(lookupFormDefinitionId));
 
         ValidateVisibilityCondition(normalizedCode, visibleWhenFieldCode, visibleWhenValuesJson);
         ValidateLookupFilter(normalizedCode, fieldType, filterByFieldCode);
+        ValidateDynamicOptionsSource(fieldType, dynamicOptionsSourceFormDefinitionId, dynamicOptionsSourceFieldCode);
+
+        var hasDynamicSource = dynamicOptionsSourceFormDefinitionId is not null
+            && !string.IsNullOrWhiteSpace(dynamicOptionsSourceFieldCode);
 
         return new FieldDefinition
         {
@@ -101,7 +127,9 @@ public class FieldDefinition : AuditableEntity
             ValidationRulesJson = validationRulesJson,
             VisibleWhenFieldCode = string.IsNullOrWhiteSpace(visibleWhenFieldCode) ? null : visibleWhenFieldCode,
             VisibleWhenValuesJson = string.IsNullOrWhiteSpace(visibleWhenFieldCode) ? null : visibleWhenValuesJson,
-            FilterByFieldCode = string.IsNullOrWhiteSpace(filterByFieldCode) ? null : filterByFieldCode
+            FilterByFieldCode = string.IsNullOrWhiteSpace(filterByFieldCode) ? null : filterByFieldCode,
+            DynamicOptionsSourceFormDefinitionId = hasDynamicSource ? dynamicOptionsSourceFormDefinitionId : null,
+            DynamicOptionsSourceFieldCode = hasDynamicSource ? dynamicOptionsSourceFieldCode : null
         };
     }
 
@@ -157,6 +185,40 @@ public class FieldDefinition : AuditableEntity
             throw new ArgumentException("A field can't filter itself.", nameof(filterByFieldCode));
     }
 
+    /// <summary>
+    /// Safe operation (same bucket as SetLookupFilter): points this Dropdown's option list at
+    /// another form's field instead of (or clears it back to) its own static OptionsJson. The
+    /// caller (AddFieldDefinitionCommandHandler / UpdateFieldDynamicOptionsSourceCommandHandler)
+    /// is responsible for confirming the target form actually exists and has an active field
+    /// with that Code - this method only enforces the type-shape rule (Dropdown-only) and the
+    /// required-together shape (both set, or both cleared).
+    /// </summary>
+    public void SetDynamicOptionsSource(Guid? dynamicOptionsSourceFormDefinitionId, string? dynamicOptionsSourceFieldCode)
+    {
+        ValidateDynamicOptionsSource(FieldType, dynamicOptionsSourceFormDefinitionId, dynamicOptionsSourceFieldCode);
+        var hasDynamicSource = dynamicOptionsSourceFormDefinitionId is not null
+            && !string.IsNullOrWhiteSpace(dynamicOptionsSourceFieldCode);
+        DynamicOptionsSourceFormDefinitionId = hasDynamicSource ? dynamicOptionsSourceFormDefinitionId : null;
+        DynamicOptionsSourceFieldCode = hasDynamicSource ? dynamicOptionsSourceFieldCode : null;
+    }
+
+    private static void ValidateDynamicOptionsSource(
+        FieldType fieldType, Guid? dynamicOptionsSourceFormDefinitionId, string? dynamicOptionsSourceFieldCode)
+    {
+        var formIdSet = dynamicOptionsSourceFormDefinitionId is not null;
+        var fieldCodeSet = !string.IsNullOrWhiteSpace(dynamicOptionsSourceFieldCode);
+        if (!formIdSet && !fieldCodeSet) return;
+
+        if (fieldType != FieldType.Dropdown)
+            throw new ArgumentException(
+                "Only a Dropdown field can source its options dynamically from another form.",
+                nameof(dynamicOptionsSourceFieldCode));
+        if (formIdSet != fieldCodeSet)
+            throw new ArgumentException(
+                "A dynamic options source needs both a target form and a target field code.",
+                nameof(dynamicOptionsSourceFieldCode));
+    }
+
     public void Deactivate() => IsActive = false;
 
     public void UpdateLabel(string label) => Label = label.Trim();
@@ -197,6 +259,15 @@ public class FieldDefinition : AuditableEntity
         // entirely, same as OptionsJson/LookupFormDefinitionId above. Changing the filter
         // itself goes through SetLookupFilter/UpdateFieldLookupFilterCommand, not here.
         if (fieldType != FieldType.Lookup) FilterByFieldCode = null;
+        // Same reasoning as FilterByFieldCode, for DynamicOptionsSourceFormDefinitionId/
+        // DynamicOptionsSourceFieldCode: only cleared when leaving Dropdown entirely. Changing
+        // the source itself goes through SetDynamicOptionsSource/
+        // UpdateFieldDynamicOptionsSourceCommand, not here.
+        if (fieldType != FieldType.Dropdown)
+        {
+            DynamicOptionsSourceFormDefinitionId = null;
+            DynamicOptionsSourceFieldCode = null;
+        }
     }
 
     public void Reactivate() => IsActive = true;

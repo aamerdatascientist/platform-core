@@ -11,6 +11,7 @@ using Platform.Application.Forms.Commands.DeleteField;
 using Platform.Application.Forms.Commands.RenameFieldCode;
 using Platform.Application.Forms.Commands.ReorderFields;
 using Platform.Application.Forms.Commands.RestoreField;
+using Platform.Application.Forms.Commands.UpdateFieldDynamicOptionsSource;
 using Platform.Application.Forms.Commands.UpdateFieldLabel;
 using Platform.Application.Forms.Commands.UpdateFieldLookupFilter;
 using Platform.Application.Forms.Commands.UpdateFieldVisibility;
@@ -18,6 +19,7 @@ using Platform.Application.Forms.Commands.SetFormAllowedRoles;
 using Platform.Application.Forms.Commands.SetFormAllowedUsers;
 using Platform.Application.Forms.Commands.StartNewFormVersion;
 using Platform.Application.Forms.Dtos;
+using Platform.Application.Forms.Queries.GetFieldDynamicOptions;
 using Platform.Application.Forms.Queries.GetFormDefinition;
 using Platform.Application.Forms.Queries.GetFormsList;
 using Platform.Domain.Forms.Enums;
@@ -69,7 +71,8 @@ public class FormsController : ControllerBase
         string Code, string Label, FieldType FieldType, bool IsRequired,
         string? OptionsJson, Guid? LookupFormDefinitionId, string? ValidationRulesJson,
         string? VisibleWhenFieldCode = null, string? VisibleWhenValuesJson = null,
-        string? FilterByFieldCode = null);
+        string? FilterByFieldCode = null, Guid? DynamicOptionsSourceFormDefinitionId = null,
+        string? DynamicOptionsSourceFieldCode = null);
 
     [HttpPost("{id:guid}/fields")]
     [Authorize(Roles = "Administrator")]
@@ -78,7 +81,8 @@ public class FormsController : ControllerBase
         var fieldId = await _sender.Send(new AddFieldDefinitionCommand(
             id, request.Code, request.Label, request.FieldType, request.IsRequired,
             request.OptionsJson, request.LookupFormDefinitionId, request.ValidationRulesJson,
-            request.VisibleWhenFieldCode, request.VisibleWhenValuesJson, request.FilterByFieldCode), cancellationToken);
+            request.VisibleWhenFieldCode, request.VisibleWhenValuesJson, request.FilterByFieldCode,
+            request.DynamicOptionsSourceFormDefinitionId, request.DynamicOptionsSourceFieldCode), cancellationToken);
 
         return Ok(new { id = fieldId });
     }
@@ -129,6 +133,30 @@ public class FormsController : ControllerBase
             new UpdateFieldLookupFilterCommand(id, fieldId, request.FilterByFieldCode), cancellationToken);
         return NoContent();
     }
+
+    public record UpdateFieldDynamicOptionsSourceRequest(Guid? SourceFormDefinitionId, string? SourceFieldCode);
+
+    /// <summary>Safe: metadata only, no column touched. Works on a published form with live
+    /// data. Only meaningful on a Dropdown field. Send both null/empty to clear the source
+    /// (the Dropdown goes back to its own static OptionsJson).</summary>
+    [HttpPut("{id:guid}/fields/{fieldId:guid}/dynamic-options-source")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> UpdateFieldDynamicOptionsSource(
+        Guid id, Guid fieldId, UpdateFieldDynamicOptionsSourceRequest request, CancellationToken cancellationToken)
+    {
+        await _sender.Send(
+            new UpdateFieldDynamicOptionsSourceCommand(id, fieldId, request.SourceFormDefinitionId, request.SourceFieldCode),
+            cancellationToken);
+        return NoContent();
+    }
+
+    /// <summary>The live option list for a Dropdown field sourced dynamically from another
+    /// form's field - see GetFieldDynamicOptionsQuery. Empty for a field with no dynamic
+    /// source configured, rather than an error.</summary>
+    [HttpGet("{id:guid}/fields/{fieldId:guid}/dynamic-options")]
+    public async Task<ActionResult<IReadOnlyList<string>>> GetFieldDynamicOptions(
+        Guid id, Guid fieldId, CancellationToken cancellationToken) =>
+        Ok(await _sender.Send(new GetFieldDynamicOptionsQuery(id, fieldId), cancellationToken));
 
     public record ReorderFieldsRequest(IReadOnlyList<Guid> OrderedFieldIds);
 

@@ -148,6 +148,8 @@ export const api = {
         visibleWhenFieldCode?: string | null;
         visibleWhenValuesJson?: string | null;
         filterByFieldCode?: string | null;
+        dynamicOptionsSourceFormDefinitionId?: string | null;
+        dynamicOptionsSourceFieldCode?: string | null;
       },
     ) => request<{ id: string }>(`/api/forms/${formId}/fields`, { method: 'POST', body: JSON.stringify(input) }, token),
 
@@ -188,6 +190,26 @@ export const api = {
         { method: 'PUT', body: JSON.stringify({ filterByFieldCode }) },
         token,
       ),
+
+    /** Pass both as null/undefined to clear the source (back to this Dropdown's own static
+     *  OptionsJson). Only meaningful on a Dropdown field. */
+    updateFieldDynamicOptionsSource: (
+      token: string,
+      formId: string,
+      fieldId: string,
+      input: { sourceFormDefinitionId?: string | null; sourceFieldCode?: string | null },
+    ) =>
+      request<void>(
+        `/api/forms/${formId}/fields/${fieldId}/dynamic-options-source`,
+        { method: 'PUT', body: JSON.stringify(input) },
+        token,
+      ),
+
+    /** The live option list for a Dropdown field sourced dynamically from another form's
+     *  field - distinct, non-blank values currently submitted there. Empty for a field with
+     *  no dynamic source configured. */
+    getFieldDynamicOptions: (token: string, formId: string, fieldId: string) =>
+      request<string[]>(`/api/forms/${formId}/fields/${fieldId}/dynamic-options`, {}, token),
 
     /** Takes the complete ordered list of ACTIVE field ids - a partial list is rejected. */
     reorderFields: (token: string, formId: string, orderedFieldIds: string[]) =>

@@ -89,6 +89,54 @@ condition (the dependent field would then always evaluate as hidden, since its
 block the rename/delete with a clear error naming the dependent fields, or cascade-update
 them - before this gets exercised on a form that actually uses branching in anger.
 
+### Dynamic dropdown options, sourced from another form's field - added 2026-10-04
+
+A `Dropdown` field can declare `DynamicOptionsSourceFormDefinitionId` + `DynamicOptionsSourceFieldCode`
+instead of (or to clear back to) its own static `OptionsJson` - when set, this field's option
+list is computed live as the **distinct, non-blank values currently submitted** for that
+field on the named source form, read fresh on every fetch rather than cached or copied. This
+is a genuinely different mechanism from `FieldType.Lookup` (which resolves to whole *rows* of
+another form, each with an Id) and from `FilterByFieldCode` (which narrows a Lookup's row
+candidates by a sibling's value) - a dynamic dropdown has no row reference at all, just a
+plain string value, same physical column shape as any other Dropdown.
+
+Built for the Stock Module's Outflow form: its Material/Unit/"Issued from" fields need to
+offer exactly whatever has actually been typed into Inflow's matching fields (including
+free-text and "other" entries), staying in sync automatically with no separate master-data
+form and nothing to keep in sync by hand. Set at creation (`AddFieldDefinitionCommand`) or
+after the fact (`UpdateFieldDynamicOptionsSourceCommand`, PUT
+`/api/forms/{id}/fields/{fieldId}/dynamic-options-source`) - both **Safe** operations (same
+bucket as `FilterByFieldCode`): pure metadata, no column touched, no confirmation needed even
+on a published form with live data.
+
+Reading the live list goes through a new query, `GetFieldDynamicOptionsQuery` (GET
+`/api/forms/{id}/fields/{fieldId}/dynamic-options`), which resolves the field's own source
+form/field and calls `IDynamicDataRepository.GetDistinctColumnValuesAsync` - a plain
+`SELECT DISTINCT "{column}" FROM "{table}" WHERE "IsDeleted" = false AND "{column}" IS NOT
+NULL AND "{column}" <> ''`, through the same `SqlTypeMapper.AssertSafePostgresIdentifier`
+boundary every other raw-SQL column reference in `DynamicDataRepository` goes through.
+
+Three places this has to stay in sync, or it silently breaks (same shape as the branching
+feature's three):
+1. `SubmissionValueValidator`'s `Dropdown` case (backend) - a dynamic-source Dropdown has no
+   fixed `OptionsJson` to validate against (the valid set can grow between when the frontend
+   fetched it and when the submission arrives), so it's checked as "any non-blank string"
+   instead, same bar as free text - not re-queried from a validator that deliberately never
+   reaches into dynamic data tables.
+2. `FormRenderer.tsx` - fetches `getFieldDynamicOptions` once per form load (same cadence as
+   an unfiltered Lookup) for any Dropdown field with a source set, and renders that live list
+   in place of `parseOptions(field.optionsJson)`.
+3. `FormVersion.CreateDraftFrom` - carries `DynamicOptionsSourceFormDefinitionId`/
+   `DynamicOptionsSourceFieldCode` forward when copying fields into a new draft version, same
+   as `VisibleWhenFieldCode`/`FilterByFieldCode`. Same "easy to miss, no error if you do" risk.
+
+**Known gap, shared with `FilterByFieldCode`**: no admin UI yet to configure this from the
+Form Builder screen (`AddFieldForm.tsx`/`FieldEditorRow.tsx`) - the two Stock Module forms
+were created directly via the API (`scripts/seed-stock-inflow-outflow-forms.ps1`), which is
+why this shipped without one. Worth adding a panel mirroring the existing lookup-filter one
+(pick a form, then pick a field on it) before the next form that needs this is built by hand
+through the builder instead of a script.
+
 ## Established code conventions
 
 - Domain entities: private setters, static `Create` factories, `AuditableEntity` base.

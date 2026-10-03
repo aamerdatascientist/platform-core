@@ -49,4 +49,17 @@ public interface IDynamicDataRepository
     /// that need a row count without paging through the rows themselves.
     /// </summary>
     Task<int> CountAsync(string tableName, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Distinct, non-null, non-blank submitted values of one column, across every
+    /// non-deleted row - backs a Dropdown field's dynamic options source (see
+    /// FieldDefinition.DynamicOptionsSourceFormDefinitionId/Code and
+    /// GetFieldDynamicOptionsQuery): e.g. Outflow's "material" Dropdown reads this against
+    /// Inflow's table/"material" column so it always offers exactly what's actually been
+    /// received. Always a text column in practice (dynamic options only ever source from
+    /// another Dropdown/ShortText field), so this returns plain strings, not FieldType-typed
+    /// values the way QueryAsync's rows do.
+    /// </summary>
+    Task<IReadOnlyList<string>> GetDistinctColumnValuesAsync(
+        string tableName, string columnCode, CancellationToken cancellationToken = default);
 }

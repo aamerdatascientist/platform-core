@@ -11,7 +11,8 @@ public record AddFieldDefinitionCommand(
     Guid FormDefinitionId, string Code, string Label, FieldType FieldType, bool IsRequired,
     string? OptionsJson, Guid? LookupFormDefinitionId, string? ValidationRulesJson,
     string? VisibleWhenFieldCode = null, string? VisibleWhenValuesJson = null,
-    string? FilterByFieldCode = null) : IRequest<Guid>;
+    string? FilterByFieldCode = null, Guid? DynamicOptionsSourceFormDefinitionId = null,
+    string? DynamicOptionsSourceFieldCode = null) : IRequest<Guid>;
 
 public class AddFieldDefinitionCommandValidator : AbstractValidator<AddFieldDefinitionCommand>
 {
@@ -29,10 +30,20 @@ public class AddFieldDefinitionCommandValidator : AbstractValidator<AddFieldDefi
         RuleFor(x => x.Code).MaximumLength(MaxLookupCodeLength).When(x => x.FieldType == FieldType.Lookup)
             .WithMessage($"Lookup field codes can be at most {MaxLookupCodeLength} characters.");
         RuleFor(x => x.Label).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.OptionsJson).NotEmpty().When(x => x.FieldType == FieldType.Dropdown)
-            .WithMessage("Dropdown fields require options.");
+        RuleFor(x => x.OptionsJson).NotEmpty()
+            .When(x => x.FieldType == FieldType.Dropdown && string.IsNullOrWhiteSpace(x.DynamicOptionsSourceFieldCode))
+            .WithMessage("Dropdown fields require options (a static list, or a dynamic source).");
         RuleFor(x => x.LookupFormDefinitionId).NotEmpty().When(x => x.FieldType == FieldType.Lookup)
             .WithMessage("Lookup fields require a target form.");
+        RuleFor(x => x.DynamicOptionsSourceFormDefinitionId).NotEmpty()
+            .When(x => !string.IsNullOrWhiteSpace(x.DynamicOptionsSourceFieldCode))
+            .WithMessage("A dynamic options source needs a target form.");
+        RuleFor(x => x.DynamicOptionsSourceFieldCode).NotEmpty()
+            .When(x => x.DynamicOptionsSourceFormDefinitionId.HasValue)
+            .WithMessage("A dynamic options source needs a target field code.");
+        RuleFor(x => x.DynamicOptionsSourceFormDefinitionId).Empty()
+            .When(x => x.FieldType != FieldType.Dropdown && x.DynamicOptionsSourceFormDefinitionId.HasValue)
+            .WithMessage("Only a Dropdown field can source its options dynamically from another form.");
         RuleFor(x => x.VisibleWhenValuesJson).NotEmpty().When(x => !string.IsNullOrWhiteSpace(x.VisibleWhenFieldCode))
             .WithMessage("A visibility condition needs at least one allowed value.");
         RuleFor(x => x.VisibleWhenFieldCode).NotEqual(x => x.Code).When(x => !string.IsNullOrWhiteSpace(x.VisibleWhenFieldCode))
@@ -89,13 +100,37 @@ public class AddFieldDefinitionCommandHandler : IRequestHandler<AddFieldDefiniti
                 });
         }
 
+        // Same shape as the Lookup-filter cross-aggregate check above, for a dynamic-options
+        // source: confirms the SOURCE form actually has an active field with this Code, since
+        // that's where the live distinct-values query will read from (see
+        // GetFieldDynamicOptionsQuery) - without this, the field would silently always offer
+        // an empty option list once used.
+        if (!string.IsNullOrWhiteSpace(request.DynamicOptionsSourceFieldCode))
+        {
+            var optionsSourceForm = await _db.FormDefinitions
+                .Include(f => f.Versions).ThenInclude(v => v.Fields)
+                .SingleOrDefaultAsync(f => f.Id == request.DynamicOptionsSourceFormDefinitionId, cancellationToken);
+            var sourceHasMatchingField = optionsSourceForm?.GetPublishedVersion()?.Fields
+                .Any(f => f.IsActive && f.Code == request.DynamicOptionsSourceFieldCode) ?? false;
+
+            if (!sourceHasMatchingField)
+                throw new Common.Exceptions.ValidationException(new[]
+                {
+                    new FluentValidation.Results.ValidationFailure(
+                        nameof(request.DynamicOptionsSourceFieldCode),
+                        $"The source form doesn't have an active '{request.DynamicOptionsSourceFieldCode}' field - " +
+                        "a dynamic options source needs a field with that code on the source form.")
+                });
+        }
+
         Platform.Domain.Forms.FieldDefinition field;
         try
         {
             field = target.Version.AddField(
                 request.Code, request.Label, request.FieldType, request.IsRequired,
                 request.OptionsJson, request.LookupFormDefinitionId, request.ValidationRulesJson,
-                request.VisibleWhenFieldCode, request.VisibleWhenValuesJson, request.FilterByFieldCode);
+                request.VisibleWhenFieldCode, request.VisibleWhenValuesJson, request.FilterByFieldCode,
+                request.DynamicOptionsSourceFormDefinitionId, request.DynamicOptionsSourceFieldCode);
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("a visibility condition can only depend"))
         {

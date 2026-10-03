@@ -5,7 +5,8 @@ namespace Platform.Application.Forms.Dtos;
 public record FieldDefinitionDto(
     Guid Id, string Code, string Label, FieldType FieldType, bool IsRequired, bool IsActive,
     int DisplayOrder, string? OptionsJson, Guid? LookupFormDefinitionId, string? ValidationRulesJson,
-    string? VisibleWhenFieldCode, string? VisibleWhenValuesJson, string? FilterByFieldCode);
+    string? VisibleWhenFieldCode, string? VisibleWhenValuesJson, string? FilterByFieldCode,
+    Guid? DynamicOptionsSourceFormDefinitionId = null, string? DynamicOptionsSourceFieldCode = null);
 
 public record FormVersionDto(Guid Id, int VersionNumber, FormStatus Status, DateTime? PublishedAtUtc,
     IReadOnlyList<FieldDefinitionDto> Fields);
