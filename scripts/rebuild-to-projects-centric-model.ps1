@@ -1,4 +1,4 @@
-# Rebuilds the live environment around a proper Projects master-data table and makes
+﻿# Rebuilds the live environment around a proper Projects master-data table and makes
 # zone/footing/floor genuinely per-project, per Aamer's decision on 2026-10-03 - see
 # claude/daily-progress-dropdown-options-stakeholder-questions.md (Construction Software
 # Claude.ai project) for why the old seeded dropdown options were placeholders, and his
