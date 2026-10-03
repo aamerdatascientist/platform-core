@@ -88,6 +88,53 @@ the current database.
   confirmed in the live app itself: phase-dependent unit-selector fields show/hide correctly
   per phase, and both demo conditions (`delay_cause` on `had_delay`, `problem_description`
   on `has_problem_today`) show/hide correctly. Nothing left open on this feature.
+- **Filtered/cascading Lookup fields + the project-centric master-data rebuild - done and
+  verified end-to-end against real data, 2026-10-04.** `FieldDefinition.FilterByFieldCode`
+  lets a Lookup field narrow its candidates to another field's current value on the same
+  form (e.g. "zone" filtered by "project") - Safe operation, same bucket as
+  `VisibleWhenFieldCode`. Built across the domain model, `UpdateFieldLookupFilterCommand`/
+  PUT `/api/forms/{id}/fields/{fieldId}/lookup-filter`, and `FormRenderer.tsx` (re-fetches
+  a filtered Lookup's choices via the existing submissions-list filter param when the
+  source field's value changes).
+
+  Used immediately for a full environment rebuild, per the project owner's decision: every
+  form deleted except Daily Progress Report, replaced with a richer **Projects** form
+  (`projects`) plus three new per-project master-data forms - **project-zones**,
+  **project-footings**, **project-floors** - and Daily Progress Report's `project`/`zone`/
+  `footing`/`floor` fields repointed at them (`zone`/`footing`/`floor` converted
+  Dropdown -> Lookup, filtered by `project`). `scripts/rebuild-to-projects-centric-model.ps1`
+  did this against the live production API; the project owner then confirmed in the live
+  app that picking the demo project narrows zone/footing/floor to just that project's 3
+  demo rows, not the old global list.
+
+  Two real bugs found and fixed along the way, both now in CLAUDE.md's gotchas:
+  - `DeleteFormCommand` refused to delete a form still "referenced" by a Lookup field
+    belonging to an *already-soft-deleted* owning form (a stale-flag bug, not a real
+    reference) - blocked the batch cleanup outright until fixed.
+  - No way existed to delete a `WorkflowDefinition` at all, which transitively blocked
+    deleting any form a workflow was attached to. Added `DeleteWorkflowDefinitionCommand`
+    (DELETE `/api/workflows/{id}`, soft-delete, refused if any `WorkflowInstance` exists)
+    and `GET /api/workflows` (no list endpoint existed either). `WorkflowDefinition.Code`'s
+    unique index was fixed to be partial (`WHERE "IsDeleted" = false`) at the same time,
+    same pattern as `FormDefinition.Code` - CLAUDE.md had already flagged this exact index
+    as "not yet exploitable because nothing deletes a WorkflowDefinition."
+
+  One real workflow instance (a Stock Adjustment test record, `adjusted_by: عامر`, dated
+  Aug 26) had actually gone through the old approval workflow, so the delete was correctly
+  refused rather than silently orphaning its history - the project owner confirmed it was
+  test data, and it was removed with one direct SQL `DELETE FROM "WorkflowInstances"`
+  against the live Railway Postgres (not through a generic API, deliberately - an
+  "arbitrarily delete any workflow's history" endpoint isn't something this architecture
+  should have lying around). Final live form list, confirmed via `GET /api/forms`: exactly
+  Daily Progress Report + the 4 new project-centric forms, nothing else.
+
+  **Not yet done**: `mep_room` is deliberately still a global Dropdown, not converted to a
+  per-project Lookup - see `claude/daily-progress-dropdown-options-stakeholder-questions.md`
+  in the Construction Software Claude.ai project for the real methodology mismatch this
+  surfaced (MEP's actual unit is "rooms within a floor," not the floor itself - needs a
+  stakeholder decision before building a `project_rooms` form). The demo project
+  ("مشروع تجريبي" / DEMO-01) and its 3 demo zones/footings/floors are still live - delete
+  once real project data replaces them.
 
 ## What just got fixed along the way (worth knowing, not just "it works now")
 
@@ -469,12 +516,18 @@ SQL insert (credentials below) - the same manual step would be needed again for 
 future fresh environment. Worth a real fix eventually, not urgent while there's only the
 one environment.
 
-**Key IDs** (current - replaces an earlier set that went stale after a mid-session
-cleanup/re-seed):
-- Locations form: `9f8896a7-f6e9-484f-ac20-9bfc2fde7fa3`
-- Stock Adjustment form: `dd23d28f-dc81-4133-9513-c5b1e7452dae`
+**Key IDs** (current as of the 2026-10-04 project-centric rebuild - the Locations/Stock
+Adjustment form IDs and the Stock Adjustment workflow ID from the previous version of this
+list were deleted as part of that rebuild and no longer exist; don't reuse them):
 - Administrator role: `d573b2ad-3410-4924-9885-c582ceb24f28` (unchanged throughout)
-- Stock Adjustment workflow definition: `9cab64bc-e963-49e5-8301-3a78af45dd95`
+- Daily Progress Report form: `0873c1e5-ced0-433d-a288-5c5fb7ed8d3d` (code
+  `daily-progress-report` - note the hyphen; the seed script's own source text says
+  `daily_progress_report` with an underscore, but that's stale/inaccurate - the real live
+  Code has always been hyphenated, confirmed via `GET /api/forms`)
+- Projects form: see `GET /api/forms` (code `projects`) - was recreated during the
+  2026-10-04 rebuild, so the pre-rebuild ID is gone
+- project-zones / project-footings / project-floors forms: new as of the 2026-10-04
+  rebuild - see `GET /api/forms` for current IDs
 
 **Admin credentials (for reference):** `admin@asasksa.co` / `TempAdmin123!`
 
