@@ -393,6 +393,24 @@ already-working unqualified reference in `LoginCommand.cs` on the other side of 
 **Fix going forward:** name command/query namespaces after the action, not a bare noun
 that matches a domain type - `RefreshAccessToken`, not `RefreshToken`.
 
+**`DeleteFormCommand`'s "still referenced by an active Lookup field" guard checked the
+wrong signal - a field's own `IsActive` flag, not whether the field's OWNING form is
+itself (soft-)deleted.** `FieldDefinition.IsActive` is never cascaded from its parent
+`FormDefinition.IsDeleted` - archiving/deleting a form doesn't touch its fields' own
+state. Hit for real doing a batch cleanup (deleting old forms where five of them all
+Lookup into a shared "projects" form): by the time "projects" came up for deletion, the
+only fields still pointing at it belonged to forms already soft-deleted in the same
+batch. The code computed `referencingFormNames` correctly (it goes through
+`_db.FormDefinitions`, which carries the platform-wide soft-delete filter, so an
+already-deleted owning form drops out) - but gated the throw on the earlier, stale
+`lookupFieldVersionIds.Count > 0` instead of on `referencingFormNames` itself, so it threw
+anyway, with an empty name list: `"referenced by a Lookup field on: ."` with nothing after
+the colon. **Fix:** gate on `referencingFormNames.Count > 0` - the thing that actually
+accounts for soft-deleted owning forms - never on the raw `FieldDefinition.IsActive` scan.
+Check any future "is this still referenced by X" guard for the same mistake: a child
+entity's own active/inactive flag is not evidence about its parent's lifecycle state
+unless something explicitly keeps them in sync.
+
 **`dotnet ef migrations add`'s snapshot-placement logic scans the project directory for an
 existing `*ModelSnapshot.cs`-shaped file independently of the compiled assembly - excluding
 old migrations from compilation (`<Compile Remove>`) is not enough on its own to make them
