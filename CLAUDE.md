@@ -437,6 +437,12 @@ and the form still appeared in the sidebar nav despite the restriction. Nothing 
   (`ToSqlColumnType`, `AssertSafeIdentifier`) are dead code now that the Postgres
   migration is complete - nothing calls them anymore. Safe to delete whenever it's
   convenient; not blocking anything.
+- `docker-compose.yml` at the repo root (a SQL Server container definition) is dead for
+  the same reason - local dev uses the same Railway Postgres instance production does,
+  not a local/Dockerized database (and Docker doesn't work on Aamer's machine anyway -
+  see the environment gotchas above). Noticed while rewriting `README.md` to stop
+  pointing new readers at `docker compose up -d` as a setup step. Safe to delete
+  whenever convenient; not blocking anything.
 
 ## Known engineering gotchas - hit multiple times, check for this pattern in new code
 

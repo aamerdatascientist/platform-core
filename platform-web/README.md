@@ -1,15 +1,42 @@
-# Platform web — frontend starting point
+# platform-web — the real frontend
 
-This is the one piece worth building carefully by hand: `FormRenderer.tsx`, a single
-component that renders a submission form for ANY published form, driven entirely by its
-field metadata. No per-form code exists anywhere in here — that's not an accident, it's
-the actual point of a low-code platform. `App.tsx` is a deliberately thin shell that
-proves the renderer works against the real API; it is not the real app.
+**This is the real, live app — not a prototype.** An earlier version of this file
+described `App.tsx` as "a deliberately thin shell" proving a form renderer works, with no
+nav, no refresh-token handling, no form builder, and attachments rendering as a disabled
+placeholder. None of that is true anymore: all of it has since been built, and this app
+is what's actually running at **https://asasksa.co**. See the root `README.md` and
+`CLAUDE.md`/`docs/PROJECT_STATUS.md` (one level up) for the full project picture — this
+file just covers getting the frontend running.
 
-**This has been verified to actually compile** (`npm run build` succeeds, strict
-TypeScript, zero errors) but has NOT been tested against a real running instance of the
-API - that needs an environment that can actually reach it, which this one can't. Treat
-the first real run against your live API as the actual test, not this build success.
+## What's here
+
+- Real routing (React Router) with a sidebar nav (`FormPicker.tsx`) grouping live forms
+  by module, driven entirely by `GET /api/forms` — no hardcoded form IDs anywhere.
+- `FormRenderer.tsx` — renders a submission form for **any** published form, driven
+  entirely by its field metadata. No per-form code exists anywhere in this app; that's
+  the actual point of a low-code platform's frontend. Handles every `FieldType`
+  (short/long text, number, decimal, boolean, date/time, dropdown — including
+  dynamic-sourced dropdowns, lookup — including filtered/cascading lookups, attachment),
+  plus conditional field visibility (`isFieldVisible` — has to stay logically identical
+  to the backend's own `SubmissionValueValidator.IsFieldVisible`, see CLAUDE.md).
+- `FormBuilder.tsx` / `BuilderHome.tsx` / `AddFieldForm.tsx` / `FieldEditorRow.tsx` — the
+  real visual Form Builder: create a form, add fields, publish, and live-edit a
+  published form's fields (relabel, reorder, add, rename code, change type, archive,
+  permanently delete), plus the Access panel for role/user-based restriction.
+  `resolveEditableFields` picks draft-vs-published the same way the backend's
+  `FormEditTargetResolver` does — these two have to keep agreeing, see CLAUDE.md.
+- `RequireAdmin.tsx` — route guard redirecting non-admins away from `/builder` and
+  `/admin/users`.
+- `UserManagement.tsx` — create accounts, assign/edit roles, deactivate/reactivate users.
+- Full refresh-token handling — sessions don't silently die 30 minutes after login.
+- File Management — upload/list/view/delete attachments, including attaching inline
+  while filling out a form.
+- Workflow status/approval UI — role-gated action buttons on a submission's Workflow
+  panel.
+- Full bilingual Arabic/English UI (`react-i18next`), RTL layout throughout, persisted
+  language choice.
+- Dark/light mode toggle ("Structural steel" visual design) alongside the language
+  toggle, both built on a shared `Switch.tsx` component.
 
 ## Getting it running
 
@@ -22,44 +49,22 @@ Create `.env.local` with:
 ```
 VITE_API_BASE_URL=http://localhost:5080
 ```
-(or wherever the API actually ends up reachable).
+(or wherever your local API instance is actually reachable — see the root `README.md`
+for backend setup; it talks to the same Railway Postgres production uses, not a local
+database).
 
-## What's real vs. what's a placeholder
+Dev server runs at `http://localhost:5173`.
 
-**Real and wired up:**
-- Login (`/api/auth/login`)
-- Fetching a form definition and its published fields (`/api/forms/{id}`)
-- Rendering the correct input for every `FieldType` (short text, long text, number,
-  decimal, boolean, date, dropdown, lookup) - genuinely generic, not a switch statement
-  with 7 form-specific branches hiding behind it
-- Lookup fields fetch their target form's records live and populate a dropdown
-- Submitting data (`POST /api/forms/{id}/submissions`) and re-listing records after
+## Known, deliberate gaps (not oversights — see root CLAUDE.md for the full reasoning)
 
-**Explicitly not real yet:**
-- **No form picker / navigation.** There's no `GET /api/forms` (list) endpoint on the
-  backend yet, so `App.tsx` asks for a form ID by hand. Add that endpoint first, then
-  build a real nav around it - straightforward addition, `ApplicationDbContext.FormDefinitions`
-  already has everything needed.
-- **No refresh-token flow.** The access token is stored and used, but nothing refreshes
-  it - it'll silently start failing 30 minutes after login. `POST /api/auth/refresh`
-  doesn't exist on the backend yet either.
-- **Attachment fields render as a disabled placeholder**, honestly labeled as not wired
-  up - there's no File Management module yet for it to talk to.
-- **Lookup display labels are a guess.** They use the first `ShortText` field on the
-  target form as a stand-in label, because the backend doesn't expose a designated
-  "display field" for a form yet. Works fine for Materials (`item_code`) and Locations
-  (`location_name`) since those happen to be first, but it's a convention, not a rule -
-  worth formalizing with a real `DisplayFieldCode` on `FormDefinition` before this goes
-  much further.
-- **No form builder UI.** This renders forms; it doesn't let an admin create or edit one
-  visually - that's still done via the API directly or the PowerShell seed scripts.
+- No admin-UI panel yet for configuring a Lookup field's filter or a Dropdown's dynamic-
+  options source from the Form Builder screen — both are set via the API/PowerShell
+  scripts today. Worth adding before the next form that needs either is built by hand
+  through the builder instead of a script.
+- No workflow-designer UI — workflows are still created via API/PowerShell scripts.
+- Lookup display labels are a guess (first `ShortText` field on the target form) — there's
+  no designated `DisplayFieldCode` on `FormDefinition` yet.
 
-## Suggested next steps, in order
-
-1. Add `GET /api/forms` to the backend (list all forms, maybe filtered by module) -
-   small, unblocks everything else.
-2. Build a real app shell: sidebar/nav listing forms by module, routing (React Router),
-   layout that isn't just a centered column.
-3. Wire up token refresh so sessions don't silently die after 30 minutes.
-4. Only after those: a visual form builder, if that's still the priority over Workflow
-   Engine per the roadmap.
+For anything architectural — why forms work this way, what's verified against the real
+production database, what's next — read the root `CLAUDE.md` and
+`docs/PROJECT_STATUS.md`, not this file.
