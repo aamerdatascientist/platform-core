@@ -147,6 +147,7 @@ export const api = {
         validationRulesJson?: string | null;
         visibleWhenFieldCode?: string | null;
         visibleWhenValuesJson?: string | null;
+        filterByFieldCode?: string | null;
       },
     ) => request<{ id: string }>(`/api/forms/${formId}/fields`, { method: 'POST', body: JSON.stringify(input) }, token),
 
@@ -176,6 +177,15 @@ export const api = {
       request<void>(
         `/api/forms/${formId}/fields/${fieldId}/visibility`,
         { method: 'PUT', body: JSON.stringify(input) },
+        token,
+      ),
+
+    /** Pass null/undefined to clear the filter (shows every target-form row again). Only
+     *  meaningful on a Lookup field. */
+    updateFieldLookupFilter: (token: string, formId: string, fieldId: string, filterByFieldCode?: string | null) =>
+      request<void>(
+        `/api/forms/${formId}/fields/${fieldId}/lookup-filter`,
+        { method: 'PUT', body: JSON.stringify({ filterByFieldCode }) },
         token,
       ),
 

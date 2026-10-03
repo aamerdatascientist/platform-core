@@ -43,13 +43,16 @@ interface FieldEditorRowProps {
   lookupTargets: FormSummaryDto[];
   /** Other fields on this version this one could branch on - Dropdown/Boolean only. */
   controllableFields: FieldDefinitionDto[];
+  /** Other fields on this version this field (if it's a Lookup) could filter its candidates
+   *  by - any type, since the common case is filtering by another Lookup. */
+  filterableFields: FieldDefinitionDto[];
   onChanged: () => Promise<void> | void;
   onMove: (fieldId: string, direction: -1 | 1) => Promise<void> | void;
 }
 
 /** Which risky operation has its confirmation open. Only one at a time - these each state a
  *  different consequence, and stacking them would make it ambiguous what's being confirmed. */
-type OpenPanel = 'none' | 'code' | 'type' | 'remove' | 'visibility';
+type OpenPanel = 'none' | 'code' | 'type' | 'remove' | 'visibility' | 'lookup-filter';
 
 /**
  * One field in the builder, with all six edit operations split by risk exactly the way the
@@ -63,7 +66,7 @@ type OpenPanel = 'none' | 'code' | 'type' | 'remove' | 'visibility';
  *   single "delete" that silently picks between archiving and destroying data.
  */
 export function FieldEditorRow({
-  token, formId, field, isLive, isFirst, isLast, lookupTargets, controllableFields, onChanged, onMove,
+  token, formId, field, isLive, isFirst, isLast, lookupTargets, controllableFields, filterableFields, onChanged, onMove,
 }: FieldEditorRowProps) {
   const { t } = useTranslation();
   const [error, setError] = useErrorMessage();
@@ -98,6 +101,8 @@ export function FieldEditorRow({
   const conditionFieldDraftDef = controllableFields.find((f) => f.code === conditionFieldDraft);
   const conditionFieldDraftOptions = conditionFieldDraftDef ? parseFieldOptions(conditionFieldDraftDef, t) : [];
 
+  const [filterByFieldDraft, setFilterByFieldDraft] = useState(field.filterByFieldCode ?? '');
+
   function closePanel() {
     setPanel('none');
     setError(null);
@@ -112,6 +117,7 @@ export function FieldEditorRow({
     } catch {
       setConditionValuesDraft(new Set());
     }
+    setFilterByFieldDraft(field.filterByFieldCode ?? '');
   }
 
   async function run(action: () => Promise<void>, fallbackKey: string) {
@@ -227,6 +233,16 @@ export function FieldEditorRow({
                   {field.visibleWhenFieldCode ? t('fieldEditor.visibilitySet') : t('fieldEditor.visibility')}
                 </button>
               )}
+              {field.fieldType === 'Lookup' && filterableFields.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setPanel(panel === 'lookup-filter' ? 'none' : 'lookup-filter')}
+                  disabled={busy}
+                  className="text-[11px] uppercase tracking-wide text-ink-soft hover:opacity-70"
+                >
+                  {field.filterByFieldCode ? t('fieldEditor.lookupFilterSet') : t('fieldEditor.lookupFilter')}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setPanel(panel === 'code' ? 'none' : 'code')}
@@ -306,6 +322,49 @@ export function FieldEditorRow({
                         visibleWhenValuesJson: conditionFieldDraft ? JSON.stringify([...conditionValuesDraft]) : null,
                       }),
                     'fieldEditor.visibilityError',
+                  )
+                }
+                className="bg-accent rounded px-3 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50"
+              >
+                {t('common.save')}
+              </button>
+              <button type="button" onClick={closePanel} disabled={busy} className="text-sm text-ink-soft hover:opacity-70">
+                {t('common.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- Safe: filtered/cascading Lookup. Metadata only, no column touched - same
+          no-confirmation-copy treatment as the visibility panel above. Only ever shown for a
+          Lookup field. --- */}
+      {panel === 'lookup-filter' && (
+        <div className="mt-3 border-t border-border pt-3">
+          <p className="mb-2 text-sm text-ink-soft">{t('fieldEditor.lookupFilterDescription')}</p>
+          <div className="space-y-2">
+            <select
+              className={`${inputClass} max-w-xs`}
+              value={filterByFieldDraft}
+              disabled={busy}
+              onChange={(e) => setFilterByFieldDraft(e.target.value)}
+            >
+              <option value="">{t('fieldEditor.noLookupFilter')}</option>
+              {filterableFields.map((f) => (
+                <option key={f.code} value={f.code}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() =>
+                  run(
+                    () => api.forms.updateFieldLookupFilter(token, formId, field.id, filterByFieldDraft || null),
+                    'fieldEditor.lookupFilterError',
                   )
                 }
                 className="bg-accent rounded px-3 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50"

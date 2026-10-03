@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
 import { useErrorMessage } from '../hooks/useErrorMessage';
@@ -61,7 +61,12 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
     setError(null);
     setFieldErrors({});
 
-    const lookupFields = activeFields.filter((f) => f.fieldType === 'Lookup' && f.lookupFormDefinitionId);
+    // Filtered (cascading) Lookups are excluded here - they have no single fixed choice list
+    // to fetch once at load, since their candidates depend on another field's current value.
+    // The effect below handles those, reactively, keyed off that value instead of form load.
+    const lookupFields = activeFields.filter(
+      (f) => f.fieldType === 'Lookup' && f.lookupFormDefinitionId && !f.filterByFieldCode,
+    );
     const uniqueTargets = [...new Set(lookupFields.map((f) => f.lookupFormDefinitionId as string))];
 
     uniqueTargets.forEach(async (targetFormId) => {
@@ -95,6 +100,54 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
     // reference - depend on the form's id/version instead to avoid re-fetching on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formDefinition.id, formDefinition.publishedVersion?.id, token]);
+
+  const filteredLookupFields = useMemo(
+    () => activeFields.filter((f) => f.fieldType === 'Lookup' && f.lookupFormDefinitionId && f.filterByFieldCode),
+    [activeFields],
+  );
+
+  // Keyed by a plain string, not the fields/values objects themselves, so this only re-runs
+  // when a FILTER SOURCE field's value actually changes - not on every keystroke in an
+  // unrelated field on the form.
+  const filterSourceValuesKey = filteredLookupFields
+    .map((f) => `${f.code}=${values[f.filterByFieldCode as string] ?? ''}`)
+    .join('&');
+
+  // Re-fetches each filtered (cascading) Lookup's choices whenever ITS OWN filter-source
+  // field's current value changes - e.g. "zone" filtered by "project" re-fetches the moment
+  // a project is picked or changed, so it only ever offers zones belonging to whichever
+  // project is currently selected, never every zone from every project.
+  useEffect(() => {
+    filteredLookupFields.forEach(async (field) => {
+      const sourceValue = values[field.filterByFieldCode as string];
+      if (!sourceValue) {
+        // No filter value chosen yet (e.g. no project picked) - show nothing rather than
+        // every row from every project, which is exactly what this feature exists to avoid.
+        setLookupChoices((prev) => ({ ...prev, [field.code]: [] }));
+        return;
+      }
+      try {
+        const targetFormId = field.lookupFormDefinitionId as string;
+        const targetDef = await api.forms.get(token, targetFormId);
+        const displayField = targetDef.publishedVersion?.fields.find(
+          (f) => f.isActive && f.fieldType === 'ShortText',
+        );
+        const submissions = await api.submissions.list(token, targetFormId, 1, 200, {
+          fieldCode: field.filterByFieldCode as string,
+          value: sourceValue,
+        });
+        const choices: LookupChoice[] = submissions.items.map((row) => ({
+          id: row.id,
+          label: displayField ? String(row.values[displayField.code] ?? row.id) : row.id,
+        }));
+        setLookupChoices((prev) => ({ ...prev, [field.code]: choices }));
+      } catch {
+        // Same philosophy as the unfiltered fetch above - a failed fetch just leaves this
+        // field without options rather than blocking the rest of the form.
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterSourceValuesKey, token]);
 
   function setValue(code: string, value: string) {
     setValues((prev) => ({ ...prev, [code]: value }));
@@ -156,6 +209,28 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [values]);
+
+  // Same idea, for a filtered Lookup whose filter SOURCE field just changed value: its
+  // previously-picked value almost certainly isn't one of the new filtered candidates (e.g.
+  // a zone that belonged to the OLD project), so it's cleared too - rather than left silently
+  // referencing a row the new filter wouldn't have offered. Deliberately keyed only on
+  // filterSourceValuesKey (not `values`), with the mount-skip below, so this never fires just
+  // because the user picked a zone itself (which also changes `values`, but isn't a source
+  // change) - only an actual change in a SOURCE field's value should clear its dependents.
+  const previousFilterSourceValuesKey = useRef(filterSourceValuesKey);
+  useEffect(() => {
+    if (previousFilterSourceValuesKey.current === filterSourceValuesKey) return;
+    previousFilterSourceValuesKey.current = filterSourceValuesKey;
+
+    const staleCodes = filteredLookupFields.filter((f) => values[f.code] !== undefined).map((f) => f.code);
+    if (staleCodes.length === 0) return;
+    setValues((prev) => {
+      const next = { ...prev };
+      staleCodes.forEach((code) => delete next[code]);
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterSourceValuesKey]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -254,6 +329,13 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
           error={fieldErrors[field.code]}
           options={parseOptions(field.optionsJson)}
           lookupChoices={lookupChoices[field.code]}
+          // Only set for a filtered Lookup whose filter-source field has no value yet - lets
+          // FieldInput show "pick X first" instead of a plain, unexplained empty dropdown.
+          filterWaitingOnLabel={
+            field.filterByFieldCode && !values[field.filterByFieldCode]
+              ? activeFields.find((f) => f.code === field.filterByFieldCode)?.label ?? field.filterByFieldCode
+              : undefined
+          }
         />
       ))}
 
@@ -279,6 +361,7 @@ function FieldInput({
   error,
   options,
   lookupChoices,
+  filterWaitingOnLabel,
 }: {
   field: FieldDefinitionDto;
   value: string;
@@ -288,6 +371,7 @@ function FieldInput({
   error?: string;
   options: DropdownOption[];
   lookupChoices?: LookupChoice[];
+  filterWaitingOnLabel?: string;
 }) {
   const { t } = useTranslation();
   const baseClass =
@@ -330,8 +414,14 @@ function FieldInput({
           ))}
         </select>
       ) : field.fieldType === 'Lookup' ? (
-        <select className={baseClass} value={value} onChange={(e) => onChange(e.target.value)}>
-          <option value="">{lookupChoices ? t('common.select') : t('formRenderer.loadingOptions')}</option>
+        <select className={baseClass} value={value} onChange={(e) => onChange(e.target.value)} disabled={!!filterWaitingOnLabel}>
+          <option value="">
+            {filterWaitingOnLabel
+              ? t('formRenderer.chooseFilterSourceFirst', { label: filterWaitingOnLabel })
+              : lookupChoices
+                ? t('common.select')
+                : t('formRenderer.loadingOptions')}
+          </option>
           {(lookupChoices ?? []).map((c) => (
             <option key={c.id} value={c.id}>
               {c.label}

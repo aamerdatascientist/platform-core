@@ -54,11 +54,29 @@ public class FieldDefinition : AuditableEntity
     /// VisibleWhenFieldCode; same "required together" shape as OptionsJson/FieldType.Dropdown.</summary>
     public string? VisibleWhenValuesJson { get; private set; }
 
+    /// <summary>
+    /// Filtered/cascading Lookup support: only meaningful for FieldType.Lookup. Null means
+    /// this Lookup shows every row of its target form (the original, still-default
+    /// behaviour). Non-null names another field's Code on the SAME FormVersion - by
+    /// convention, the target form is expected to have an active field with that identical
+    /// Code, and this Lookup's candidate rows are narrowed to only those whose own value in
+    /// that same-named field matches this sibling's current submitted value. E.g. a "zone"
+    /// Lookup with FilterByFieldCode "project" only offers zones belonging to whichever
+    /// project this submission's own "project" field is set to, instead of every zone from
+    /// every project. Pure metadata, same Safe bucket as VisibleWhenFieldCode - never
+    /// touches the physical column (still just a GUID either way), so this is edit-able on a
+    /// published form with live data with no confirmation needed. A sibling's Code, not its
+    /// Id, for the same reason VisibleWhenFieldCode is: it's evaluated against a raw
+    /// submission values dictionary, which is keyed by Code.
+    /// </summary>
+    public string? FilterByFieldCode { get; private set; }
+
     private FieldDefinition() { }
 
     public static FieldDefinition Create(Guid formVersionId, string code, string label, FieldType fieldType,
         bool isRequired, int displayOrder, string? optionsJson, Guid? lookupFormDefinitionId,
-        string? validationRulesJson, string? visibleWhenFieldCode = null, string? visibleWhenValuesJson = null)
+        string? validationRulesJson, string? visibleWhenFieldCode = null, string? visibleWhenValuesJson = null,
+        string? filterByFieldCode = null)
     {
         var normalizedCode = NormalizeColumnName(code);
 
@@ -68,6 +86,7 @@ public class FieldDefinition : AuditableEntity
             throw new ArgumentException("Lookup fields require LookupFormDefinitionId.", nameof(lookupFormDefinitionId));
 
         ValidateVisibilityCondition(normalizedCode, visibleWhenFieldCode, visibleWhenValuesJson);
+        ValidateLookupFilter(normalizedCode, fieldType, filterByFieldCode);
 
         return new FieldDefinition
         {
@@ -81,7 +100,8 @@ public class FieldDefinition : AuditableEntity
             LookupFormDefinitionId = lookupFormDefinitionId,
             ValidationRulesJson = validationRulesJson,
             VisibleWhenFieldCode = string.IsNullOrWhiteSpace(visibleWhenFieldCode) ? null : visibleWhenFieldCode,
-            VisibleWhenValuesJson = string.IsNullOrWhiteSpace(visibleWhenFieldCode) ? null : visibleWhenValuesJson
+            VisibleWhenValuesJson = string.IsNullOrWhiteSpace(visibleWhenFieldCode) ? null : visibleWhenValuesJson,
+            FilterByFieldCode = string.IsNullOrWhiteSpace(filterByFieldCode) ? null : filterByFieldCode
         };
     }
 
@@ -109,6 +129,32 @@ public class FieldDefinition : AuditableEntity
         if (string.IsNullOrWhiteSpace(visibleWhenValuesJson))
             throw new ArgumentException(
                 "A visibility condition needs at least one allowed value.", nameof(visibleWhenValuesJson));
+    }
+
+    /// <summary>
+    /// Safe operation (like SetVisibilityCondition): sets or clears which sibling field's
+    /// current value narrows this Lookup's candidate rows. The caller
+    /// (AddFieldDefinitionCommandHandler / UpdateFieldLookupFilterCommandHandler) is
+    /// responsible for confirming filterByFieldCode actually names a field that exists on
+    /// the same FormVersion, and that the target form (LookupFormDefinitionId) has an active
+    /// field with that identical Code - this method only enforces the type-shape rule
+    /// (Lookup-only) and the self-reference rule.
+    /// </summary>
+    public void SetLookupFilter(string? filterByFieldCode)
+    {
+        ValidateLookupFilter(Code, FieldType, filterByFieldCode);
+        FilterByFieldCode = string.IsNullOrWhiteSpace(filterByFieldCode) ? null : filterByFieldCode;
+    }
+
+    private static void ValidateLookupFilter(string ownCode, FieldType fieldType, string? filterByFieldCode)
+    {
+        if (string.IsNullOrWhiteSpace(filterByFieldCode)) return;
+
+        if (fieldType != FieldType.Lookup)
+            throw new ArgumentException(
+                "Only a Lookup field can filter its candidates by another field.", nameof(filterByFieldCode));
+        if (filterByFieldCode == ownCode)
+            throw new ArgumentException("A field can't filter itself.", nameof(filterByFieldCode));
     }
 
     public void Deactivate() => IsActive = false;
@@ -145,6 +191,12 @@ public class FieldDefinition : AuditableEntity
         // describing a shape it no longer has.
         OptionsJson = fieldType == FieldType.Dropdown ? optionsJson : null;
         LookupFormDefinitionId = fieldType == FieldType.Lookup ? lookupFormDefinitionId : null;
+        // FilterByFieldCode is deliberately NOT reset here when the new type is still Lookup -
+        // repointing a Lookup's target form (the common case: "same type, different target")
+        // shouldn't silently wipe an existing filter. It only gets cleared when leaving Lookup
+        // entirely, same as OptionsJson/LookupFormDefinitionId above. Changing the filter
+        // itself goes through SetLookupFilter/UpdateFieldLookupFilterCommand, not here.
+        if (fieldType != FieldType.Lookup) FilterByFieldCode = null;
     }
 
     public void Reactivate() => IsActive = true;

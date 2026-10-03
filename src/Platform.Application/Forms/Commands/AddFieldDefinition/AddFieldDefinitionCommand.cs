@@ -10,7 +10,8 @@ namespace Platform.Application.Forms.Commands.AddFieldDefinition;
 public record AddFieldDefinitionCommand(
     Guid FormDefinitionId, string Code, string Label, FieldType FieldType, bool IsRequired,
     string? OptionsJson, Guid? LookupFormDefinitionId, string? ValidationRulesJson,
-    string? VisibleWhenFieldCode = null, string? VisibleWhenValuesJson = null) : IRequest<Guid>;
+    string? VisibleWhenFieldCode = null, string? VisibleWhenValuesJson = null,
+    string? FilterByFieldCode = null) : IRequest<Guid>;
 
 public class AddFieldDefinitionCommandValidator : AbstractValidator<AddFieldDefinitionCommand>
 {
@@ -36,6 +37,10 @@ public class AddFieldDefinitionCommandValidator : AbstractValidator<AddFieldDefi
             .WithMessage("A visibility condition needs at least one allowed value.");
         RuleFor(x => x.VisibleWhenFieldCode).NotEqual(x => x.Code).When(x => !string.IsNullOrWhiteSpace(x.VisibleWhenFieldCode))
             .WithMessage("A field can't control its own visibility.");
+        RuleFor(x => x.FilterByFieldCode).Empty().When(x => x.FieldType != FieldType.Lookup && !string.IsNullOrWhiteSpace(x.FilterByFieldCode))
+            .WithMessage("Only a Lookup field can filter its candidates by another field.");
+        RuleFor(x => x.FilterByFieldCode).NotEqual(x => x.Code).When(x => !string.IsNullOrWhiteSpace(x.FilterByFieldCode))
+            .WithMessage("A field can't filter itself.");
     }
 }
 
@@ -61,13 +66,36 @@ public class AddFieldDefinitionCommandHandler : IRequestHandler<AddFieldDefiniti
 
         var target = formDefinition.ResolveFieldEditTarget();
 
+        // Cross-aggregate half of the Lookup-filter check: FormVersion.AddField already
+        // confirmed FilterByFieldCode names a sibling on THIS form version; this confirms the
+        // TARGET form (where the filtered candidates actually come from) has an active field
+        // with that identical Code too - without it, the filter would silently match nothing
+        // once used (FormRenderer would filter by a column that doesn't exist on the target).
+        if (!string.IsNullOrWhiteSpace(request.FilterByFieldCode))
+        {
+            var lookupTarget = await _db.FormDefinitions
+                .Include(f => f.Versions).ThenInclude(v => v.Fields)
+                .SingleOrDefaultAsync(f => f.Id == request.LookupFormDefinitionId, cancellationToken);
+            var targetHasMatchingField = lookupTarget?.GetPublishedVersion()?.Fields
+                .Any(f => f.IsActive && f.Code == request.FilterByFieldCode) ?? false;
+
+            if (!targetHasMatchingField)
+                throw new Common.Exceptions.ValidationException(new[]
+                {
+                    new FluentValidation.Results.ValidationFailure(
+                        nameof(request.FilterByFieldCode),
+                        $"The target form doesn't have an active '{request.FilterByFieldCode}' field - a Lookup " +
+                        "filter needs a field with that same code on both this form and the target form.")
+                });
+        }
+
         Platform.Domain.Forms.FieldDefinition field;
         try
         {
             field = target.Version.AddField(
                 request.Code, request.Label, request.FieldType, request.IsRequired,
                 request.OptionsJson, request.LookupFormDefinitionId, request.ValidationRulesJson,
-                request.VisibleWhenFieldCode, request.VisibleWhenValuesJson);
+                request.VisibleWhenFieldCode, request.VisibleWhenValuesJson, request.FilterByFieldCode);
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("a visibility condition can only depend"))
         {
@@ -79,6 +107,14 @@ public class AddFieldDefinitionCommandHandler : IRequestHandler<AddFieldDefiniti
             throw new Common.Exceptions.ValidationException(new[]
             {
                 new FluentValidation.Results.ValidationFailure(nameof(request.VisibleWhenFieldCode), ex.Message)
+            });
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("a Lookup filter can only depend"))
+        {
+            // Same shape, same reason, for the Lookup-filter sibling-exists check.
+            throw new Common.Exceptions.ValidationException(new[]
+            {
+                new FluentValidation.Results.ValidationFailure(nameof(request.FilterByFieldCode), ex.Message)
             });
         }
         catch (ArgumentException ex) when (ex.ParamName is null)

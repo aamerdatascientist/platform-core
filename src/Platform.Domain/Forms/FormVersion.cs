@@ -42,14 +42,15 @@ public class FormVersion : AuditableEntity
 
         foreach (var field in previous._fields.Where(f => f.IsActive))
         {
-            // VisibleWhenFieldCode/VisibleWhenValuesJson carried forward explicitly - easy to
-            // miss since this is a straight-up copy of every other property, but silently
-            // dropping them would un-hide every conditional field the moment a new draft
-            // version is started, with no error and no DDL to make the loss visible.
+            // VisibleWhenFieldCode/VisibleWhenValuesJson/FilterByFieldCode carried forward
+            // explicitly - easy to miss since this is a straight-up copy of every other
+            // property, but silently dropping them would un-hide every conditional field and
+            // un-filter every cascading Lookup the moment a new draft version is started, with
+            // no error and no DDL to make the loss visible.
             draft._fields.Add(FieldDefinition.Create(
                 draft.Id, field.Code, field.Label, field.FieldType, field.IsRequired,
                 field.DisplayOrder, field.OptionsJson, field.LookupFormDefinitionId, field.ValidationRulesJson,
-                field.VisibleWhenFieldCode, field.VisibleWhenValuesJson));
+                field.VisibleWhenFieldCode, field.VisibleWhenValuesJson, field.FilterByFieldCode));
         }
 
         return draft;
@@ -66,7 +67,8 @@ public class FormVersion : AuditableEntity
     /// </summary>
     public FieldDefinition AddField(string code, string label, FieldType type, bool isRequired,
         string? optionsJson, Guid? lookupFormDefinitionId, string? validationRulesJson,
-        string? visibleWhenFieldCode = null, string? visibleWhenValuesJson = null)
+        string? visibleWhenFieldCode = null, string? visibleWhenValuesJson = null,
+        string? filterByFieldCode = null)
     {
         if (_fields.Any(f => f.Code == code))
             throw new InvalidOperationException($"Field code '{code}' already exists on this version.");
@@ -81,9 +83,19 @@ public class FormVersion : AuditableEntity
                 $"'{visibleWhenFieldCode}' isn't a field on this form version - a visibility " +
                 "condition can only depend on a field that already exists here.");
 
+        // Same check, same reason, for the Lookup-filter source field - this only confirms the
+        // SAME-form sibling exists; whether the TARGET form actually has a matching-Code field
+        // is a cross-aggregate check the handler does instead (see
+        // AddFieldDefinitionCommandHandler/UpdateFieldLookupFilterCommandHandler), since this
+        // entity has no visibility into other FormDefinitions.
+        if (!string.IsNullOrWhiteSpace(filterByFieldCode) && !_fields.Any(f => f.Code == filterByFieldCode))
+            throw new InvalidOperationException(
+                $"'{filterByFieldCode}' isn't a field on this form version - a Lookup filter " +
+                "can only depend on a field that already exists here.");
+
         var field = FieldDefinition.Create(Id, code, label, type, isRequired,
             NextDisplayOrder(), optionsJson, lookupFormDefinitionId, validationRulesJson,
-            visibleWhenFieldCode, visibleWhenValuesJson);
+            visibleWhenFieldCode, visibleWhenValuesJson, filterByFieldCode);
         _fields.Add(field);
         return field;
     }

@@ -12,6 +12,7 @@ using Platform.Application.Forms.Commands.RenameFieldCode;
 using Platform.Application.Forms.Commands.ReorderFields;
 using Platform.Application.Forms.Commands.RestoreField;
 using Platform.Application.Forms.Commands.UpdateFieldLabel;
+using Platform.Application.Forms.Commands.UpdateFieldLookupFilter;
 using Platform.Application.Forms.Commands.UpdateFieldVisibility;
 using Platform.Application.Forms.Commands.SetFormAllowedRoles;
 using Platform.Application.Forms.Commands.SetFormAllowedUsers;
@@ -67,7 +68,8 @@ public class FormsController : ControllerBase
     public record AddFieldRequest(
         string Code, string Label, FieldType FieldType, bool IsRequired,
         string? OptionsJson, Guid? LookupFormDefinitionId, string? ValidationRulesJson,
-        string? VisibleWhenFieldCode = null, string? VisibleWhenValuesJson = null);
+        string? VisibleWhenFieldCode = null, string? VisibleWhenValuesJson = null,
+        string? FilterByFieldCode = null);
 
     [HttpPost("{id:guid}/fields")]
     [Authorize(Roles = "Administrator")]
@@ -76,7 +78,7 @@ public class FormsController : ControllerBase
         var fieldId = await _sender.Send(new AddFieldDefinitionCommand(
             id, request.Code, request.Label, request.FieldType, request.IsRequired,
             request.OptionsJson, request.LookupFormDefinitionId, request.ValidationRulesJson,
-            request.VisibleWhenFieldCode, request.VisibleWhenValuesJson), cancellationToken);
+            request.VisibleWhenFieldCode, request.VisibleWhenValuesJson, request.FilterByFieldCode), cancellationToken);
 
         return Ok(new { id = fieldId });
     }
@@ -110,6 +112,21 @@ public class FormsController : ControllerBase
         await _sender.Send(
             new UpdateFieldVisibilityCommand(id, fieldId, request.VisibleWhenFieldCode, request.VisibleWhenValuesJson),
             cancellationToken);
+        return NoContent();
+    }
+
+    public record UpdateFieldLookupFilterRequest(string? FilterByFieldCode);
+
+    /// <summary>Safe: metadata only, no column touched. Works on a published form with live
+    /// data. Only meaningful on a Lookup field. Send FilterByFieldCode null/empty to clear
+    /// the filter (the Lookup goes back to showing every target-form row).</summary>
+    [HttpPut("{id:guid}/fields/{fieldId:guid}/lookup-filter")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> UpdateFieldLookupFilter(
+        Guid id, Guid fieldId, UpdateFieldLookupFilterRequest request, CancellationToken cancellationToken)
+    {
+        await _sender.Send(
+            new UpdateFieldLookupFilterCommand(id, fieldId, request.FilterByFieldCode), cancellationToken);
         return NoContent();
     }
 

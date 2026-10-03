@@ -11,6 +11,10 @@ interface AddFieldFormProps {
   /** Existing fields this new one could branch on - Dropdown/Boolean only (the only types
    *  with a fixed, enumerable set of values a condition can match against). */
   controllableFields: FieldDefinitionDto[];
+  /** Existing fields a new Lookup field could filter its candidates by (see
+   *  FieldDefinition.FilterByFieldCode) - any type is allowed here, since the common case is
+   *  filtering by another Lookup (e.g. "zone" filtered by "project"). */
+  filterableFields: FieldDefinitionDto[];
   onAdded: () => void;
 }
 
@@ -43,7 +47,14 @@ function slugify(input: string): string {
     .replace(/^_+|_+$/g, '');
 }
 
-export function AddFieldForm({ token, formId, lookupTargets, controllableFields, onAdded }: AddFieldFormProps) {
+export function AddFieldForm({
+  token,
+  formId,
+  lookupTargets,
+  controllableFields,
+  filterableFields,
+  onAdded,
+}: AddFieldFormProps) {
   const { t } = useTranslation();
   const [label, setLabel] = useState('');
   const [code, setCode] = useState('');
@@ -52,6 +63,9 @@ export function AddFieldForm({ token, formId, lookupTargets, controllableFields,
   const [isRequired, setIsRequired] = useState(false);
   const [options, setOptions] = useState<{ value: string; label: string }[]>([{ value: '', label: '' }]);
   const [lookupTargetId, setLookupTargetId] = useState('');
+  // Filtered/cascading Lookup ("only show candidates where..."), set at creation time.
+  // Empty string = no filter, which is the default/original behaviour.
+  const [filterByFieldCode, setFilterByFieldCode] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useErrorMessage();
 
@@ -116,6 +130,7 @@ export function AddFieldForm({ token, formId, lookupTargets, controllableFields,
         lookupFormDefinitionId: fieldType === 'Lookup' ? lookupTargetId : null,
         visibleWhenFieldCode: hasCondition ? conditionFieldCode : null,
         visibleWhenValuesJson: hasCondition ? JSON.stringify([...conditionValues]) : null,
+        filterByFieldCode: fieldType === 'Lookup' && filterByFieldCode ? filterByFieldCode : null,
       });
       setLabel('');
       setCode('');
@@ -124,6 +139,7 @@ export function AddFieldForm({ token, formId, lookupTargets, controllableFields,
       setIsRequired(false);
       setOptions([{ value: '', label: '' }]);
       setLookupTargetId('');
+      setFilterByFieldCode('');
       setHasCondition(false);
       setConditionFieldCode('');
       setConditionValues(new Set());
@@ -222,6 +238,25 @@ export function AddFieldForm({ token, formId, lookupTargets, controllableFields,
               </option>
             ))}
           </select>
+
+          {filterableFields.length > 0 && (
+            <div className="mt-2">
+              <label className="mb-1 block text-xs text-ink-soft">{t('addField.filterByField')}</label>
+              <select
+                className={inputClass}
+                value={filterByFieldCode}
+                onChange={(e) => setFilterByFieldCode(e.target.value)}
+              >
+                <option value="">{t('addField.noFilter')}</option>
+                {filterableFields.map((f) => (
+                  <option key={f.code} value={f.code}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-ink-soft">{t('addField.filterByFieldHint')}</p>
+            </div>
+          )}
         </div>
       )}
 

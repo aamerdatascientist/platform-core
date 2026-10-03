@@ -35,6 +35,12 @@ export interface FieldDefinitionDto {
   /** JSON-encoded string[] - the controlling field's values that make this field visible.
    *  Only meaningful when visibleWhenFieldCode is set. Parse before use. */
   visibleWhenValuesJson: string | null;
+  /** Filtered/cascading Lookup: the Code of another field on the SAME form version whose
+   *  current value narrows this Lookup's candidate rows down to the ones belonging to it
+   *  (e.g. "zone" filtered by "project"). Only meaningful when fieldType is Lookup. By
+   *  convention the target form must have an active field with this identical Code. Null =
+   *  show every target-form row (default, unchanged behaviour). */
+  filterByFieldCode: string | null;
 }
 
 export interface FormVersionDto {
