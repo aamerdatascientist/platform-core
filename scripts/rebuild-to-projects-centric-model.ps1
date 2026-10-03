@@ -7,7 +7,7 @@
 #
 # What this does, in order (the order is load-bearing - see the comments at each step):
 #
-#   1. Archives daily_progress_report's "project" field. Sounds backwards, but it's
+#   1. Archives daily-progress-report's "project" field. Sounds backwards, but it's
 #      required: DeleteFormCommand refuses to delete a form that's still the target of any
 #      ACTIVE Lookup field anywhere - and the old "projects" form can't be deleted (step 2)
 #      while this form (which we're keeping) still actively points at it. Archiving (not
@@ -22,7 +22,7 @@
 #   3. Creates a new, richer "Projects" form (code: projects - just freed by step 2) plus
 #      three small per-project master-data forms: project_zones, project_footings,
 #      project_floors.
-#   4. Restores daily_progress_report's "project" field, then repoints it at the new
+#   4. Restores daily-progress-report's "project" field, then repoints it at the new
 #      Projects form (metadata-only, always safe - same FieldType, just a different
 #      target; the restore briefly leaves it pointed at the now-deleted old form, fixed by
 #      the very next call in this script).
@@ -117,32 +117,32 @@ function Submit-Data($formId, $values) {
     return $resp.id
 }
 
-# --- Step 0: locate daily_progress_report and its "project" field -----------
+# --- Step 0: locate daily-progress-report and its "project" field -----------
 
-Write-Host "`n--- Step 0: locating daily_progress_report ---"
+Write-Host "`n--- Step 0: locating daily-progress-report ---"
 $allForms = Invoke-RestMethod -Uri "$BaseUrl/api/forms" -Headers $headers
-$keep = $allForms | Where-Object { $_.code -eq "daily_progress_report" }
+$keep = $allForms | Where-Object { $_.code -eq "daily-progress-report" }
 if (-not $keep) {
-    throw "Could not find a form with code 'daily_progress_report' - aborting before changing anything."
+    throw "Could not find a form with code 'daily-progress-report' - aborting before changing anything."
 }
 Write-Host "Keeping: '$($keep.name)' ($($keep.id))"
 
 $dpr = Invoke-RestMethod -Uri "$BaseUrl/api/forms/$($keep.id)" -Headers $headers
 $projectField = $dpr.publishedVersion.fields | Where-Object { $_.code -eq "project" }
 if (-not $projectField) {
-    throw "daily_progress_report has no 'project' field - aborting."
+    throw "daily-progress-report has no 'project' field - aborting."
 }
 
 # --- Step 1: archive the project field so "projects" becomes deletable ------
 
-Write-Host "`n--- Step 1: archiving daily_progress_report.project (temporary) ---"
+Write-Host "`n--- Step 1: archiving daily-progress-report.project (temporary) ---"
 Invoke-RestMethod -Uri "$BaseUrl/api/forms/$($keep.id)/fields/$($projectField.id)/archive" -Method Post -Headers $headers | Out-Null
 Write-Host "Archived. Data and column are untouched - this is reversible and gets restored in step 4."
 
 # --- Step 2: delete every other form, retrying for cross-references --------
 
 Write-Host "`n--- Step 2: deleting old forms ---"
-$toDelete = $allForms | Where-Object { $_.code -ne "daily_progress_report" } | ForEach-Object {
+$toDelete = $allForms | Where-Object { $_.code -ne "daily-progress-report" } | ForEach-Object {
     [PSCustomObject]@{ Id = $_.id; Name = $_.name; Code = $_.code; LastError = $null }
 }
 
@@ -222,9 +222,9 @@ Add-Field $floorsId "floor_code" "رمز الطابق" "ShortText" $true | Out-N
 Add-Field $floorsId "floor_label" "اسم الطابق" "ShortText" $true | Out-Null
 Publish-Form $floorsId "طوابق المشروع"
 
-# --- Step 4: restore + repoint daily_progress_report.project ----------------
+# --- Step 4: restore + repoint daily-progress-report.project ----------------
 
-Write-Host "`n--- Step 4: restoring and repointing daily_progress_report.project ---"
+Write-Host "`n--- Step 4: restoring and repointing daily-progress-report.project ---"
 Invoke-RestMethod -Uri "$BaseUrl/api/forms/$($keep.id)/fields/$($projectField.id)/restore" -Method Post -Headers $headers | Out-Null
 Invoke-JsonPut "$BaseUrl/api/forms/$($keep.id)/fields/$($projectField.id)/type" `
     (@{ newFieldType = "Lookup"; optionsJson = $null; lookupFormDefinitionId = $projectsId } | ConvertTo-Json) | Out-Null
@@ -236,7 +236,7 @@ Write-Host "`n--- Step 5: converting zone/footing/floor to Lookup ---"
 
 function Find-Field($code) {
     $f = $dpr.publishedVersion.fields | Where-Object { $_.code -eq $code }
-    if (-not $f) { throw "daily_progress_report has no field with code '$code' - can't convert it." }
+    if (-not $f) { throw "daily-progress-report has no field with code '$code' - can't convert it." }
     return $f
 }
 
