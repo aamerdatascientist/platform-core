@@ -137,6 +137,41 @@ why this shipped without one. Worth adding a panel mirroring the existing lookup
 (pick a form, then pick a field on it) before the next form that needs this is built by hand
 through the builder instead of a script.
 
+## Form access control (role/user-based) - verified in the browser UI, 2026-10-04
+
+Per-form access is layered on `FormDefinitionRoles`/`FormDefinitionUsers`: a form with
+neither is open to everyone; adding either narrows it. Role-based and per-user grants are
+fully independent - either alone gives access, and revoking one never touches the other
+(confirmed both directions, both via SQL/API and in the real browser UI). Admin-only builder
+actions (`Create`/`AddField`/`Publish`/`RemoveField`/`StartNewVersion`/`Delete`) `403` for
+non-admins server-side, and `RequireAdmin.tsx` redirects a non-admin away from `/builder` or
+`/admin/users` client-side regardless of URL. A restricted form correctly disappears from the
+sidebar nav for an excluded user. A role grant only takes effect after the user's next login
+(the JWT caches role claims at issue time); a per-form grant/revoke takes effect immediately
+with no relogin needed, since `FormDefinitionRoles`/`FormDefinitionUsers` are checked fresh
+against the DB on every request, never JWT-cached.
+
+**Real finding, not yet fixed: Administrators get no automatic bypass of per-form access
+restrictions, and there is no self-service recovery path in the UI if an admin's own account
+ends up excluded.** `GET /api/forms/{id}` enforces the restriction uniformly for every
+caller, `Administrator` role included - so an admin who restricts a form to a role/user set
+that doesn't include their own account locks themselves out of that form's Builder page too,
+not just end-user viewing. If the restriction is per-user-only (not role-based), there's no
+self-service way to undo it at all: fixing it means reopening the very same form's Access
+panel that is now unreachable, and `/admin/users` has no way to touch per-form access. Hit
+for real this session on a throwaway test form - required direct database access
+(`DELETE FROM "FormDefinitionRoles"/"FormDefinitionUsers" WHERE "FormDefinitionId" = ...`) to
+recover, since no API or UI path existed once the admin doing the testing was the one locked
+out.
+
+**Worth a real fix before this bites a production form, not a throwaway test one**: either
+exempt `Administrator` from per-form restrictions outright (simplest, and matches the "Full
+system access" framing already shown next to it in the Roles list), or add a server-side
+guard that refuses to save an Access-panel change that would exclude the acting admin's own
+account/role, or add an explicit break-glass path (e.g. a super-admin-only "reset this form's
+access" action) that doesn't depend on the form's own, now-unreachable Access panel. Not yet
+scheduled - see `docs/PROJECT_STATUS.md`.
+
 ## Established code conventions
 
 - Domain entities: private setters, static `Create` factories, `AuditableEntity` base.

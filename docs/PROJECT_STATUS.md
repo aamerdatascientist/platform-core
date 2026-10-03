@@ -52,24 +52,37 @@ the current database.
 ## Built and verified in Code's sandbox - not yet tested by the project owner against the real database
 
 - **Form Builder UI** (create forms, add/remove fields, publish, edit a published form's
-  fields via a new draft version): built and verified end-to-end against a local SQL
-  Server in Code's sandbox, including the `StartNewFormVersionCommand`/`DeleteFormCommand`
-  work from PR #15 and the FormBuilder draft-status fix from `16a7d52`. Doesn't meet the
-  bar above yet - needs a real pass against the real Postgres/Railway database before it
-  counts as verified (the target database has changed since this was written - it was
-  Azure SQL when this was first built, Postgres now).
+  fields via a new draft version) - **done and verified end-to-end against the live
+  Postgres/Railway database, 2026-10-04**, driving the real app through the project owner's
+  own linked browser session (not a headless/sandbox browser): created a new form, added
+  fields of every type including conditional visibility, reordered fields, published, and
+  then exercised all six live-edit field operations on the now-published form - relabel,
+  live add-field, rename code, archive, restore, and permanent delete (typed-code-confirm
+  gate included). `FormEditTargetResolver.ResolveFieldEditTarget`/`resolveEditableFields`
+  correctly picked the published-version branch throughout, with no stale draft/published
+  mismatch. Test form deleted afterward (soft-delete, confirmed gone from both the builder
+  list and the sidebar nav after a reload).
 - **Form access control** (restrict which roles AND/OR individual users can see/use each
-  form): done and verified via SQL/API in Code's sandbox. Role-based: restriction,
-  unrestriction, the "open to everyone by default" rule (confirmed by diffing
-  `GET /api/forms` before and after the migration: same 16 forms, unchanged), and
-  admin-only form building (`Create`/`AddField`/`Publish`/`RemoveField`/`StartNewVersion`/
-  `Delete` all correctly `403` for non-admins) all confirmed working. Per-user, layered on
-  top: confirmed role-based and user-based access work independently in both directions -
-  a direct grant gives access with no matching role at all, and revoking a direct grant
-  doesn't touch anyone's role-based access (verified via SQL: revoking one user's
-  `FormDefinitionUsers` row left `FormDefinitionRoles` completely untouched, and a
-  different user's role-based access kept working the whole time). Not yet tested in the
-  actual browser UI.
+  form) - **done and verified end-to-end in the actual browser UI, 2026-10-04**, on top of
+  the earlier SQL/API-level verification (role-based restriction/unrestriction, the
+  "open to everyone by default" rule, admin-only `403`s on builder actions, and per-user
+  grants working fully independently of role-based ones, in both directions). Browser-level
+  checks newly confirmed: a restricted form disappears from the sidebar nav for an excluded
+  user; a non-admin navigating directly to `/builder` or `/admin/users` is redirected to `/`
+  by `RequireAdmin.tsx`; a role grant only takes effect after the user's next login (JWT
+  caches role claims at issue time), while a per-form grant/revoke takes effect immediately
+  with no relogin needed (`FormDefinitionRoles`/`FormDefinitionUsers` are checked fresh
+  against the DB on every request, not JWT-cached).
+
+  **Real finding, not yet fixed** - see `CLAUDE.md`'s new "Form access control" section for
+  the full writeup: Administrators get no automatic bypass of per-form restrictions, and
+  there's no self-service recovery path in the UI if an admin's own account ends up excluded
+  from a form - including from that form's own Builder/Access page, which is normally the
+  only place the restriction could be undone. Hit for real this session on a throwaway test
+  form; recovered via direct SQL (`DELETE FROM "FormDefinitionRoles"/"FormDefinitionUsers"`)
+  with the project owner's explicit approval, since no API/UI path existed. Worth a real fix
+  before a real (non-test) form gets restricted this way in production - see `CLAUDE.md` for
+  the fix options considered.
 - **Conditional field visibility ("branching")** - **done and verified end-to-end against
   real data, 2026-10-03.** A field can declare it's only shown/required when another field
   on the same form has a certain value (see `CLAUDE.md`'s "Field editing" section for the
@@ -241,14 +254,18 @@ actually looking at it.
    **done.** Migration applied, both forms seeded and published live - see "Stock Module"
    above. Only remaining piece: the project owner confirming in the real app that a
    submitted Inflow row shows up live in Outflow's dynamic dropdowns.
-2. **Verify the Form Builder UI against the real Postgres/Railway database** - see
-   "Built and verified in Code's sandbox" above. Same bar every other phase has already
-   cleared; the target database changed (Azure SQL -> Postgres) since this was written.
-2. **Verify form access control in the actual browser UI** - SQL/API-verified only so far
-   (both role-based and per-user); needs a real pass confirming restricted forms actually
-   disappear from navigation, the admin-only actions are hidden or gated correctly in the
-   Form Builder UI, and there's a real way for an admin to manage per-user grants, not
-   just blocked server-side.
+2. ~~Verify the Form Builder UI against the real Postgres/Railway database~~ - **done,
+   2026-10-04.** See "Built and verified" above - full create/add-fields/publish/live-edit
+   cycle confirmed in the real browser against live Postgres.
+2. ~~Verify form access control in the actual browser UI~~ - **done, 2026-10-04**, with a
+   real finding along the way: admins have no bypass of per-form restrictions and can lock
+   themselves out of a form's own Builder page with no self-service recovery - see "Built
+   and verified" above and `CLAUDE.md`'s new "Form access control" section.
+2. **Fix the admin self-lockout gap just found** - not yet scheduled. See `CLAUDE.md`'s
+   "Form access control" section for the three fix options considered (exempt
+   `Administrator` outright, block a self-excluding Access-panel save, or add a break-glass
+   reset action). Worth doing before a real (non-test) form gets restricted this way in
+   production.
 3. ~~Real-device retest of the mobile horizontal-overflow fix~~ - **done.** Fixed, merged
    to `main`, and confirmed by the user on a real phone this session - see the "Mobile
    horizontal-overflow fix" section below for the real root cause and fix.
