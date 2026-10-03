@@ -305,6 +305,10 @@ them - before this gets exercised on a form that actually uses branching in ange
 - No designated "display field" on `FormDefinition` for Lookup rendering - frontend
   guesses (first ShortText field on the target form).
 - Workflow Engine: no versioning, no notifications, one published workflow per form.
+  Deleting one is now possible (`DeleteWorkflowDefinitionCommand`, DELETE
+  `/api/workflows/{id}`, added 2026-10-03 - soft-delete, refused if any `WorkflowInstance`
+  exists for it) - this used to be a real gap (a form with a workflow attached could never
+  be deleted via `DeleteFormCommand` either, since nothing could remove the workflow first).
 - No workflow-designer UI - workflows are still created via API/PowerShell scripts. (A
   Form Builder UI does exist for forms themselves now - see `docs/PROJECT_STATUS.md`.)
 - No automated first-admin-bootstrap mechanism. `Register` requires an existing

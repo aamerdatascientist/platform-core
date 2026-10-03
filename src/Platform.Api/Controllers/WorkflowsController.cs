@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Platform.Application.Workflow.Commands.AddWorkflowState;
 using Platform.Application.Workflow.Commands.AddWorkflowTransition;
 using Platform.Application.Workflow.Commands.CreateWorkflowDefinition;
+using Platform.Application.Workflow.Commands.DeleteWorkflowDefinition;
 using Platform.Application.Workflow.Commands.PublishWorkflowDefinition;
 using Platform.Application.Workflow.Dtos;
 using Platform.Application.Workflow.Queries.GetWorkflowDefinition;
@@ -60,6 +61,19 @@ public class WorkflowsController : ControllerBase
     public async Task<IActionResult> Publish(Guid id, CancellationToken cancellationToken)
     {
         await _sender.Send(new PublishWorkflowDefinitionCommand(id), cancellationToken);
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Soft-delete. Refused if any record has actually gone through this workflow (see
+    /// DeleteWorkflowDefinitionCommand) - for cleaning up an unused workflow, not for
+    /// tearing down one with real history.
+    /// </summary>
+    [HttpDelete("{id:guid}")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new DeleteWorkflowDefinitionCommand(id), cancellationToken);
         return NoContent();
     }
 }

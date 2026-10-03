@@ -11,7 +11,12 @@ public class WorkflowDefinitionConfiguration : IEntityTypeConfiguration<Workflow
         builder.ToTable("WorkflowDefinitions");
         builder.HasKey(w => w.Id);
         builder.Property(w => w.Code).IsRequired().HasMaxLength(64);
-        builder.HasIndex(w => w.Code).IsUnique();
+        // Partial/filtered, not a plain unique index - same fix as FormDefinition.Code (see
+        // CLAUDE.md's soft-delete-vs-unique-index gotcha). This was flagged as not yet
+        // exploitable only because no delete command existed for WorkflowDefinition;
+        // DeleteWorkflowDefinitionCommand changes that, so the index gets the same filter
+        // at the same time rather than waiting to hit the identical bug a second time.
+        builder.HasIndex(w => w.Code).IsUnique().HasFilter("\"IsDeleted\" = false");
         builder.Property(w => w.Name).IsRequired().HasMaxLength(200);
 
         builder.HasMany(w => w.States).WithOne().HasForeignKey(s => s.WorkflowDefinitionId).OnDelete(DeleteBehavior.Cascade);
