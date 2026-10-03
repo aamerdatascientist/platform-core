@@ -176,10 +176,12 @@ An Administrator can no longer be excluded from any form, full stop - there's de
 "restrict even from admins" escape hatch, since that's exactly the lockout this closes.
 NuGet was blocked in the sandbox that made this change (same recurring gotcha - see below),
 so it was verified by code-reading pattern-match against the file's own existing
-`Contains(..., StringComparer.OrdinalIgnoreCase)` usage (already proven to compile here), not
-a local `dotnet build` - confirm it actually built via `deploy-api.yml`'s GitHub Actions run
-on push, and confirm live in the app: restrict a form to exclude your own account/role and
-confirm you still have full access, including to that form's own Access panel.
+`Contains(..., StringComparer.OrdinalIgnoreCase)` usage, not a local `dotnet build` - but
+`deploy-api.yml` built and deployed it clean on push, and it's now been confirmed live: a
+throwaway test form restricted to a role Admin doesn't hold, with the `Administrator` role
+checkbox and the `Admin` user checkbox both left unchecked (the exact shape of the original
+lockout), still loaded its Builder/Access page fully for Admin on a fresh reload - no 403,
+and the form still appeared in the sidebar nav despite the restriction. Nothing left open.
 
 ## Established code conventions
 

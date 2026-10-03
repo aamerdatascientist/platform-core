@@ -261,15 +261,18 @@ actually looking at it.
    real finding along the way: admins have no bypass of per-form restrictions and can lock
    themselves out of a form's own Builder page with no self-service recovery - see "Built
    and verified" above and `CLAUDE.md`'s new "Form access control" section.
-2. ~~Fix the admin self-lockout gap just found~~ - **done, 2026-10-04** (code change only -
-   see `CLAUDE.md`'s "Form access control" section). `FormAccessChecker.HasAccess` now
-   exempts `Administrator` outright, before any restriction check runs - applies everywhere
-   at once since every access check in the backend goes through this one helper. **Not yet
-   build/deploy verified**: NuGet was blocked in the sandbox that made this change, so it
-   hasn't run through a real `dotnet build` yet - check the `deploy-api.yml` GitHub Actions
-   run on push, and confirm live in the app (restrict a form to exclude your own account,
-   confirm you keep full access including to that form's own Access panel) before treating
-   this as closed.
+2. ~~Fix the admin self-lockout gap just found~~ - **done and verified live, 2026-10-04.**
+   `FormAccessChecker.HasAccess` now exempts `Administrator` outright, before any
+   restriction check runs - applies everywhere at once since every access check in the
+   backend goes through this one helper. `deploy-api.yml` built and deployed clean on push
+   (run confirmed `completed`/`success`). Verified end-to-end in the real browser against
+   the live app: created a throwaway test form, restricted it to a role Admin doesn't hold
+   with both the `Administrator` role checkbox and the `Admin` user checkbox left
+   unchecked (the exact exclusion shape that caused the original lockout), then reloaded
+   the form's Builder page from scratch - loaded fully with no 403, Access panel and all,
+   and the form still appeared in the sidebar nav despite the restriction. Test form
+   deleted afterward (never published, hard-deleted - confirmed gone after a reload).
+   Nothing left open on this fix.
 3. ~~Real-device retest of the mobile horizontal-overflow fix~~ - **done.** Fixed, merged
    to `main`, and confirmed by the user on a real phone this session - see the "Mobile
    horizontal-overflow fix" section below for the real root cause and fix.
