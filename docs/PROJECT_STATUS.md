@@ -135,6 +135,29 @@ the current database.
   stakeholder decision before building a `project_rooms` form). The demo project
   ("مشروع تجريبي" / DEMO-01) and its 3 demo zones/footings/floors are still live - delete
   once real project data replaces them.
+- **Stock Module (Stock Inflow / Stock Outflow forms) + dynamic dropdown options - built
+  2026-10-04, genuinely unverified so far, not even in Code's sandbox.** NuGet was blocked
+  this session (not just the SDK missing - see CLAUDE.md's gotcha), so unlike the branching
+  feature's "hand-written but compiled elsewhere" history, nothing here has been built,
+  tested, or run at all yet - not a real `dotnet build`, not the migration, not the seed
+  script. Treat it as a first draft that happens to be careful, not as verified code.
+
+  New capability: a Dropdown field can source its options live from the distinct values
+  submitted for a field on another form (`FieldDefinition.DynamicOptionsSourceFormDefinitionId`/
+  `DynamicOptionsSourceFieldCode`) - see CLAUDE.md's "Dynamic dropdown options" section for
+  the full design. Built because Outflow's Material/Unit/"Issued from" needed to always
+  offer exactly what's been typed into Inflow, per the project owner's explicit answers in
+  `claude/stock-module-inflow-outflow-design.md` (Construction Software Claude.ai project) -
+  not a fixed list, and not a shared master-data form either.
+
+  **Next steps, in order**: (1) `dotnet build`/`dotnet ef migrations list` on the project
+  owner's machine to confirm the hand-written `20261004120000_AddFieldDynamicOptionsSource`
+  migration + Designer.cs are well-formed (same confidence check the branching feature's
+  migration got); (2) `dotnet ef database update` against the live Railway Postgres; (3) run
+  `scripts/seed-stock-inflow-outflow-forms.ps1` against the live API (Inflow before Outflow -
+  order matters, see the script's own header); (4) real end-to-end check in the live app:
+  submit a real Inflow row, confirm Outflow's Material/Unit/Issued-from dropdowns
+  immediately offer what was just typed, not a stale or empty list.
 
 ## What just got fixed along the way (worth knowing, not just "it works now")
 
@@ -178,6 +201,10 @@ actually looking at it.
 1. ~~Build and run the conditional-field-visibility backend changes~~ - **done.** Migration
    applied to the live database, seed script run against production, branching confirmed
    by the project owner in the real app - see "Conditional field visibility" above.
+0. **Build, migrate, and seed the Stock Module (Inflow/Outflow) + dynamic dropdown options** -
+   see "Stock Module" above for the full what/why. Nothing verified yet, not even a
+   `dotnet build` - this is the most recent, least-checked work in the repo right now and
+   should be the very next thing done, ahead of the older items below.
 2. **Verify the Form Builder UI against the real Postgres/Railway database** - see
    "Built and verified in Code's sandbox" above. Same bar every other phase has already
    cleared; the target database changed (Azure SQL -> Postgres) since this was written.
