@@ -136,11 +136,15 @@ the current database.
   ("مشروع تجريبي" / DEMO-01) and its 3 demo zones/footings/floors are still live - delete
   once real project data replaces them.
 - **Stock Module (Stock Inflow / Stock Outflow forms) + dynamic dropdown options - built
-  2026-10-04, genuinely unverified so far, not even in Code's sandbox.** NuGet was blocked
-  this session (not just the SDK missing - see CLAUDE.md's gotcha), so unlike the branching
-  feature's "hand-written but compiled elsewhere" history, nothing here has been built,
-  tested, or run at all yet - not a real `dotnet build`, not the migration, not the seed
-  script. Treat it as a first draft that happens to be careful, not as verified code.
+  and seeded into live production 2026-10-04; migration, build, and both forms all
+  confirmed live. Not yet confirmed in the real browser UI with real data (see "Next
+  step" below).** The hand-written `20261004120000_AddFieldDynamicOptionsSource` migration
+  (NuGet was blocked this session, same as the branching feature before it - see CLAUDE.md's
+  gotcha) proved well-formed: `dotnet build`/`dotnet ef migrations list`/`dotnet ef database
+  update` all succeeded against the live Railway Postgres from the project owner's machine
+  (needed explicit `--project src\Platform.Infrastructure --startup-project src\Platform.Api`
+  flags - no root-level `.sln`/`.csproj`, so bare `dotnet ef` from the repo root can't infer
+  a project).
 
   New capability: a Dropdown field can source its options live from the distinct values
   submitted for a field on another form (`FieldDefinition.DynamicOptionsSourceFormDefinitionId`/
@@ -150,14 +154,24 @@ the current database.
   `claude/stock-module-inflow-outflow-design.md` (Construction Software Claude.ai project) -
   not a fixed list, and not a shared master-data form either.
 
-  **Next steps, in order**: (1) `dotnet build`/`dotnet ef migrations list` on the project
-  owner's machine to confirm the hand-written `20261004120000_AddFieldDynamicOptionsSource`
-  migration + Designer.cs are well-formed (same confidence check the branching feature's
-  migration got); (2) `dotnet ef database update` against the live Railway Postgres; (3) run
-  `scripts/seed-stock-inflow-outflow-forms.ps1` against the live API (Inflow before Outflow -
-  order matters, see the script's own header); (4) real end-to-end check in the live app:
-  submit a real Inflow row, confirm Outflow's Material/Unit/Issued-from dropdowns
-  immediately offer what was just typed, not a stale or empty list.
+  **Seeding hit a real, now-fixed PowerShell bug** - `scripts/seed-stock-inflow-outflow-forms.ps1`'s
+  `Add-Field` helper typed its optional parameters `[string]$X = $null`, which PowerShell
+  silently coerces to `""` whenever the caller omits them; `""` doesn't parse as the
+  backend's `Guid?`, so every field add that didn't pass every optional parameter 400'd with
+  what looked like a real backend validation bug. Diagnosed via isolated manual retries
+  (which used raw untyped `$null` and worked) vs. the batched helper calls (which didn't) -
+  see CLAUDE.md's new "Known environment gotchas" entry for the full writeup. Fixed in the
+  script (parameters are now untyped) and confirmed: a second, corrected run seeded every
+  remaining field on both forms cleanly. Live IDs: Stock Inflow `d5c9c968-80e0-4b70-93f4-
+  c17fd9b0b41b` (9 fields: date, project, material/material_other, quantity, unit,
+  storage_location, attachment, notes - Published), Stock Outflow `280c96b8-6fec-48e3-
+  ac75-7022bdb0238b` (8 fields: date, project, material/unit/issued_from all dynamic-sourced
+  from Inflow, quantity, reason/reason_other - Published).
+
+  **Next step**: real end-to-end check in the live app by the project owner - submit a real
+  Inflow row (material/unit/storage location), then open Outflow and confirm its Material/
+  Unit/Issued-from dropdowns immediately offer exactly what was just typed, not a stale or
+  empty list. Nothing else known to be outstanding on this feature once that's confirmed.
 
 ## What just got fixed along the way (worth knowing, not just "it works now")
 
@@ -201,10 +215,10 @@ actually looking at it.
 1. ~~Build and run the conditional-field-visibility backend changes~~ - **done.** Migration
    applied to the live database, seed script run against production, branching confirmed
    by the project owner in the real app - see "Conditional field visibility" above.
-0. **Build, migrate, and seed the Stock Module (Inflow/Outflow) + dynamic dropdown options** -
-   see "Stock Module" above for the full what/why. Nothing verified yet, not even a
-   `dotnet build` - this is the most recent, least-checked work in the repo right now and
-   should be the very next thing done, ahead of the older items below.
+0. ~~Build, migrate, and seed the Stock Module (Inflow/Outflow) + dynamic dropdown options~~ -
+   **done.** Migration applied, both forms seeded and published live - see "Stock Module"
+   above. Only remaining piece: the project owner confirming in the real app that a
+   submitted Inflow row shows up live in Outflow's dynamic dropdowns.
 2. **Verify the Form Builder UI against the real Postgres/Railway database** - see
    "Built and verified in Code's sandbox" above. Same bar every other phase has already
    cleared; the target database changed (Azure SQL -> Postgres) since this was written.

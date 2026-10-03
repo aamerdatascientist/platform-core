@@ -243,6 +243,25 @@ through the builder instead of a script.
   `Format-Hex script.ps1 -Count 3` (expect `EF BB BF`) before treating any new
   Arabic-content `.ps1` file as done - a script with no Arabic literals at all (e.g.
   `seed-stock-adjustment-workflow.ps1`) doesn't need this.
+- **PowerShell: a `[string]$Param = $null` function parameter silently becomes `""` (empty
+  string), not `$null`, whenever the caller omits it** - discovered 2026-10-04 seeding the
+  Stock Module, and it cost real time because the symptom looked like a server-side bug:
+  every optional field (`OptionsJson`, `LookupFormDefinitionId`, `DynamicOptionsSourceFormDefinitionId`,
+  etc.) on `seed-stock-inflow-outflow-forms.ps1`'s `Add-Field` helper is typed `[string]...=
+  $null`, and PowerShell's own type-coercion-on-bind turns that default into `""` once the
+  parameter is actually read inside the function - `ConvertTo-Json` then happily emits
+  `"dynamicOptionsSourceFormDefinitionId": ""` instead of `null`, and the backend's `Guid?`
+  parser correctly rejects an empty string with a 400 (`"The JSON value could not be
+  converted to ...AddFieldRequest"`), which reads exactly like a real validation bug in the
+  new backend code until you isolate it. The tell: a hand-built, *untyped* `$null` variable
+  passed the same way (outside any `[string]`-typed function parameter) serializes to real
+  JSON `null` and works fine - so an isolated manual retry of a "failing" call often
+  succeeds, while the identical call through the helper function keeps failing, which is a
+  strong signal to check parameter types before anything else. **Fix:** never put a
+  `[string]` (or any value/reference type annotation) on a PowerShell parameter whose
+  default is `$null` and which is going to flow into `ConvertTo-Json` - leave it untyped
+  (just `$Param = $null`). Checked the rest of `scripts/*.ps1` for the same pattern (`grep
+  '\[string\]\$\w+ = \$null'`) - only this one script had it, now fixed.
 - **Azure App Service (Linux) needs "Always On" enabled explicitly**, in Configuration ->
   General settings, or the worker process unloads after ~20 min with no requests and the
   next one pays a real cold-start cost. Unrelated to database auto-pausing - Postgres/

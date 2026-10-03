@@ -80,12 +80,18 @@ function Add-Field {
         [Parameter(Mandatory = $true)][string]$Label,
         [Parameter(Mandatory = $true)][string]$FieldType,
         [Parameter(Mandatory = $true)][bool]$IsRequired,
-        [string]$OptionsJson = $null,
-        [string]$LookupFormDefinitionId = $null,
-        [string]$VisibleWhenFieldCode = $null,
-        [string]$VisibleWhenValuesJson = $null,
-        [string]$DynamicOptionsSourceFormDefinitionId = $null,
-        [string]$DynamicOptionsSourceFieldCode = $null
+        # Deliberately untyped (no [string]) - see CLAUDE.md's "PowerShell [string]$x = $null
+        # coerces to empty string" gotcha. A [string]-typed parameter defaulting to $null
+        # silently becomes "" when the caller omits it, and "" fails to parse as a Guid? on
+        # the backend (empty string isn't null) - every optional field here is a Guid? or a
+        # string the backend treats as "absent means null", so all of them have to carry
+        # real PowerShell $null through to ConvertTo-Json, not "".
+        $OptionsJson = $null,
+        $LookupFormDefinitionId = $null,
+        $VisibleWhenFieldCode = $null,
+        $VisibleWhenValuesJson = $null,
+        $DynamicOptionsSourceFormDefinitionId = $null,
+        $DynamicOptionsSourceFieldCode = $null
     )
     $json = @{
         code                                 = $Code
