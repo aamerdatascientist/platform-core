@@ -8,6 +8,7 @@ using Platform.Application.Workflow.Commands.DeleteWorkflowDefinition;
 using Platform.Application.Workflow.Commands.PublishWorkflowDefinition;
 using Platform.Application.Workflow.Dtos;
 using Platform.Application.Workflow.Queries.GetWorkflowDefinition;
+using Platform.Application.Workflow.Queries.GetWorkflowsList;
 
 namespace Platform.Api.Controllers;
 
@@ -19,6 +20,10 @@ public class WorkflowsController : ControllerBase
     private readonly ISender _sender;
 
     public WorkflowsController(ISender sender) => _sender = sender;
+
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<WorkflowSummaryDto>>> List(CancellationToken cancellationToken) =>
+        Ok(await _sender.Send(new GetWorkflowsListQuery(), cancellationToken));
 
     public record CreateWorkflowRequest(string Code, string Name, Guid FormDefinitionId);
 
