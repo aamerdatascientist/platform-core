@@ -118,9 +118,9 @@ actually looking at it.
    disappear from navigation, the admin-only actions are hidden or gated correctly in the
    Form Builder UI, and there's a real way for an admin to manage per-user grants, not
    just blocked server-side.
-3. **Real-device retest of the mobile horizontal-overflow fix** (PR #28) before merging -
-   still open, not addressed this session - see that section below for the preview URL.
-   Reported by real users; treat as high priority.
+3. ~~Real-device retest of the mobile horizontal-overflow fix~~ - **done.** Fixed, merged
+   to `main`, and confirmed by the user on a real phone this session - see the "Mobile
+   horizontal-overflow fix" section below for the real root cause and fix.
 4. **A human look at "Structural steel" in a real browser** - see the note above. Code's
    sandbox verified layout/measurements/colors programmatically, which isn't the same as
    someone actually using it, especially across both languages and both modes together.
@@ -355,35 +355,40 @@ mechanism to localize any of them now exists and is cheap to extend (give the ex
 code, add the two locale-file entries), but doing so for every one of them was treated as
 separate follow-up work, not part of this PR.
 
-## Mobile horizontal-overflow fix (PR OPEN, NOT YET CONFIRMED)
+## Mobile horizontal-overflow fix - FIXED, confirmed on a real phone (PR #28 superseded/closed)
 
-**PR #28, `fix/mobile-horizontal-overflow` -> `main`, open but not merged.** Real users
-reported needing to zoom out / being able to swipe horizontally on mobile, on every
-screen, both languages - initially investigated as a viewport-meta-tag or global-CSS
-issue (both ruled out: the tag is present and correct, and Playwright mobile-device
-emulation across 7+ screens/both languages/multiple device widths never reproduced any
-page-level overflow).
+**Resolved this session, merged straight to `main` (not via PR #28 - see below).** Real
+users reported being able to pan/scroll left-right on mobile when they shouldn't be able
+to, on every screen, both languages.
 
-**Real cause, found from an actual screen recording on a real iPhone 16 Pro Max**: a
-touch swipe on the Daily Site Report + submissions table screen shifted a field label and
-the table's right-edge columns together - a page-level shift, not the table's own
-intentional internal scroll. This is iOS Safari's elastic/rubber-band overscroll, not a
-persistent DOM overflow (which is why static viewport checks, even real-device-emulated
-ones, never caught it - `documentElement.scrollWidth` never actually exceeds
-`innerWidth`). `Layout.tsx`'s own `overflow-hidden` only ever contained its inner `<div>`,
-never reaching `html`/`body` - the true document root had zero horizontal-overflow
-protection. Fixed with `overflow-x: hidden` + `overscroll-behavior-x: none` on
-`html, body` in `index.css`.
+**The diagnosis above (PR #28's `html`/`body` fix) was wrong and is superseded.** It was
+never confirmed against real Safari, and real-device retesting after it shipped proved it
+changed nothing (`overflow-x: hidden` and `overscroll-behavior-x: none` on `html, body`,
+then also `touch-action: pan-y` - three consecutive attempts, three confirmed non-fixes).
+Root cause, found only by extracting and watching frames from the user's own screen
+recording: `Layout.tsx`'s root div is deliberately `h-screen overflow-hidden` so the
+document itself never scrolls - `html`/`body` were never the scrolling element in the
+first place, so CSS on them was always inert. The real scrolling container is
+`<main className="overflow-y-auto">`, and the bug was diagonal scroll-bleed on *that*
+element (drifting left while actively scrolling a form, snapping back to 0 at rest), not
+page-level overflow or rubber-band bounce. Moving the same three properties
+(`overflow-x-hidden overscroll-x-none touch-pan-y`) onto `<main>` fixed it for real.
+**Confirmed by the user on a real phone: "great now its fixed."** See `CLAUDE.md`'s
+"Known engineering gotchas" for the full writeup and the new standing rule (scroll/touch
+CSS goes on the actual `overflow-y-auto` container, never assumed onto `html`/`body`).
 
-**Not yet confirmed against real Safari** - this sandbox only has Chromium available (no
-WebKit binary at all), and a Chromium touch-event simulation predictably showed no shift
-either before or after the fix, since Chromium doesn't implement Safari's elastic-scroll
-physics. **Needs a real-device retest** (re-recording the same Daily Site Report swipe) on
-the PR's preview URL before merging with confidence:
-`https://black-field-04a8cb300-28.eastasia.7.azurestaticapps.net`
+**PR #28 itself was superseded, not merged** - the team moved to merging fixes straight to
+`main` and testing live on the phone instead of iterating through PR preview deploys. Its
+branch/preview URL can be considered dead.
 
-The same investigation also surfaced two things worth flagging separately, not related to
-the mobile CSS fix itself:
+**A second, related bug found and fixed in the same session**: iOS Safari auto-zooms the
+page on sign-in (and anywhere else) because most inputs use Tailwind's `text-sm`/`text-xs`
+(under the 16px iOS needs to skip its focus-zoom), and the SPA's client-side routing never
+resets it. Fixed with a global, mobile-only `font-size: 16px !important` override on
+`input`/`select`/`textarea` in `index.css`. Confirmed fixed by the user.
+
+The earlier investigation (before the real root cause was found) also surfaced two things
+worth flagging separately, not related to the mobile CSS fix itself:
 - **Sign-in took ~55-60 seconds in the reporter's recording.** Not yet root-caused with
   certainty - no Application Insights SDK exists in this codebase to pull real request
   timing from, and the sandbox can't reach the live backend or Azure SQL to check
