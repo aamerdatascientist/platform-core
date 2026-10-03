@@ -151,26 +151,35 @@ sidebar nav for an excluded user. A role grant only takes effect after the user'
 with no relogin needed, since `FormDefinitionRoles`/`FormDefinitionUsers` are checked fresh
 against the DB on every request, never JWT-cached.
 
-**Real finding, not yet fixed: Administrators get no automatic bypass of per-form access
-restrictions, and there is no self-service recovery path in the UI if an admin's own account
-ends up excluded.** `GET /api/forms/{id}` enforces the restriction uniformly for every
-caller, `Administrator` role included - so an admin who restricts a form to a role/user set
-that doesn't include their own account locks themselves out of that form's Builder page too,
-not just end-user viewing. If the restriction is per-user-only (not role-based), there's no
-self-service way to undo it at all: fixing it means reopening the very same form's Access
-panel that is now unreachable, and `/admin/users` has no way to touch per-form access. Hit
-for real this session on a throwaway test form - required direct database access
-(`DELETE FROM "FormDefinitionRoles"/"FormDefinitionUsers" WHERE "FormDefinitionId" = ...`) to
-recover, since no API or UI path existed once the admin doing the testing was the one locked
-out.
+**Real finding, fixed 2026-10-04: Administrators previously got no automatic bypass of
+per-form access restrictions, and there was no self-service recovery path in the UI if an
+admin's own account ended up excluded.** `GET /api/forms/{id}` enforced the restriction
+uniformly for every caller, `Administrator` role included - so an admin who restricted a
+form to a role/user set that didn't include their own account locked themselves out of that
+form's Builder page too, not just end-user viewing. If the restriction was per-user-only (not
+role-based), there was no self-service way to undo it at all: fixing it meant reopening the
+very same form's Access panel that was now unreachable, and `/admin/users` has no way to
+touch per-form access. Hit for real on a throwaway test form - required direct database
+access (`DELETE FROM "FormDefinitionRoles"/"FormDefinitionUsers" WHERE "FormDefinitionId" =
+...`) to recover, since no API or UI path existed once the admin doing the testing was the
+one locked out.
 
-**Worth a real fix before this bites a production form, not a throwaway test one**: either
-exempt `Administrator` from per-form restrictions outright (simplest, and matches the "Full
-system access" framing already shown next to it in the Roles list), or add a server-side
-guard that refuses to save an Access-panel change that would exclude the acting admin's own
-account/role, or add an explicit break-glass path (e.g. a super-admin-only "reset this form's
-access" action) that doesn't depend on the form's own, now-unreachable Access panel. Not yet
-scheduled - see `docs/PROJECT_STATUS.md`.
+**Fix (the "exempt Administrator outright" option, chosen as simplest and matching the "Full
+system access" framing already shown next to it in the Roles list)**: `FormAccessChecker.
+HasAccess` now checks `callerRoleNames.Contains("Administrator", ...)` first and returns
+`true` immediately, before looking at a form's configured roles/users at all. This is the one
+shared helper behind every access check in the backend (`GetFormDefinitionQuery`,
+`GetFormsListQuery`, `SubmitFormDataCommand`, and every request routed through
+`FormAccessBehavior` - uploads/downloads/deletes of files, workflow status/transitions, form
+submissions list), so the fix applies everywhere at once with no other code changes needed.
+An Administrator can no longer be excluded from any form, full stop - there's deliberately no
+"restrict even from admins" escape hatch, since that's exactly the lockout this closes.
+NuGet was blocked in the sandbox that made this change (same recurring gotcha - see below),
+so it was verified by code-reading pattern-match against the file's own existing
+`Contains(..., StringComparer.OrdinalIgnoreCase)` usage (already proven to compile here), not
+a local `dotnet build` - confirm it actually built via `deploy-api.yml`'s GitHub Actions run
+on push, and confirm live in the app: restrict a form to exclude your own account/role and
+confirm you still have full access, including to that form's own Access panel.
 
 ## Established code conventions
 

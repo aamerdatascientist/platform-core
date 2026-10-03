@@ -261,11 +261,15 @@ actually looking at it.
    real finding along the way: admins have no bypass of per-form restrictions and can lock
    themselves out of a form's own Builder page with no self-service recovery - see "Built
    and verified" above and `CLAUDE.md`'s new "Form access control" section.
-2. **Fix the admin self-lockout gap just found** - not yet scheduled. See `CLAUDE.md`'s
-   "Form access control" section for the three fix options considered (exempt
-   `Administrator` outright, block a self-excluding Access-panel save, or add a break-glass
-   reset action). Worth doing before a real (non-test) form gets restricted this way in
-   production.
+2. ~~Fix the admin self-lockout gap just found~~ - **done, 2026-10-04** (code change only -
+   see `CLAUDE.md`'s "Form access control" section). `FormAccessChecker.HasAccess` now
+   exempts `Administrator` outright, before any restriction check runs - applies everywhere
+   at once since every access check in the backend goes through this one helper. **Not yet
+   build/deploy verified**: NuGet was blocked in the sandbox that made this change, so it
+   hasn't run through a real `dotnet build` yet - check the `deploy-api.yml` GitHub Actions
+   run on push, and confirm live in the app (restrict a form to exclude your own account,
+   confirm you keep full access including to that form's own Access panel) before treating
+   this as closed.
 3. ~~Real-device retest of the mobile horizontal-overflow fix~~ - **done.** Fixed, merged
    to `main`, and confirmed by the user on a real phone this session - see the "Mobile
    horizontal-overflow fix" section below for the real root cause and fix.
