@@ -135,10 +135,9 @@ the current database.
   stakeholder decision before building a `project_rooms` form). The demo project
   ("مشروع تجريبي" / DEMO-01) and its 3 demo zones/footings/floors are still live - delete
   once real project data replaces them.
-- **Stock Module (Stock Inflow / Stock Outflow forms) + dynamic dropdown options - built
-  and seeded into live production 2026-10-04; migration, build, and both forms all
-  confirmed live. Not yet confirmed in the real browser UI with real data (see "Next
-  step" below).** The hand-written `20261004120000_AddFieldDynamicOptionsSource` migration
+- **Stock Module (Stock Inflow / Stock Outflow forms) + dynamic dropdown options - done,
+  verified end-to-end against real data in the live app, 2026-10-04.** The hand-written
+  `20261004120000_AddFieldDynamicOptionsSource` migration
   (NuGet was blocked this session, same as the branching feature before it - see CLAUDE.md's
   gotcha) proved well-formed: `dotnet build`/`dotnet ef migrations list`/`dotnet ef database
   update` all succeeded against the live Railway Postgres from the project owner's machine
@@ -168,10 +167,33 @@ the current database.
   ac75-7022bdb0238b` (8 fields: date, project, material/unit/issued_from all dynamic-sourced
   from Inflow, quantity, reason/reason_other - Published).
 
-  **Next step**: real end-to-end check in the live app by the project owner - submit a real
-  Inflow row (material/unit/storage location), then open Outflow and confirm its Material/
-  Unit/Issued-from dropdowns immediately offer exactly what was just typed, not a stale or
-  empty list. Nothing else known to be outstanding on this feature once that's confirmed.
+  **Real-data verification, done.** The project owner submitted a real Inflow row (cement /
+  bag / batha) and confirmed Outflow's Material/Unit/Issued-from dropdowns immediately
+  offered exactly those values - the dynamic-options capability works end to end. Outflow's
+  own submission then hit a second, real bug, now fixed and confirmed:
+
+  **`CreateTableAsync`'s NOT NULL bug, found and fixed.** The bulk DDL that runs at a form's
+  first publish decided a column's nullability from `IsRequired` alone, ignoring
+  `VisibleWhenFieldCode` - so `reason_other` (required only when `reason = "other"`, same
+  shape as `material_other`) got a real physical `NOT NULL` constraint, and every submission
+  that correctly omitted it (any `reason` other than "other" - i.e. almost every real
+  submission) was rejected by Postgres and surfaced as a generic 500. This had never been hit
+  before because every prior conditional field in this codebase (`material_other`,
+  `delay_cause`, `problem_description`) happened to be added to an *already-published* form,
+  going through the always-nullable `AddColumnAsync` live-edit path instead - Stock Outflow
+  is the first form built with a conditional, required-when-visible field present before its
+  first publish. Fixed in `DynamicSchemaService.CreateTableAsync` (now checks
+  `IsRequired && string.IsNullOrWhiteSpace(VisibleWhenFieldCode)`) and confirmed CLAUDE.md's
+  "Known engineering gotchas" section has the full writeup. The live `Data_StockOutflow`
+  table's `reason_other` column was manually fixed with `ALTER TABLE ... DROP NOT NULL`
+  against the real Railway Postgres (the code fix only prevents this for *future* first
+  publishes, it doesn't retroactively change existing tables) - confirmed via a clean
+  Outflow resubmission afterward. Checked Daily Progress Report's `delay_cause`/
+  `problem_description` for the same exposure: safe, since that seed script created them
+  with `IsRequired = false` and added the visibility condition as a separate step, so they
+  never hit this path.
+
+  Nothing else known to be outstanding on this feature.
 
 ## What just got fixed along the way (worth knowing, not just "it works now")
 

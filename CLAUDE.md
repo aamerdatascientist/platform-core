@@ -548,6 +548,40 @@ hunting down every input's className individually - `!important` is deliberate h
 it has to beat every `text-sm`/`text-xs` utility class site-wide, and the media query keeps
 desktop's actual text sizing untouched.
 
+**`DynamicSchemaService.CreateTableAsync` (the bulk DDL that runs at a form's first publish)
+decided a column's nullability from `FieldDefinition.IsRequired` alone, ignoring
+`VisibleWhenFieldCode` - so a conditionally-required field (required only when another field
+has a particular value, e.g. `reason_other` required only when `reason = "other"`) got a
+real physical `NOT NULL` constraint.** Every submission that correctly omits it - which is
+every submission where the controlling field doesn't pick the one value that shows it, i.e.
+nearly all real-world submissions - gets rejected by Postgres with a raw not-null-constraint
+violation, surfaced to the submitter as nothing more specific than a generic 500. Hit for
+real on Stock Outflow's `reason_other` 2026-10-04: the Daily Progress Report form has had
+this exact shape of field (`delay_cause`/`problem_description`) in production for a while
+with no issue, purely by accident - that seed script created them with `IsRequired = false`
+and added the visibility condition as a separate step afterward, so they never got a NOT
+NULL column in the first place. `AddColumnAsync` (the live-edit path used when a field is
+added to an *already-published* form) already gets this right - it's unconditionally
+nullable regardless of `IsRequired`, with a comment explaining why - so any conditional
+field added that way was always safe too. The bug only bites a field that is both (a)
+`IsRequired = true` and conditionally required via `VisibleWhenFieldCode`, and (b) present
+on the form *before its first publish* (so it goes through the bulk `CreateTableAsync` path
+instead). Stock Outflow was the first form in this codebase built that way (every field
+added while still Draft, one single first publish at the end) with a conditionally-required
+field in the mix.
+
+**Fix, now the established convention:** `CreateTableAsync`'s nullability check is
+`field.IsRequired && string.IsNullOrWhiteSpace(field.VisibleWhenFieldCode)` - only an
+*unconditionally* required field gets a real `NOT NULL`; one that's required-when-visible
+always gets a nullable column, matching `AddColumnAsync` and matching what
+`SubmissionValueValidator.IsFieldVisible` actually enforces at submission time (a
+conditionally-hidden field is never required, no matter what `IsRequired` says). Fixing the
+code does not retroactively fix a column already created the wrong way - that needs a direct
+`ALTER TABLE ... ALTER COLUMN ... DROP NOT NULL` against the live database, same as was done
+for `Data_StockOutflow.reason_other`. Check any *new* form built field-by-field before its
+first publish (rather than incrementally after) for a conditionally-required field before
+this bites a third time.
+
 ## The one rule that's mattered most
 
 **Every phase gets tested end-to-end against real data before moving to the next phase -
