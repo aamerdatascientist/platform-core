@@ -550,7 +550,17 @@ public class DynamicSchemaService : IDynamicSchemaService
         foreach (var field in fields)
         {
             SqlTypeMapper.AssertSafePostgresIdentifier(field.Code);
-            var nullability = field.IsRequired ? "NOT NULL" : "NULL";
+            // A conditionally-required field (VisibleWhenFieldCode set) is never actually
+            // required on the wire - SubmissionValueValidator.IsFieldVisible deliberately
+            // never enforces IsRequired for one, since the controlling field might not select
+            // the value that shows it. A physical NOT NULL here would reject every submission
+            // where the field is correctly hidden/omitted, which is every submission that
+            // doesn't pick the one branch that shows it. AddColumnAsync (the live-edit path)
+            // already gets this right by always being nullable regardless of IsRequired; this
+            // bulk first-publish path has to match that, scoped to the conditional case only -
+            // an unconditionally required field still gets a real NOT NULL.
+            var isUnconditionallyRequired = field.IsRequired && string.IsNullOrWhiteSpace(field.VisibleWhenFieldCode);
+            var nullability = isUnconditionallyRequired ? "NOT NULL" : "NULL";
             columns.Append($",\n    \"{field.Code}\" {SqlTypeMapper.ToPostgresColumnType(field.FieldType)} {nullability}");
         }
 
