@@ -12,6 +12,7 @@ using Platform.Application.Forms.Commands.RenameFieldCode;
 using Platform.Application.Forms.Commands.ReorderFields;
 using Platform.Application.Forms.Commands.RestoreField;
 using Platform.Application.Forms.Commands.UpdateFieldLabel;
+using Platform.Application.Forms.Commands.UpdateFieldVisibility;
 using Platform.Application.Forms.Commands.SetFormAllowedRoles;
 using Platform.Application.Forms.Commands.SetFormAllowedUsers;
 using Platform.Application.Forms.Commands.StartNewFormVersion;
@@ -65,7 +66,8 @@ public class FormsController : ControllerBase
 
     public record AddFieldRequest(
         string Code, string Label, FieldType FieldType, bool IsRequired,
-        string? OptionsJson, Guid? LookupFormDefinitionId, string? ValidationRulesJson);
+        string? OptionsJson, Guid? LookupFormDefinitionId, string? ValidationRulesJson,
+        string? VisibleWhenFieldCode = null, string? VisibleWhenValuesJson = null);
 
     [HttpPost("{id:guid}/fields")]
     [Authorize(Roles = "Administrator")]
@@ -73,7 +75,8 @@ public class FormsController : ControllerBase
     {
         var fieldId = await _sender.Send(new AddFieldDefinitionCommand(
             id, request.Code, request.Label, request.FieldType, request.IsRequired,
-            request.OptionsJson, request.LookupFormDefinitionId, request.ValidationRulesJson), cancellationToken);
+            request.OptionsJson, request.LookupFormDefinitionId, request.ValidationRulesJson,
+            request.VisibleWhenFieldCode, request.VisibleWhenValuesJson), cancellationToken);
 
         return Ok(new { id = fieldId });
     }
@@ -92,6 +95,21 @@ public class FormsController : ControllerBase
         Guid id, Guid fieldId, UpdateFieldLabelRequest request, CancellationToken cancellationToken)
     {
         await _sender.Send(new UpdateFieldLabelCommand(id, fieldId, request.Label), cancellationToken);
+        return NoContent();
+    }
+
+    public record UpdateFieldVisibilityRequest(string? VisibleWhenFieldCode, string? VisibleWhenValuesJson);
+
+    /// <summary>Safe: metadata only, no column touched. Works on a published form with live
+    /// data. Send both fields null/empty to clear the condition.</summary>
+    [HttpPut("{id:guid}/fields/{fieldId:guid}/visibility")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> UpdateFieldVisibility(
+        Guid id, Guid fieldId, UpdateFieldVisibilityRequest request, CancellationToken cancellationToken)
+    {
+        await _sender.Send(
+            new UpdateFieldVisibilityCommand(id, fieldId, request.VisibleWhenFieldCode, request.VisibleWhenValuesJson),
+            cancellationToken);
         return NoContent();
     }
 

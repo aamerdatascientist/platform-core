@@ -118,12 +118,51 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
     }
   }
 
+  // Mirrors the backend's SubmissionValueValidator.IsFieldVisible exactly - a field with no
+  // condition is always visible; otherwise it's visible only when its controlling field's
+  // CURRENT value (from this component's own `values` state, not the backend) is one of
+  // visibleWhenValuesJson. Keeping these two implementations in sync is what makes the "same
+  // 3-question shape per phase" branching form actually work: this is what hides/shows the
+  // right block as the person picks a Phase, and the backend copy is what still enforces it
+  // if a submission ever bypasses this UI (direct API use, a stale cached form, etc.).
+  function isFieldVisible(field: FieldDefinitionDto): boolean {
+    if (!field.visibleWhenFieldCode) return true;
+    const controllingValue = values[field.visibleWhenFieldCode];
+    if (controllingValue === undefined) return false;
+    try {
+      const allowed = JSON.parse(field.visibleWhenValuesJson ?? '[]') as string[];
+      return allowed.includes(controllingValue);
+    } catch {
+      return false;
+    }
+  }
+
+  const visibleFields = useMemo(() => activeFields.filter(isFieldVisible), [activeFields, values]);
+
+  // When a controlling field's value changes and that hides a field that previously had a
+  // value, drop the stale value from state too - otherwise switching Phase from Excavation to
+  // Foundation and back would silently resubmit a leftover zone value alongside the new
+  // footing one, even though the zone input is no longer shown. Comparing against
+  // visibleFields (not activeFields) is what limits this to fields that just became hidden.
+  useEffect(() => {
+    const hiddenCodesWithValues = activeFields
+      .filter((f) => !isFieldVisible(f) && values[f.code] !== undefined)
+      .map((f) => f.code);
+    if (hiddenCodesWithValues.length === 0) return;
+    setValues((prev) => {
+      const next = { ...prev };
+      hiddenCodesWithValues.forEach((code) => delete next[code]);
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [values]);
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
 
     const missing: Record<string, string> = {};
-    activeFields.forEach((f) => {
+    visibleFields.forEach((f) => {
       if (!f.isRequired) return;
       const isMissing = f.fieldType === 'Attachment' ? !attachmentFiles[f.code] : !values[f.code];
       if (isMissing) missing[f.code] = FIELD_REQUIRED_SENTINEL;
@@ -137,7 +176,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
     setSubmitting(true);
     try {
       const payload: Record<string, unknown> = {};
-      activeFields.forEach((f) => {
+      visibleFields.forEach((f) => {
         if (f.fieldType === 'Attachment') return; // never part of the JSON body - no physical column
         const raw = values[f.code];
         if (raw === undefined || raw === '') {
@@ -153,7 +192,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
 
       const { id: recordId } = await api.submissions.submit(token, formDefinition.id, payload);
 
-      const attachmentFieldsWithFiles = activeFields.filter(
+      const attachmentFieldsWithFiles = visibleFields.filter(
         (f) => f.fieldType === 'Attachment' && attachmentFiles[f.code],
       );
 
@@ -204,7 +243,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {activeFields.map((field) => (
+      {visibleFields.map((field) => (
         <FieldInput
           key={field.id}
           field={field}

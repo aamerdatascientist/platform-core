@@ -29,6 +29,12 @@ export interface FieldDefinitionDto {
   /** Only meaningful when fieldType is Lookup. */
   lookupFormDefinitionId: string | null;
   validationRulesJson: string | null;
+  /** Conditional-visibility ("branching"): the Code of another field on the SAME form
+   *  version that controls whether this field is shown. Null = always visible (default). */
+  visibleWhenFieldCode: string | null;
+  /** JSON-encoded string[] - the controlling field's values that make this field visible.
+   *  Only meaningful when visibleWhenFieldCode is set. Parse before use. */
+  visibleWhenValuesJson: string | null;
 }
 
 export interface FormVersionDto {

@@ -10,6 +10,27 @@ const FIELD_TYPES: FieldType[] = [
 
 const inputClass = 'w-full border border-border rounded bg-bg px-2 py-1.5 text-sm focus:border-accent focus:outline-none';
 
+/** Same shape AddFieldForm uses to turn a Dropdown's OptionsJson (or a Boolean's implicit
+ *  Yes/No) into checkable values for a visibility condition. Kept in sync by hand - both
+ *  read the same FieldDefinitionDto shape, there's just no shared module between the two
+ *  components yet. */
+function parseFieldOptions(
+  field: FieldDefinitionDto,
+  t: (key: string) => string,
+): { value: string; label: string }[] {
+  if (field.fieldType === 'Boolean') {
+    return [
+      { value: 'true', label: t('common.yes') },
+      { value: 'false', label: t('common.no') },
+    ];
+  }
+  try {
+    return field.optionsJson ? (JSON.parse(field.optionsJson) as { value: string; label: string }[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 interface FieldEditorRowProps {
   token: string;
   formId: string;
@@ -20,13 +41,15 @@ interface FieldEditorRowProps {
   isFirst: boolean;
   isLast: boolean;
   lookupTargets: FormSummaryDto[];
+  /** Other fields on this version this one could branch on - Dropdown/Boolean only. */
+  controllableFields: FieldDefinitionDto[];
   onChanged: () => Promise<void> | void;
   onMove: (fieldId: string, direction: -1 | 1) => Promise<void> | void;
 }
 
 /** Which risky operation has its confirmation open. Only one at a time - these each state a
  *  different consequence, and stacking them would make it ambiguous what's being confirmed. */
-type OpenPanel = 'none' | 'code' | 'type' | 'remove';
+type OpenPanel = 'none' | 'code' | 'type' | 'remove' | 'visibility';
 
 /**
  * One field in the builder, with all six edit operations split by risk exactly the way the
@@ -40,7 +63,7 @@ type OpenPanel = 'none' | 'code' | 'type' | 'remove';
  *   single "delete" that silently picks between archiving and destroying data.
  */
 export function FieldEditorRow({
-  token, formId, field, isLive, isFirst, isLast, lookupTargets, onChanged, onMove,
+  token, formId, field, isLive, isFirst, isLast, lookupTargets, controllableFields, onChanged, onMove,
 }: FieldEditorRowProps) {
   const { t } = useTranslation();
   const [error, setError] = useErrorMessage();
@@ -54,12 +77,41 @@ export function FieldEditorRow({
   const [lookupTargetDraft, setLookupTargetDraft] = useState(field.lookupFormDefinitionId ?? '');
   const [deleteConfirmDraft, setDeleteConfirmDraft] = useState('');
 
+  const [conditionFieldDraft, setConditionFieldDraft] = useState(field.visibleWhenFieldCode ?? '');
+  const [conditionValuesDraft, setConditionValuesDraft] = useState<Set<string>>(() => {
+    try {
+      return new Set(field.visibleWhenValuesJson ? (JSON.parse(field.visibleWhenValuesJson) as string[]) : []);
+    } catch {
+      return new Set();
+    }
+  });
+
+  function toggleConditionValueDraft(value: string) {
+    setConditionValuesDraft((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+  }
+
+  const conditionFieldDraftDef = controllableFields.find((f) => f.code === conditionFieldDraft);
+  const conditionFieldDraftOptions = conditionFieldDraftDef ? parseFieldOptions(conditionFieldDraftDef, t) : [];
+
   function closePanel() {
     setPanel('none');
     setError(null);
     setCodeDraft(field.code);
     setTypeDraft(field.fieldType);
     setDeleteConfirmDraft('');
+    setConditionFieldDraft(field.visibleWhenFieldCode ?? '');
+    try {
+      setConditionValuesDraft(
+        new Set(field.visibleWhenValuesJson ? (JSON.parse(field.visibleWhenValuesJson) as string[]) : []),
+      );
+    } catch {
+      setConditionValuesDraft(new Set());
+    }
   }
 
   async function run(action: () => Promise<void>, fallbackKey: string) {
@@ -165,6 +217,16 @@ export function FieldEditorRow({
             </button>
           ) : (
             <>
+              {controllableFields.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setPanel(panel === 'visibility' ? 'none' : 'visibility')}
+                  disabled={busy}
+                  className="text-[11px] uppercase tracking-wide text-ink-soft hover:opacity-70"
+                >
+                  {field.visibleWhenFieldCode ? t('fieldEditor.visibilitySet') : t('fieldEditor.visibility')}
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setPanel(panel === 'code' ? 'none' : 'code')}
@@ -193,6 +255,70 @@ export function FieldEditorRow({
           )}
         </span>
       </div>
+
+      {/* --- Safe: conditional visibility. Metadata only, no column touched - unlike the
+          panels below this needs no "here's the consequence" copy, just Save/Cancel. --- */}
+      {panel === 'visibility' && (
+        <div className="mt-3 border-t border-border pt-3">
+          <p className="mb-2 text-sm text-ink-soft">{t('fieldEditor.visibilityDescription')}</p>
+          <div className="space-y-2">
+            <select
+              className={`${inputClass} max-w-xs`}
+              value={conditionFieldDraft}
+              disabled={busy}
+              onChange={(e) => {
+                setConditionFieldDraft(e.target.value);
+                setConditionValuesDraft(new Set());
+              }}
+            >
+              <option value="">{t('fieldEditor.alwaysVisible')}</option>
+              {controllableFields.map((f) => (
+                <option key={f.code} value={f.code}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+
+            {conditionFieldDraftDef && (
+              <div className="flex flex-wrap gap-3">
+                {conditionFieldDraftOptions.map((o) => (
+                  <label key={o.value} className="flex items-center gap-1.5 text-sm text-ink">
+                    <input
+                      type="checkbox"
+                      checked={conditionValuesDraft.has(o.value)}
+                      onChange={() => toggleConditionValueDraft(o.value)}
+                    />
+                    {o.label}
+                  </label>
+                ))}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={busy || (!!conditionFieldDraft && conditionValuesDraft.size === 0)}
+                onClick={() =>
+                  run(
+                    () =>
+                      api.forms.updateFieldVisibility(token, formId, field.id, {
+                        visibleWhenFieldCode: conditionFieldDraft || null,
+                        visibleWhenValuesJson: conditionFieldDraft ? JSON.stringify([...conditionValuesDraft]) : null,
+                      }),
+                    'fieldEditor.visibilityError',
+                  )
+                }
+                className="bg-accent rounded px-3 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50"
+              >
+                {t('common.save')}
+              </button>
+              <button type="button" onClick={closePanel} disabled={busy} className="text-sm text-ink-soft hover:opacity-70">
+                {t('common.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- Risky 1: rename the code / physical column --- */}
       {panel === 'code' && (

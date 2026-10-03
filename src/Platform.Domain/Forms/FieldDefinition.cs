@@ -37,11 +37,28 @@ public class FieldDefinition : AuditableEntity
     /// <summary>JSON object, e.g. {"min":0,"max":100,"regex":"^[A-Z]{2}\\d+$"}.</summary>
     public string? ValidationRulesJson { get; private set; }
 
+    /// <summary>
+    /// Conditional-visibility ("branching") support: null means always visible (the default,
+    /// unchanged behaviour for every existing field). Non-null names another field's Code on
+    /// the SAME FormVersion - this field is only shown/required when that controlling field's
+    /// submitted value is one of VisibleWhenValuesJson. Pure metadata, same bucket as Label/
+    /// DisplayOrder: never touches the physical column, so it's a "safe" edit even on a
+    /// published form with live data (see FormEditTargetResolver). Deliberately a sibling
+    /// field's Code, not its Id - Code is what SubmitFormDataCommand's Values dictionary is
+    /// keyed by, so visibility can be evaluated against a raw submission with no extra lookup.
+    /// </summary>
+    public string? VisibleWhenFieldCode { get; private set; }
+
+    /// <summary>JSON array of strings, e.g. ["excavation","foundation"] - the controlling
+    /// field's allowed values that make this field visible. Only meaningful alongside
+    /// VisibleWhenFieldCode; same "required together" shape as OptionsJson/FieldType.Dropdown.</summary>
+    public string? VisibleWhenValuesJson { get; private set; }
+
     private FieldDefinition() { }
 
     public static FieldDefinition Create(Guid formVersionId, string code, string label, FieldType fieldType,
         bool isRequired, int displayOrder, string? optionsJson, Guid? lookupFormDefinitionId,
-        string? validationRulesJson)
+        string? validationRulesJson, string? visibleWhenFieldCode = null, string? visibleWhenValuesJson = null)
     {
         var normalizedCode = NormalizeColumnName(code);
 
@@ -49,6 +66,8 @@ public class FieldDefinition : AuditableEntity
             throw new ArgumentException("Dropdown fields require OptionsJson.", nameof(optionsJson));
         if (fieldType == FieldType.Lookup && lookupFormDefinitionId is null)
             throw new ArgumentException("Lookup fields require LookupFormDefinitionId.", nameof(lookupFormDefinitionId));
+
+        ValidateVisibilityCondition(normalizedCode, visibleWhenFieldCode, visibleWhenValuesJson);
 
         return new FieldDefinition
         {
@@ -60,8 +79,36 @@ public class FieldDefinition : AuditableEntity
             DisplayOrder = displayOrder,
             OptionsJson = optionsJson,
             LookupFormDefinitionId = lookupFormDefinitionId,
-            ValidationRulesJson = validationRulesJson
+            ValidationRulesJson = validationRulesJson,
+            VisibleWhenFieldCode = string.IsNullOrWhiteSpace(visibleWhenFieldCode) ? null : visibleWhenFieldCode,
+            VisibleWhenValuesJson = string.IsNullOrWhiteSpace(visibleWhenFieldCode) ? null : visibleWhenValuesJson
         };
+    }
+
+    /// <summary>
+    /// Safe operation (like UpdateLabel/UpdateDisplayOrder): sets or clears which sibling
+    /// field controls this one's visibility. The caller (AddFieldDefinitionCommandHandler /
+    /// UpdateFieldVisibilityCommandHandler) is responsible for confirming visibleWhenFieldCode
+    /// actually names a field that exists on the same FormVersion - this method only enforces
+    /// the companion-data shape, the same split FormVersion.AddField already uses for the
+    /// "does this sibling exist" check vs. the type-shape checks Create/ChangeType enforce.
+    /// </summary>
+    public void SetVisibilityCondition(string? visibleWhenFieldCode, string? visibleWhenValuesJson)
+    {
+        ValidateVisibilityCondition(Code, visibleWhenFieldCode, visibleWhenValuesJson);
+        VisibleWhenFieldCode = string.IsNullOrWhiteSpace(visibleWhenFieldCode) ? null : visibleWhenFieldCode;
+        VisibleWhenValuesJson = VisibleWhenFieldCode is null ? null : visibleWhenValuesJson;
+    }
+
+    private static void ValidateVisibilityCondition(string ownCode, string? visibleWhenFieldCode, string? visibleWhenValuesJson)
+    {
+        if (string.IsNullOrWhiteSpace(visibleWhenFieldCode)) return;
+
+        if (visibleWhenFieldCode == ownCode)
+            throw new ArgumentException("A field can't control its own visibility.", nameof(visibleWhenFieldCode));
+        if (string.IsNullOrWhiteSpace(visibleWhenValuesJson))
+            throw new ArgumentException(
+                "A visibility condition needs at least one allowed value.", nameof(visibleWhenValuesJson));
     }
 
     public void Deactivate() => IsActive = false;

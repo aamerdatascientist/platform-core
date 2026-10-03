@@ -9,7 +9,8 @@ namespace Platform.Application.Forms.Commands.AddFieldDefinition;
 
 public record AddFieldDefinitionCommand(
     Guid FormDefinitionId, string Code, string Label, FieldType FieldType, bool IsRequired,
-    string? OptionsJson, Guid? LookupFormDefinitionId, string? ValidationRulesJson) : IRequest<Guid>;
+    string? OptionsJson, Guid? LookupFormDefinitionId, string? ValidationRulesJson,
+    string? VisibleWhenFieldCode = null, string? VisibleWhenValuesJson = null) : IRequest<Guid>;
 
 public class AddFieldDefinitionCommandValidator : AbstractValidator<AddFieldDefinitionCommand>
 {
@@ -31,6 +32,10 @@ public class AddFieldDefinitionCommandValidator : AbstractValidator<AddFieldDefi
             .WithMessage("Dropdown fields require options.");
         RuleFor(x => x.LookupFormDefinitionId).NotEmpty().When(x => x.FieldType == FieldType.Lookup)
             .WithMessage("Lookup fields require a target form.");
+        RuleFor(x => x.VisibleWhenValuesJson).NotEmpty().When(x => !string.IsNullOrWhiteSpace(x.VisibleWhenFieldCode))
+            .WithMessage("A visibility condition needs at least one allowed value.");
+        RuleFor(x => x.VisibleWhenFieldCode).NotEqual(x => x.Code).When(x => !string.IsNullOrWhiteSpace(x.VisibleWhenFieldCode))
+            .WithMessage("A field can't control its own visibility.");
     }
 }
 
@@ -61,7 +66,20 @@ public class AddFieldDefinitionCommandHandler : IRequestHandler<AddFieldDefiniti
         {
             field = target.Version.AddField(
                 request.Code, request.Label, request.FieldType, request.IsRequired,
-                request.OptionsJson, request.LookupFormDefinitionId, request.ValidationRulesJson);
+                request.OptionsJson, request.LookupFormDefinitionId, request.ValidationRulesJson,
+                request.VisibleWhenFieldCode, request.VisibleWhenValuesJson);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("a visibility condition can only depend"))
+        {
+            // AddField's "does this sibling exist" check throws the same exception type as
+            // the duplicate-code check right below it - distinguished by message text (set
+            // deliberately in FormVersion.AddField) rather than just "VisibleWhenFieldCode was
+            // sent", so a request that happens to send both a duplicate Code AND a visibility
+            // condition still gets the duplicate-code error, not this one.
+            throw new Common.Exceptions.ValidationException(new[]
+            {
+                new FluentValidation.Results.ValidationFailure(nameof(request.VisibleWhenFieldCode), ex.Message)
+            });
         }
         catch (ArgumentException ex) when (ex.ParamName is null)
         {

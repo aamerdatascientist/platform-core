@@ -42,9 +42,14 @@ public class FormVersion : AuditableEntity
 
         foreach (var field in previous._fields.Where(f => f.IsActive))
         {
+            // VisibleWhenFieldCode/VisibleWhenValuesJson carried forward explicitly - easy to
+            // miss since this is a straight-up copy of every other property, but silently
+            // dropping them would un-hide every conditional field the moment a new draft
+            // version is started, with no error and no DDL to make the loss visible.
             draft._fields.Add(FieldDefinition.Create(
                 draft.Id, field.Code, field.Label, field.FieldType, field.IsRequired,
-                field.DisplayOrder, field.OptionsJson, field.LookupFormDefinitionId, field.ValidationRulesJson));
+                field.DisplayOrder, field.OptionsJson, field.LookupFormDefinitionId, field.ValidationRulesJson,
+                field.VisibleWhenFieldCode, field.VisibleWhenValuesJson));
         }
 
         return draft;
@@ -60,13 +65,25 @@ public class FormVersion : AuditableEntity
     /// runs on a never-published draft where order is still being assembled.
     /// </summary>
     public FieldDefinition AddField(string code, string label, FieldType type, bool isRequired,
-        string? optionsJson, Guid? lookupFormDefinitionId, string? validationRulesJson)
+        string? optionsJson, Guid? lookupFormDefinitionId, string? validationRulesJson,
+        string? visibleWhenFieldCode = null, string? visibleWhenValuesJson = null)
     {
         if (_fields.Any(f => f.Code == code))
             throw new InvalidOperationException($"Field code '{code}' already exists on this version.");
 
+        // The "does this sibling actually exist" check belongs here, not in
+        // FieldDefinition.Create: Create only knows the field being built, never the rest of
+        // the version, and this is the one place that has both. Checked against _fields
+        // (every field, not just active ones) rather than active-only, matching
+        // FindFieldOrThrow's own archived-fields-included convention.
+        if (!string.IsNullOrWhiteSpace(visibleWhenFieldCode) && !_fields.Any(f => f.Code == visibleWhenFieldCode))
+            throw new InvalidOperationException(
+                $"'{visibleWhenFieldCode}' isn't a field on this form version - a visibility " +
+                "condition can only depend on a field that already exists here.");
+
         var field = FieldDefinition.Create(Id, code, label, type, isRequired,
-            NextDisplayOrder(), optionsJson, lookupFormDefinitionId, validationRulesJson);
+            NextDisplayOrder(), optionsJson, lookupFormDefinitionId, validationRulesJson,
+            visibleWhenFieldCode, visibleWhenValuesJson);
         _fields.Add(field);
         return field;
     }
@@ -74,6 +91,11 @@ public class FormVersion : AuditableEntity
     /// <summary>Max+1 rather than Count, so a removed field can't leave two fields sharing
     /// an order - the exact side effect the old remove-and-re-add edit mechanism caused.</summary>
     private int NextDisplayOrder() => _fields.Count == 0 ? 0 : _fields.Max(f => f.DisplayOrder) + 1;
+
+    /// <summary>Used by UpdateFieldVisibilityCommand for the same sibling-exists check AddField
+    /// runs inline - exposed separately since that command edits an existing field rather than
+    /// adding one, so it has no other reason to call AddField itself.</summary>
+    public bool HasField(string code) => _fields.Any(f => f.Code == code);
 
     public void DeactivateField(Guid fieldDefinitionId) =>
         _fields.Single(f => f.Id == fieldDefinitionId).Deactivate();

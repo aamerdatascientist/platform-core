@@ -13,6 +13,7 @@
   },
   "common": {
     "cancel": "Cancel",
+    "save": "Save",
     "loading": "Loading…",
     "select": "Select…",
     "yes": "Yes",
@@ -83,7 +84,11 @@
     "lookupTargetError": "Pick which form this field looks up.",
     "addFieldError": "Could not add that field.",
     "adding": "Adding…",
-    "addField": "Add field"
+    "addField": "Add field",
+    "onlyShowWhen": "Only show this field when another field has a certain value",
+    "chooseConditionField": "Choose a field…",
+    "conditionValuesHint": "Show this field when the field above is any of:",
+    "conditionError": "Choose a field and at least one value for the condition, or turn it off."
   },
   "formBuilder": {
     "access": "Access",
@@ -257,6 +262,11 @@
     "moveDown": "Move field down",
     "renameCode": "Rename code",
     "changeType": "Change type",
+    "visibility": "Only show when…",
+    "visibilitySet": "Visibility: conditional",
+    "visibilityDescription": "Show this field only when another field has a certain value - pure metadata, no column touched, so this applies instantly either way. Choose \"always visible\" to clear the condition.",
+    "alwaysVisible": "Always visible (no condition)",
+    "visibilityError": "Could not update this field's visibility condition.",
     "renameCodeConsequenceLive": "This renames the database column on a form that already holds data. Every existing value is kept. Anything outside this platform that reads the column by its old name - Power BI queries, Tableau, exports, integrations - will stop finding it until you update them.",
     "renameCodeConsequenceDraft": "This form hasn't been published yet, so no column exists and no data is at risk. The new code is what the column will be created as at first publish.",
     "confirmRenameCode": "Rename {{from}} → {{to}}",

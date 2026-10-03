@@ -2,13 +2,33 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import { useErrorMessage } from '../hooks/useErrorMessage';
-import type { FieldType, FormSummaryDto } from '../types';
+import type { FieldDefinitionDto, FieldType, FormSummaryDto } from '../types';
 
 interface AddFieldFormProps {
   token: string;
   formId: string;
   lookupTargets: FormSummaryDto[];
+  /** Existing fields this new one could branch on - Dropdown/Boolean only (the only types
+   *  with a fixed, enumerable set of values a condition can match against). */
+  controllableFields: FieldDefinitionDto[];
   onAdded: () => void;
+}
+
+function parseFieldOptions(
+  field: FieldDefinitionDto,
+  t: (key: string) => string,
+): { value: string; label: string }[] {
+  if (field.fieldType === 'Boolean') {
+    return [
+      { value: 'true', label: t('common.yes') },
+      { value: 'false', label: t('common.no') },
+    ];
+  }
+  try {
+    return field.optionsJson ? (JSON.parse(field.optionsJson) as { value: string; label: string }[]) : [];
+  } catch {
+    return [];
+  }
 }
 
 const FIELD_TYPES: FieldType[] = [
@@ -23,7 +43,7 @@ function slugify(input: string): string {
     .replace(/^_+|_+$/g, '');
 }
 
-export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddFieldFormProps) {
+export function AddFieldForm({ token, formId, lookupTargets, controllableFields, onAdded }: AddFieldFormProps) {
   const { t } = useTranslation();
   const [label, setLabel] = useState('');
   const [code, setCode] = useState('');
@@ -34,6 +54,23 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
   const [lookupTargetId, setLookupTargetId] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useErrorMessage();
+
+  // Conditional visibility ("only show this field when..."), set at creation time.
+  const [hasCondition, setHasCondition] = useState(false);
+  const [conditionFieldCode, setConditionFieldCode] = useState('');
+  const [conditionValues, setConditionValues] = useState<Set<string>>(new Set());
+
+  function toggleConditionValue(value: string) {
+    setConditionValues((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+  }
+
+  const conditionField = controllableFields.find((f) => f.code === conditionFieldCode);
+  const conditionFieldOptions = conditionField ? parseFieldOptions(conditionField, t) : [];
 
   function handleLabelChange(value: string) {
     setLabel(value);
@@ -60,6 +97,10 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
       setError({ key: 'addField.lookupTargetError' });
       return;
     }
+    if (hasCondition && (!conditionFieldCode || conditionValues.size === 0)) {
+      setError({ key: 'addField.conditionError' });
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -73,6 +114,8 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
             ? JSON.stringify(options.filter((o) => o.value.trim() && o.label.trim()))
             : null,
         lookupFormDefinitionId: fieldType === 'Lookup' ? lookupTargetId : null,
+        visibleWhenFieldCode: hasCondition ? conditionFieldCode : null,
+        visibleWhenValuesJson: hasCondition ? JSON.stringify([...conditionValues]) : null,
       });
       setLabel('');
       setCode('');
@@ -81,6 +124,9 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
       setIsRequired(false);
       setOptions([{ value: '', label: '' }]);
       setLookupTargetId('');
+      setHasCondition(false);
+      setConditionFieldCode('');
+      setConditionValues(new Set());
       onAdded();
     } catch (err) {
       setError({ err, fallbackKey: 'addField.addFieldError' });
@@ -176,6 +222,63 @@ export function AddFieldForm({ token, formId, lookupTargets, onAdded }: AddField
               </option>
             ))}
           </select>
+        </div>
+      )}
+
+      {controllableFields.length > 0 && (
+        <div className="border-t border-border pt-3">
+          <label className="flex items-center gap-2 text-sm text-ink">
+            <input
+              type="checkbox"
+              checked={hasCondition}
+              onChange={(e) => {
+                setHasCondition(e.target.checked);
+                if (!e.target.checked) {
+                  setConditionFieldCode('');
+                  setConditionValues(new Set());
+                }
+              }}
+            />
+            {t('addField.onlyShowWhen')}
+          </label>
+
+          {hasCondition && (
+            <div className="mt-2 space-y-2 ps-6">
+              <select
+                className={inputClass}
+                value={conditionFieldCode}
+                onChange={(e) => {
+                  setConditionFieldCode(e.target.value);
+                  setConditionValues(new Set());
+                }}
+              >
+                <option value="">{t('addField.chooseConditionField')}</option>
+                {controllableFields.map((f) => (
+                  <option key={f.code} value={f.code}>
+                    {f.label}
+                  </option>
+                ))}
+              </select>
+
+              {conditionField && (
+                <div>
+                  <p className="mb-1 text-xs text-ink-soft">{t('addField.conditionValuesHint')}</p>
+                  <div className="flex flex-wrap gap-3">
+                    {conditionFieldOptions.map((o) => (
+                      <label key={o.value} className="flex items-center gap-1.5 text-sm text-ink">
+                        <input
+                          type="checkbox"
+                          checked={conditionValues.has(o.value)}
+                          onChange={() => toggleConditionValue(o.value)}
+                        />
+                        {o.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 

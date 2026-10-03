@@ -246,6 +246,9 @@ export function FormBuilder({ token }: { token: string }) {
               isFirst={activeFields[0]?.id === f.id}
               isLast={activeFields[activeFields.length - 1]?.id === f.id}
               lookupTargets={allForms.filter((form) => form.id !== formId)}
+              controllableFields={activeFields.filter(
+                (other) => other.id !== f.id && (other.fieldType === 'Dropdown' || other.fieldType === 'Boolean'),
+              )}
               onChanged={load}
               onMove={handleMoveField}
             />
@@ -264,6 +267,7 @@ export function FormBuilder({ token }: { token: string }) {
               token={token}
               formId={formId!}
               lookupTargets={allForms.filter((f) => f.id !== formId)}
+              controllableFields={activeFields.filter((f) => f.fieldType === 'Dropdown' || f.fieldType === 'Boolean')}
               onAdded={load}
             />
           </div>

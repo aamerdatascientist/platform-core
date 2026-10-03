@@ -43,7 +43,14 @@ public static class SubmissionValueValidator
             values.TryGetValue(field.Code, out var raw);
             var isPresent = raw is not null && raw is not JsonElement { ValueKind: JsonValueKind.Null };
 
-            if (field.IsRequired && !isPresent)
+            // A conditionally-hidden field (its controlling field's submitted value doesn't
+            // match VisibleWhenValuesJson) is inapplicable to this submission, so it's never
+            // required here even if IsRequired is set - that's what lets one branching Phase
+            // dropdown carry several mutually-exclusive sets of "required" fields without
+            // every branch's fields being required on every submission. Type/range checks
+            // below still run if a value was sent anyway (defensive; the real frontend never
+            // sends one for a field it isn't showing).
+            if (field.IsRequired && !isPresent && IsFieldVisible(field, values))
             {
                 AddError(field.Code, $"'{field.Label}' is required.");
                 continue;
@@ -178,6 +185,33 @@ public static class SubmissionValueValidator
             default:
                 value = false;
                 return false;
+        }
+    }
+
+    /// <summary>
+    /// True when field has no visibility condition, or its controlling field's submitted
+    /// value is one of VisibleWhenValuesJson. Every "can't actually tell" case - the
+    /// controlling field wasn't answered, or the stored condition JSON is malformed - returns
+    /// false (not visible, so not required), matching this file's existing convention
+    /// elsewhere of failing open toward not blocking the submitter over bad/missing admin
+    /// metadata (see IsAllowedDropdownValue, ParseRules).
+    /// </summary>
+    private static bool IsFieldVisible(FieldDefinition field, IReadOnlyDictionary<string, object?> values)
+    {
+        if (string.IsNullOrWhiteSpace(field.VisibleWhenFieldCode)) return true;
+
+        if (!values.TryGetValue(field.VisibleWhenFieldCode, out var controllingRaw) ||
+            !TryGetString(controllingRaw, out var controllingValue))
+            return false;
+
+        try
+        {
+            var allowed = JsonSerializer.Deserialize<List<string>>(field.VisibleWhenValuesJson ?? "[]", CaseInsensitive);
+            return allowed is not null && allowed.Contains(controllingValue);
+        }
+        catch (JsonException)
+        {
+            return false;
         }
     }
 

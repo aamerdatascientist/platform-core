@@ -61,7 +61,8 @@ public class GetFormDefinitionQueryHandler : IRequestHandler<GetFormDefinitionQu
             .OrderBy(f => f.DisplayOrder)
             .Select(f => new FieldDefinitionDto(
                 f.Id, f.Code, f.Label, f.FieldType, f.IsRequired, f.IsActive,
-                f.DisplayOrder, f.OptionsJson, f.LookupFormDefinitionId, f.ValidationRulesJson))
+                f.DisplayOrder, f.OptionsJson, f.LookupFormDefinitionId, f.ValidationRulesJson,
+                f.VisibleWhenFieldCode, f.VisibleWhenValuesJson))
             .ToList();
 
         return new FormVersionDto(version.Id, version.VersionNumber, version.Status, version.PublishedAtUtc, fields);

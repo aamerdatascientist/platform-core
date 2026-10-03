@@ -145,6 +145,8 @@ export const api = {
         optionsJson?: string | null;
         lookupFormDefinitionId?: string | null;
         validationRulesJson?: string | null;
+        visibleWhenFieldCode?: string | null;
+        visibleWhenValuesJson?: string | null;
       },
     ) => request<{ id: string }>(`/api/forms/${formId}/fields`, { method: 'POST', body: JSON.stringify(input) }, token),
 
@@ -161,6 +163,19 @@ export const api = {
       request<void>(
         `/api/forms/${formId}/fields/${fieldId}/label`,
         { method: 'PUT', body: JSON.stringify({ label }) },
+        token,
+      ),
+
+    /** Pass both as null/undefined to clear the condition (always visible again). */
+    updateFieldVisibility: (
+      token: string,
+      formId: string,
+      fieldId: string,
+      input: { visibleWhenFieldCode?: string | null; visibleWhenValuesJson?: string | null },
+    ) =>
+      request<void>(
+        `/api/forms/${formId}/fields/${fieldId}/visibility`,
+        { method: 'PUT', body: JSON.stringify(input) },
         token,
       ),
 

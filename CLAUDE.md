@@ -52,6 +52,43 @@ does DDL first and renames back if the metadata save fails. Delete saves metadat
 drops the column last, because an orphaned column is inert while metadata pointing at a
 missing column breaks every submission.
 
+### Conditional field visibility ("branching") - added 2026-10-03
+
+A field can declare `VisibleWhenFieldCode` (another field's `Code` on the same
+`FormVersion`) + `VisibleWhenValuesJson` (a JSON array of that field's allowed values) -
+when set, this field is only shown, and only required, when the controlling field's
+submitted value is one of those allowed values. This is what lets one dropdown (e.g. a
+"Phase" field with values like `excavation`/`foundation`/`structural`) drive a different
+set of downstream fields per selection, without five separate forms or five sets of
+always-required fields fighting each other on one form. Set at creation
+(`AddFieldDefinitionCommand`) or after the fact (`UpdateFieldVisibilityCommand`, PUT
+`/api/forms/{id}/fields/{fieldId}/visibility`) - both **Safe** operations (same bucket as
+relabel/reorder above): pure metadata, no column touched, no confirmation needed even on a
+published form with live data.
+
+Three places this has to stay in sync, or it silently breaks:
+1. `SubmissionValueValidator.IsFieldVisible` (backend) - gates the `IsRequired` check on
+   whether the condition is actually met by what was submitted, not just whether
+   `VisibleWhenFieldCode` is set. A conditionally-hidden field is never required, even if
+   `IsRequired` is `true`.
+2. `FormRenderer.tsx`'s own `isFieldVisible` (frontend) - has to compute the identical
+   answer from the same two field properties, since this is what actually shows/hides the
+   right block as the person fills out the form. Kept as two separate implementations (no
+   shared validation module between the C# and TS sides yet), so a change to one's logic
+   needs the matching change in the other.
+3. `FormVersion.CreateDraftFrom` - carries `VisibleWhenFieldCode`/`VisibleWhenValuesJson`
+   forward when copying fields into a new draft version, same as every other property. Easy
+   to miss since it reads like a complete copy already; forgetting it would silently
+   un-hide every conditional field the next time someone starts a new draft version.
+
+**Known gap, not yet handled**: renaming or deleting a field that something else depends on
+as its `VisibleWhenFieldCode` isn't guarded against. `RenameFieldCodeCommand`/
+`DeleteFieldCommand` don't check for dependents, so either one can silently orphan a
+condition (the dependent field would then always evaluate as hidden, since its
+`VisibleWhenFieldCode` no longer matches any real field's `Code`). Worth a real fix - either
+block the rename/delete with a clear error naming the dependent fields, or cascade-update
+them - before this gets exercised on a form that actually uses branching in anger.
+
 ## Established code conventions
 
 - Domain entities: private setters, static `Create` factories, `AuditableEntity` base.
@@ -86,6 +123,28 @@ missing column breaks every submission.
 - Local dev DB is **Postgres** (Railway-hosted), not Docker/local Postgres - Docker
   doesn't work on **Aamer's** machine (corporate-locked virtualization). Don't suggest Docker
   as a local dev database again.
+- **A fresh Claude Code sandbox has no .NET SDK installed at all and cannot restore NuGet
+  packages**, discovered 2026-10-03 - don't assume either from an earlier session's success.
+  `dotnet` isn't on PATH or anywhere on disk at session start; `sudo -n apt-get install -y
+  dotnet-sdk-8.0` (Ubuntu 24.04's own `noble-updates` repo, reachable through the sandbox's
+  proxy) fixes that part in about a minute. NuGet itself is a separate, harder blocker:
+  `api.nuget.org` gets a flat 403 from the agent proxy (confirmed via
+  `curl $HTTPS_PROXY/__agentproxy/status` - an organization policy denial, not a transient
+  failure, and retrying or routing around it is explicitly the wrong move per the proxy's own
+  README). This means **no `dotnet restore`, `dotnet build`, or `dotnet test` is possible in
+  this state** - not even `dotnet tool install --global dotnet-ef` works, since that also
+  pulls from NuGet. The entry below about running Testcontainers integration tests assumes a
+  sandbox where this was already working; if NuGet is blocked, that's not reachable either.
+  **Work this had to be done without a compiler in this session**: a migration's `.cs` +
+  `.Designer.cs` were hand-written by copying `ApplicationDbContextModelSnapshot.cs`'s
+  current body into the new migration's Designer file (same content, just a different class
+  name/`[Migration]` attribute - confirmed structurally identical to how the real EF tooling
+  generates it, by diffing the snapshot against the previous migration's own Designer.cs) and
+  editing both in the same places, rather than `dotnet ef migrations add`. If NuGet is
+  reachable in a future session, prefer the real tooling over this workaround - it's a
+  careful manual reproduction of what `dotnet ef` would do, not a replacement for it, and a
+  genuine syntax mistake in hand-written EF model-snapshot code has no compiler here to catch
+  it before a human does.
 - **Claude Code's sandbox CAN run the Testcontainers integration tests**, contrary to what
   was assumed for several sessions - it just needs two things set up first, neither of them
   obvious:
