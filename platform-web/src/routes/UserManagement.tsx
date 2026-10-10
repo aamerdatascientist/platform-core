@@ -146,7 +146,7 @@ export function UserManagement({ token }: UserManagementProps) {
       {error && <p className="text-sm text-danger">{error}</p>}
 
       <div>
-        <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-soft">{t('userManagement.roles')}</h3>
+        <h3 className="mb-3 text-label font-medium uppercase tracking-wider text-ink-soft">{t('userManagement.roles')}</h3>
         <div className="mb-3 space-y-1">
           {(roles ?? []).map((r) => (
             <div key={r.id} className="flex items-center justify-between border border-border rounded bg-panel px-3 py-2 text-sm">
@@ -154,7 +154,7 @@ export function UserManagement({ token }: UserManagementProps) {
                 <span className="font-medium text-ink">{r.name}</span>
                 {r.description && <span className="ms-2 text-xs text-ink-soft">{r.description}</span>}
               </span>
-              {r.isSystemRole && <span className="text-[10px] uppercase tracking-wide text-ink-soft">{t('userManagement.system')}</span>}
+              {r.isSystemRole && <span className="text-micro uppercase tracking-wide text-ink-soft">{t('userManagement.system')}</span>}
             </div>
           ))}
         </div>
@@ -198,7 +198,7 @@ export function UserManagement({ token }: UserManagementProps) {
       </div>
 
       <div className="border-t border-border rounded pt-6">
-        <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-soft">{t('userManagement.users')}</h3>
+        <h3 className="mb-3 text-label font-medium uppercase tracking-wider text-ink-soft">{t('userManagement.users')}</h3>
         {!creatingUser ? (
           <button
             onClick={() => setCreatingUser(true)}
@@ -274,7 +274,7 @@ export function UserManagement({ token }: UserManagementProps) {
                         <span className="text-xs text-ink-soft">{t('userManagement.noRoles')}</span>
                       ) : (
                         u.roles.map((r) => (
-                          <span key={r.id} className="border border-border rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-ink-soft">
+                          <span key={r.id} className="border border-border rounded px-1.5 py-0.5 text-micro uppercase tracking-wide text-ink-soft">
                             {r.name}
                           </span>
                         ))
@@ -282,18 +282,18 @@ export function UserManagement({ token }: UserManagementProps) {
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
-                    <span className={`text-[11px] uppercase tracking-wider ${u.isActive ? 'text-success' : 'text-danger'}`}>
+                    <span className={`text-label uppercase tracking-wider ${u.isActive ? 'text-success' : 'text-danger'}`}>
                       {u.isActive ? t('userManagement.active') : t('userManagement.deactivated')}
                     </span>
                     <button
                       onClick={() => (editingRolesFor === u.id ? setEditingRolesFor(null) : startEditingRoles(u))}
-                      className="text-[11px] uppercase tracking-wide text-ink-soft hover:text-ink"
+                      className="text-label uppercase tracking-wide text-ink-soft hover:text-ink"
                     >
                       {t('userManagement.editRoles')}
                     </button>
                     <button
                       onClick={() => handleToggleActive(u)}
-                      className={`text-[11px] uppercase tracking-wide hover:opacity-70 ${u.isActive ? 'text-danger' : 'text-success'}`}
+                      className={`text-label uppercase tracking-wide hover:opacity-70 ${u.isActive ? 'text-danger' : 'text-success'}`}
                     >
                       {u.isActive ? t('userManagement.deactivate') : t('userManagement.reactivate')}
                     </button>

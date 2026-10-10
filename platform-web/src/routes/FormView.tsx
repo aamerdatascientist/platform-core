@@ -119,7 +119,7 @@ export function FormView({ token }: FormViewProps) {
 
         <div>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-[11px] font-medium uppercase tracking-wider text-ink-soft">
+            <h3 className="text-label font-medium uppercase tracking-wider text-ink-soft">
               {t('formView.recordsHeading')}
             </h3>
             {scopeField && (

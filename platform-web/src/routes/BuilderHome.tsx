@@ -128,7 +128,7 @@ export function BuilderHome({ token }: { token: string }) {
       )}
 
       <div>
-        <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-soft">
+        <h3 className="mb-3 text-label font-medium uppercase tracking-wider text-ink-soft">
           {t('builderHome.existingForms')}
         </h3>
         {!forms ? (

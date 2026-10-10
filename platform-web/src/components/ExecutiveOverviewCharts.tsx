@@ -89,14 +89,14 @@ function Frame({
           {ticks.map((tick) => (
             <g key={tick}>
               <line x1={PAD.left} x2={width - PAD.right} y1={y(tick)} y2={y(tick)} stroke="var(--border)" strokeWidth={1} opacity={0.6} />
-              <text x={PAD.left - 6} y={y(tick) + 4} textAnchor="end" fontSize={11} fill="var(--ink-soft)" className="font-mono font-normal">
+              <text x={PAD.left - 6} y={y(tick) + 4} textAnchor="end" fontSize={12} fill="var(--ink-soft)" className="font-mono font-normal">
                 {formatTick(tick)}
               </text>
             </g>
           ))}
           {points.map((point, index) =>
             index % labelEvery === 0 ? (
-              <text key={index} x={x(index)} y={HEIGHT - 8} textAnchor="middle" fontSize={11} fill="var(--ink-soft)" className="font-normal">
+              <text key={index} x={x(index)} y={HEIGHT - 8} textAnchor="middle" fontSize={12} fill="var(--ink-soft)" className="font-normal">
                 {point.label}
               </text>
             ) : null,
@@ -172,7 +172,7 @@ export function WeekLineChart({ points, max, ticks, formatTick, endLabel, ariaLa
           x={Math.min(x(last.index), width - PAD.right - 16)}
           y={Math.max(12, y(last.value) - 10)}
           textAnchor="middle"
-          fontSize={11.5}
+          fontSize={13}
           fill="var(--ink)"
           className="font-mono font-normal"
         >

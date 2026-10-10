@@ -66,7 +66,7 @@ export function WorkflowPanel({ token, recordId, onChanged }: WorkflowPanelProps
   return (
     <div className="border border-border rounded bg-panel p-4 shadow-recessed">
       <div className="mb-3 flex items-center justify-between">
-        <span className="text-[11px] uppercase tracking-wider text-ink-soft">{t('workflowPanel.status')}</span>
+        <span className="text-label uppercase tracking-wider text-ink-soft">{t('workflowPanel.status')}</span>
         <StatusLed label={status.currentStateLabel} tone={status.isFinal ? 'success' : 'accent'} />
       </div>
 
@@ -100,7 +100,7 @@ export function WorkflowPanel({ token, recordId, onChanged }: WorkflowPanelProps
 
       {status.history.length > 0 && (
         <details className="mt-3 border-t border-border rounded pt-3">
-          <summary className="cursor-pointer text-[11px] uppercase tracking-wider text-ink-soft">
+          <summary className="cursor-pointer text-label uppercase tracking-wider text-ink-soft">
             {t('workflowPanel.history', { count: status.history.length })}
           </summary>
           <ul className="mt-2 space-y-1.5">

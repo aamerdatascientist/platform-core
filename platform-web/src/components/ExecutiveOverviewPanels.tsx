@@ -6,7 +6,7 @@ import { StatusLed } from './StatusLed';
 const PANEL_CLASS = 'min-w-0 rounded border border-border bg-panel p-4 shadow-recessed';
 const PANEL_TITLE_CLASS = 'font-display text-sm font-semibold uppercase tracking-[0.07em] text-ink';
 const TABLE_HEAD_CLASS =
-  'whitespace-nowrap border-b border-border px-2.5 py-2 text-start font-display text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-soft';
+  'whitespace-nowrap border-b border-border px-2 py-2 text-start font-display text-label font-semibold uppercase tracking-[0.07em] text-ink-soft';
 
 /**
  * Number and date formatting for the dashboard, in the active language. Arabic keeps Latin
@@ -45,7 +45,7 @@ export function Panel({ title, caption, children }: { title: string; caption?: s
 function Tile({ label, value, detail }: { label: string; value: ReactNode; detail: ReactNode }) {
   return (
     <div className="min-w-0 rounded border border-border bg-panel px-4 py-3.5 shadow-recessed">
-      <div className="font-display text-[11px] font-semibold uppercase tracking-[0.07em] text-ink-soft">{label}</div>
+      <div className="font-display text-label font-semibold uppercase tracking-[0.07em] text-ink-soft">{label}</div>
       <div className="mt-1.5 font-display text-3xl font-bold leading-tight text-ink">{value}</div>
       <div className="mt-1 text-xs font-normal text-ink-soft">{detail}</div>
     </div>
@@ -221,7 +221,7 @@ export function ProjectsTable({
                     isSelected ? 'bg-bg' : ''
                   }`}
                 >
-                  <td className={`min-w-[150px] border-s-2 px-2.5 py-2.5 ${isSelected ? 'border-s-accent' : 'border-s-transparent'}`}>
+                  <td className={`min-w-[190px] border-s-2 px-2 py-2.5 ${isSelected ? 'border-s-accent' : 'border-s-transparent'}`}>
                     <div className="font-semibold text-ink" dir="auto">
                       {project.name}
                     </div>
@@ -235,7 +235,7 @@ export function ProjectsTable({
                       )}
                     </div>
                   </td>
-                  <td className="whitespace-nowrap px-2.5 py-2.5">
+                  <td className="whitespace-nowrap px-2 py-2.5">
                     {project.status ? (
                       <StatusLed
                         label={t(`executiveOverview.projectStatus.${project.status}`, project.status)}
@@ -245,13 +245,13 @@ export function ProjectsTable({
                       dash
                     )}
                   </td>
-                  <td className="px-2.5 py-2.5 font-normal text-ink">
+                  <td className="whitespace-nowrap px-2 py-2.5 font-normal text-ink">
                     {finished || project.currentPhases.length === 0
                       ? dash
                       : project.currentPhases.map((phase) => t(`executiveOverview.phase.${phase}`, phase)).join(' + ')}
                   </td>
-                  <td className="px-2.5 py-2.5">
-                    <div className="flex min-w-[150px] items-center gap-2.5">
+                  <td className="px-2 py-2.5">
+                    <div className="flex min-w-[124px] items-center gap-2">
                       <span className="w-10 shrink-0 font-mono text-xs font-normal text-ink">{format.percent(project.workComplete)}</span>
                       <ProgressBar
                         share={project.workComplete}
@@ -267,25 +267,25 @@ export function ProjectsTable({
                       />
                     </div>
                   </td>
-                  <td className="px-2.5 py-2.5">
+                  <td className="px-2 py-2.5">
                     <div className="flex gap-1">
                       {project.phases.map(({ phase, complete }) => (
                         <div
                           key={phase}
-                          className="w-7"
+                          className="w-8"
                           title={`${t(`executiveOverview.phase.${phase}`, phase)} ${format.percent(complete)}`}
                         >
                           <span className="relative block h-2 overflow-hidden rounded bg-border">
                             <span className="absolute inset-y-0 start-0 bg-accent" style={{ width: `${Math.round(complete * 100)}%` }} />
                           </span>
-                          <div className="mt-0.5 text-center text-[10px] font-normal text-ink-soft">
+                          <div className="mt-0.5 whitespace-nowrap text-center text-micro font-normal text-ink-soft">
                             {t(`executiveOverview.phaseShort.${phase}`, phase.charAt(0).toUpperCase())}
                           </div>
                         </div>
                       ))}
                     </div>
                   </td>
-                  <td className="whitespace-nowrap px-2.5 py-2.5">
+                  <td className="whitespace-nowrap px-2 py-2.5">
                     <StatusLed
                       tone={SCHEDULE_TONE[project.scheduleStatus] ?? 'muted'}
                       label={
@@ -299,9 +299,9 @@ export function ProjectsTable({
                       }
                     />
                   </td>
-                  <td className="px-2.5 py-2.5 text-end font-mono text-xs font-normal text-ink">{format.percent(project.planMet)}</td>
-                  <td className="whitespace-nowrap px-2.5 py-2.5">
-                    <span className="font-mono text-xs font-normal text-ink">{format.day(project.lastReportDate)}</span>
+                  <td className="px-2 py-2.5 text-end font-mono text-xs font-normal text-ink">{format.percent(project.planMet)}</td>
+                  <td className="min-w-[84px] px-2 py-2.5">
+                    <span className="whitespace-nowrap font-mono text-xs font-normal text-ink">{format.day(project.lastReportDate)}</span>
                     {!finished && project.daysSinceLastReport > QUIET_AFTER_DAYS && (
                       <div className="text-xs font-normal text-danger">
                         {t('executiveOverview.projects.quiet', { n: project.daysSinceLastReport })}

@@ -220,7 +220,7 @@ export function AddFieldForm({
           <button
             type="button"
             onClick={() => setOptions((prev) => [...prev, { value: '', label: '' }])}
-            className="mt-2 text-[11px] uppercase tracking-wide text-ink-soft hover:text-ink"
+            className="mt-2 text-label uppercase tracking-wide text-ink-soft hover:text-ink"
           >
             {t('addField.addOption')}
           </button>

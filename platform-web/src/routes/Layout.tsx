@@ -39,7 +39,7 @@ export function Layout({ token }: LayoutProps) {
   }
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `block text-[11px] uppercase tracking-wide ${isActive ? 'text-sidebar-ink-strong' : 'text-sidebar-ink hover:text-sidebar-ink-strong'}`;
+    `block text-xs font-medium uppercase tracking-wide ${isActive ? 'text-sidebar-ink-strong' : 'text-sidebar-ink hover:text-sidebar-ink-strong'}`;
 
   return (
     // h-screen + overflow-hidden here, not min-h-screen, is what actually makes the
@@ -104,7 +104,7 @@ export function Layout({ token }: LayoutProps) {
           </div>
           <button
             onClick={handleSignOut}
-            className="text-[11px] uppercase tracking-wide text-sidebar-ink hover:text-sidebar-ink-strong"
+            className="text-label uppercase tracking-wide text-sidebar-ink hover:text-sidebar-ink-strong"
           >
             {t('sidebar.signOut')}
           </button>

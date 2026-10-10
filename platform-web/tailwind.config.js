@@ -38,10 +38,36 @@ export default {
         success: 'var(--success)',
         danger: 'var(--danger)',
       },
+      // Tajawal for everything that is read, in both languages - one family that covers
+      // Arabic and Latin, so the app looks the same on every device instead of falling back
+      // to whatever Arabic font the device happens to have (chosen by Aamer 2026-10-10 over
+      // the previous Calibri-bold body + Archivo headings, which read as heavy and blocky).
+      // `display` is kept as its own key (headings) so a separate heading face can be
+      // reintroduced later in one place. IBM Plex Mono stays for codes and tabular figures;
+      // Tajawal follows it in the stack so Arabic inside a mono element still gets Tajawal.
       fontFamily: {
-        display: ['Archivo', 'system-ui', 'sans-serif'],
-        sans: ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
-        mono: ['"IBM Plex Mono"', 'ui-monospace', 'monospace'],
+        display: ['Tajawal', 'system-ui', 'sans-serif'],
+        sans: ['Tajawal', 'system-ui', 'sans-serif'],
+        mono: ['"IBM Plex Mono"', 'Tajawal', 'ui-monospace', 'monospace'],
+      },
+      // One type scale for the whole app, sized by the job the text does. Tajawal draws
+      // smaller than Calibri at the same pixel size, and Arabic needs more room than
+      // uppercase Latin, so every step is a little larger than Tailwind's default and the
+      // two smallest roles have names instead of one-off pixel values.
+      //   micro  - tags and tiny annotations          label - uppercase section labels, table heads
+      //   xs     - captions and secondary text        sm    - body text, tables, inputs, buttons
+      //   lg     - emphasised lines                   xl    - page titles
+      //   2xl/3xl - headline figures (dashboard tiles)
+      fontSize: {
+        micro: ['0.75rem', { lineHeight: '1rem' }],
+        label: ['0.78125rem', { lineHeight: '1.125rem' }],
+        xs: ['0.8125rem', { lineHeight: '1.25rem' }],
+        sm: ['0.9375rem', { lineHeight: '1.5rem' }],
+        base: ['1rem', { lineHeight: '1.625rem' }],
+        lg: ['1.125rem', { lineHeight: '1.75rem' }],
+        xl: ['1.5rem', { lineHeight: '2rem' }],
+        '2xl': ['1.75rem', { lineHeight: '2.25rem' }],
+        '3xl': ['2.125rem', { lineHeight: '2.5rem' }],
       },
       borderRadius: {
         DEFAULT: '2px',

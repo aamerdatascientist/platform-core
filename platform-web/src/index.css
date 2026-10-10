@@ -104,17 +104,25 @@ body {
     radial-gradient(ellipse at center, rgba(255, 255, 255, 0.035), transparent 60%);
 }
 
-/* Calibri Bold for both languages (Phase 2 of the RTL work) - same family, size, and
-   weight regardless of active language, so switching languages doesn't change the
-   text's visual weight. Fallback chain for non-Windows devices that don't have
-   Calibri installed - Segoe UI/Tahoma are the closest common substitutes. Untouched
-   by the "Structural steel" reskin - Archivo is applied explicitly via font-display
-   on headers only, same mechanism already used before this change (a class-applied
-   font-family always wins over this inherited body rule on specificity). */
+/* Tajawal, regular weight, for both languages - the same family covers Arabic and Latin,
+   so text looks the same on every device. This replaced "Calibri Bold everywhere"
+   (2026-10-10): with every word bold nothing stood out and the page read as heavy; now
+   weight is something a component asks for (font-medium / font-semibold) where it means
+   something. Tajawal ships 400/500/700 here - font-semibold and font-bold both land on 700. */
 body {
   @apply bg-bg text-ink;
-  font-family: Calibri, 'Segoe UI', Tahoma, Arial, sans-serif;
-  font-weight: bold;
+  font-family: Tajawal, system-ui, 'Segoe UI', Tahoma, Arial, sans-serif;
+  font-weight: 400;
+}
+
+/* Letter-spacing is a Latin device. Arabic is a joined script: spacing its letters out
+   pulls the joins apart and is the fastest way to make Arabic text look broken. The app's
+   uppercase labels and titles all carry tracking-* classes for their English form, so when
+   the page language is Arabic that spacing is switched off everywhere. !important because it
+   has to beat every tracking utility; :lang(ar) because <html lang> follows the active
+   language (see src/i18n/index.ts). */
+:lang(ar) * {
+  letter-spacing: 0 !important;
 }
 
 /* Themed scrollbar - mode-aware for free since it references the same tokens

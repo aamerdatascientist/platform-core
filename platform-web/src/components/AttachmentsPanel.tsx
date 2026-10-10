@@ -72,7 +72,7 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
 
   return (
     <div className="border border-border rounded bg-panel p-4 shadow-recessed">
-      <span className="mb-3 block text-[11px] uppercase tracking-wider text-ink-soft">{t('attachmentsPanel.title')}</span>
+      <span className="mb-3 block text-label uppercase tracking-wider text-ink-soft">{t('attachmentsPanel.title')}</span>
 
       <div className="mb-3 flex flex-wrap items-center gap-2">
         {attachmentFields.length > 1 && (
@@ -110,7 +110,7 @@ export function AttachmentsPanel({ token, formId, recordId, attachmentFields }: 
               </button>
               <span className="ms-3 flex shrink-0 items-center gap-3">
                 <span className="text-xs text-ink-soft">{formatSize(f.sizeBytes)}</span>
-                <button onClick={() => handleDelete(f.id)} className="text-[11px] uppercase tracking-wide text-danger hover:opacity-70">
+                <button onClick={() => handleDelete(f.id)} className="text-label uppercase tracking-wide text-danger hover:opacity-70">
                   {t('common.remove')}
                 </button>
               </span>

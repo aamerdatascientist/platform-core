@@ -25,7 +25,7 @@ const TONE_CLASS = {
  */
 export function StatusLed({ label, tone = 'accent' }: StatusLedProps) {
   return (
-    <span className={`inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wider ${TONE_CLASS[tone]}`}>
+    <span className={`inline-flex items-center gap-1.5 font-mono text-label uppercase tracking-wider ${TONE_CLASS[tone]}`}>
       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" style={{ boxShadow: '0 0 5px currentColor' }} />
       {label}
     </span>

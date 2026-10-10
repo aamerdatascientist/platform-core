@@ -69,7 +69,7 @@ export function SubmissionsTable({ token, fields, rows, onRowClick, selectedReco
         <thead>
           <tr className="border-b border-border rounded bg-bg">
             {columns.map((c) => (
-              <th key={c.id} className="px-3 py-2 text-[11px] font-medium uppercase tracking-wider text-ink-soft">
+              <th key={c.id} className="px-3 py-2 text-label font-medium uppercase tracking-wider text-ink-soft">
                 {c.label}
               </th>
             ))}

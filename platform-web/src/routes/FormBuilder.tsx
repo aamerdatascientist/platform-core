@@ -181,7 +181,7 @@ export function FormBuilder({ token }: { token: string }) {
       </div>
 
       <div className="border border-border rounded bg-panel p-4 shadow-recessed">
-        <h3 className="mb-1 text-[11px] font-medium uppercase tracking-wider text-ink-soft">{t('formBuilder.access')}</h3>
+        <h3 className="mb-1 text-label font-medium uppercase tracking-wider text-ink-soft">{t('formBuilder.access')}</h3>
         <p className="mb-3 text-sm text-ink-soft">
           {formDefinition.allowedRoleIds.length === 0 && formDefinition.allowedUserIds.length === 0
             ? t('formBuilder.accessOpenDescription')
@@ -232,7 +232,7 @@ export function FormBuilder({ token }: { token: string }) {
       )}
 
       <div>
-        <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-soft">
+        <h3 className="mb-3 text-label font-medium uppercase tracking-wider text-ink-soft">
           {t('formBuilder.fieldsCount', { count: activeFields.length })}
         </h3>
         <div className="space-y-1">
@@ -261,7 +261,7 @@ export function FormBuilder({ token }: { token: string }) {
       {(hasDraft || isPublished) && (
         <>
           <div>
-            <h3 className="mb-3 text-[11px] font-medium uppercase tracking-wider text-ink-soft">
+            <h3 className="mb-3 text-label font-medium uppercase tracking-wider text-ink-soft">
               {t('formBuilder.addAField')}
             </h3>
             <AddFieldForm
@@ -304,7 +304,7 @@ export function FormBuilder({ token }: { token: string }) {
         {!confirmingDelete ? (
           <button
             onClick={() => setConfirmingDelete(true)}
-            className="text-[11px] uppercase tracking-wide text-danger hover:opacity-70"
+            className="text-label uppercase tracking-wide text-danger hover:opacity-70"
           >
             {t('formBuilder.deleteThisForm')}
           </button>

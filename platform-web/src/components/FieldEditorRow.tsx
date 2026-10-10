@@ -217,7 +217,7 @@ export function FieldEditorRow({
               type="button"
               onClick={() => run(() => api.forms.restoreField(token, formId, field.id), 'fieldEditor.restoreError')}
               disabled={busy}
-              className="text-[11px] uppercase tracking-wide text-accent hover:opacity-70"
+              className="text-label uppercase tracking-wide text-accent hover:opacity-70"
             >
               {t('fieldEditor.restore')}
             </button>
@@ -228,7 +228,7 @@ export function FieldEditorRow({
                   type="button"
                   onClick={() => setPanel(panel === 'visibility' ? 'none' : 'visibility')}
                   disabled={busy}
-                  className="text-[11px] uppercase tracking-wide text-ink-soft hover:opacity-70"
+                  className="text-label uppercase tracking-wide text-ink-soft hover:opacity-70"
                 >
                   {field.visibleWhenFieldCode ? t('fieldEditor.visibilitySet') : t('fieldEditor.visibility')}
                 </button>
@@ -238,7 +238,7 @@ export function FieldEditorRow({
                   type="button"
                   onClick={() => setPanel(panel === 'lookup-filter' ? 'none' : 'lookup-filter')}
                   disabled={busy}
-                  className="text-[11px] uppercase tracking-wide text-ink-soft hover:opacity-70"
+                  className="text-label uppercase tracking-wide text-ink-soft hover:opacity-70"
                 >
                   {field.filterByFieldCode ? t('fieldEditor.lookupFilterSet') : t('fieldEditor.lookupFilter')}
                 </button>
@@ -247,7 +247,7 @@ export function FieldEditorRow({
                 type="button"
                 onClick={() => setPanel(panel === 'code' ? 'none' : 'code')}
                 disabled={busy}
-                className="text-[11px] uppercase tracking-wide text-ink-soft hover:opacity-70"
+                className="text-label uppercase tracking-wide text-ink-soft hover:opacity-70"
               >
                 {t('fieldEditor.renameCode')}
               </button>
@@ -255,7 +255,7 @@ export function FieldEditorRow({
                 type="button"
                 onClick={() => setPanel(panel === 'type' ? 'none' : 'type')}
                 disabled={busy}
-                className="text-[11px] uppercase tracking-wide text-ink-soft hover:opacity-70"
+                className="text-label uppercase tracking-wide text-ink-soft hover:opacity-70"
               >
                 {t('fieldEditor.changeType')}
               </button>
@@ -263,7 +263,7 @@ export function FieldEditorRow({
                 type="button"
                 onClick={() => setPanel(panel === 'remove' ? 'none' : 'remove')}
                 disabled={busy}
-                className="text-[11px] uppercase tracking-wide text-danger hover:opacity-70"
+                className="text-label uppercase tracking-wide text-danger hover:opacity-70"
               >
                 {t('common.remove')}
               </button>

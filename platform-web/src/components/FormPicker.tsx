@@ -44,7 +44,7 @@ export function FormPicker({ token }: FormPickerProps) {
     <nav className="space-y-5">
       {Object.entries(byModule).map(([moduleName, moduleForms]) => (
         <div key={moduleName}>
-          <h3 className="mb-1.5 text-[10px] font-medium uppercase tracking-wider text-sidebar-ink">
+          <h3 className="mb-1.5 text-micro font-medium uppercase tracking-wider text-sidebar-ink">
             {moduleName}
           </h3>
           <ul className="space-y-0.5">
