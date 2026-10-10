@@ -165,56 +165,109 @@ export interface DropdownOption {
   label: string;
 }
 
-// Mirrors Platform.Application.Analytics's query handler DTOs - same hand-kept-in-sync
-// convention as the rest of this file.
+// Mirrors Platform.Application.Analytics.Queries.GetExecutiveOverview's DTOs - same
+// hand-kept-in-sync convention as the rest of this file. Shares are 0..1; a null share
+// means "no reports to judge by", which the page shows as a dash, never as 0%.
+// Dates are plain calendar dates ("2026-10-10"), already in Saudi local time.
 
-export interface ProjectProgressDto {
-  projectId: string;
-  projectCode: string;
-  projectName: string;
+export type OverviewPhase = 'paperwork' | 'excavation' | 'foundation' | 'structural' | 'mep';
+export type OverviewScheduleStatus = 'ahead' | 'behind' | 'on_track' | 'finished' | 'unknown';
+
+export interface OverviewTilesDto {
+  projectCount: number;
+  activeCount: number;
+  onHoldCount: number;
+  completedCount: number;
+  workComplete: number;
+  activeBehindCount: number;
+  planMetLast14Days: number | null;
+  planMetPrevious14Days: number | null;
+  reportsLast14Days: number;
+  workersOnSite: number | null;
+  workersOnSiteDate: string | null;
+  delayedShareLast30Days: number | null;
+  delayedReportsLast30Days: number;
+  reportsLast30Days: number;
+}
+
+export interface OverviewProjectDto {
+  id: string;
+  code: string;
+  name: string;
+  city: string | null;
+  manager: string | null;
   status: string | null;
-  startDateUtc: string | null;
-  expectedCompletionUtc: string | null;
-  /** Null means "not enough information" (a missing date, or a non-positive span) - render "—", not 0%/100%. */
-  percentComplete: number | null;
+  currentPhases: OverviewPhase[];
+  workComplete: number;
+  /** Share of the start-to-expected-completion span already passed; null without both dates. */
+  timeElapsed: number | null;
+  scheduleStatus: OverviewScheduleStatus;
+  /** Work complete minus time elapsed, in whole percentage points. */
+  scheduleGapPoints: number | null;
+  phases: { phase: OverviewPhase; complete: number }[];
+  planMet: number;
+  reportCount: number;
+  lastReportDate: string;
+  daysSinceLastReport: number;
 }
 
-export interface ProjectCrewCountDto {
-  projectId: string;
-  projectCode: string;
-  projectName: string;
-  logDate: string;
-  totalHeadcount: number;
+export interface OverviewWeekPlanMetDto {
+  weekStart: string;
+  planMet: number | null;
+  reportCount: number;
 }
 
-export interface ProjectWeatherSummaryDto {
-  projectId: string;
-  projectCode: string;
-  projectName: string;
-  totalDays: number;
-  impactedDays: number;
+export interface OverviewWeekWorkersDto {
+  weekStart: string;
+  averageWorkersPerDay: number;
+  reportingDays: number;
 }
 
-export interface OverdueTaskDto {
-  taskId: string;
-  projectId: string;
-  projectCode: string;
-  projectName: string;
-  taskReference: string;
+export interface OverviewWeatherDto {
+  weather: string;
+  planMet: number;
+  reportCount: number;
+}
+
+export interface OverviewLabelCountDto {
+  label: string;
+  count: number;
+}
+
+export interface OverviewStockMaterialDto {
+  material: string;
+  /** True when the material was typed into the form's "other" box rather than picked from the list. */
+  isCustomMaterial: boolean;
+  unit: string | null;
+  received: number;
+  issued: number;
+  onHand: number;
+  issuedShare: number;
+}
+
+export interface OverviewProblemDto {
+  date: string;
+  phase: OverviewPhase;
   description: string;
-  assignedTo: string;
-  priority: string;
-  dueDateUtc: string;
+  projectCode: string;
+  projectName: string;
 }
 
-export type StockMovementType = 'GoodsReceipt' | 'MaterialIssue' | 'StockTransfer' | 'StockAdjustment';
-
-export interface StockMovementBreakdownDto {
-  movementType: StockMovementType;
-  locationId: string;
-  locationName: string;
-  materialId: string;
-  materialCode: string;
-  materialName: string;
-  totalQuantity: number;
+export interface ExecutiveOverviewDto {
+  asOf: string;
+  dataFrom: string | null;
+  selectedProjectId: string | null;
+  projectsWithoutReports: number;
+  tiles: OverviewTilesDto;
+  projects: OverviewProjectDto[];
+  planMetByWeek: OverviewWeekPlanMetDto[];
+  workersByWeek: OverviewWeekWorkersDto[];
+  planMetByWeather: OverviewWeatherDto[];
+  delayedReportCount: number;
+  delayCauses: OverviewLabelCountDto[];
+  stockByMaterial: OverviewStockMaterialDto[];
+  stockIssueCount: number;
+  issueReasons: OverviewLabelCountDto[];
+  problemReportCount: number;
+  latestProblems: OverviewProblemDto[];
 }

@@ -1,16 +1,12 @@
 import type {
   CurrentUserDto,
   DynamicRow,
+  ExecutiveOverviewDto,
   FileMetadataDto,
   FormDefinitionDto,
   FormSummaryDto,
-  OverdueTaskDto,
   PagedResult,
-  ProjectCrewCountDto,
-  ProjectProgressDto,
-  ProjectWeatherSummaryDto,
   RoleDto,
-  StockMovementBreakdownDto,
   TokenPair,
   UserSummaryDto,
   WorkflowStatusDto,
@@ -292,19 +288,13 @@ export const api = {
   },
 
   analytics: {
-    projectProgress: (token: string) =>
-      request<ProjectProgressDto[]>('/api/analytics/project-progress', {}, token),
-
-    crewCountByProject: (token: string) =>
-      request<ProjectCrewCountDto[]>('/api/analytics/crew-count-by-project', {}, token),
-
-    weatherImpactedDays: (token: string) =>
-      request<ProjectWeatherSummaryDto[]>('/api/analytics/weather-impacted-days', {}, token),
-
-    overdueTasks: (token: string) => request<OverdueTaskDto[]>('/api/analytics/overdue-tasks', {}, token),
-
-    stockMovementBreakdown: (token: string) =>
-      request<StockMovementBreakdownDto[]>('/api/analytics/stock-movement-breakdown', {}, token),
+    /** The whole Executive Overview page in one call; projectId narrows everything but the project list. */
+    executiveOverview: (token: string, projectId?: string | null) =>
+      request<ExecutiveOverviewDto>(
+        `/api/analytics/executive-overview${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`,
+        {},
+        token,
+      ),
   },
 
   workflow: {

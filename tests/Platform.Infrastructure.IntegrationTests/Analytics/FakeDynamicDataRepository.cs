@@ -50,4 +50,8 @@ public class FakeDynamicDataRepository : IDynamicDataRepository
         string tableName, IReadOnlyCollection<FieldDefinition> activeFields, Guid id,
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Not used by the analytics query handler tests.");
+
+    public Task<IReadOnlyList<string>> GetDistinctColumnValuesAsync(
+        string tableName, string columnCode, CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Not used by the analytics query handler tests.");
 }

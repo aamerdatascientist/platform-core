@@ -207,55 +207,166 @@
     "toggleActiveError": "Could not update that user.",
     "saveRolesError": "Could not update roles for that user."
   },
-  "projectSelector": {
-    "allProjects": "All projects"
-  },
   "executiveOverview": {
     "title": "Executive overview",
-    "subtitle": "Live status across every active project.",
+    "subtitle": "As of {{asOf}} · daily reports since {{from}}",
+    "subtitleEmpty": "No daily reports have been submitted yet.",
     "loadError": "Could not load the dashboard.",
+    "points": "{{points}} pts",
+    "weekOf": "Week of {{date}}",
+    "noReports": "No reports in this period.",
+    "noReportsThisWeek": "No reports",
+    "filter": {
+      "label": "Project",
+      "all": "All projects"
+    },
     "projectStatus": {
       "planning": "Planning",
       "active": "Active",
       "on_hold": "On hold",
-      "completed": "Completed"
+      "completed": "Completed",
+      "cancelled": "Cancelled"
     },
-    "priority": {
-      "low": "Low",
-      "medium": "Medium",
-      "high": "High",
-      "urgent": "Urgent"
+    "phase": {
+      "paperwork": "Paperwork",
+      "excavation": "Excavation",
+      "foundation": "Foundation",
+      "structural": "Structure",
+      "mep": "MEP"
     },
-    "projectProgress": {
-      "title": "Project progress",
-      "empty": "No projects yet."
+    "phaseShort": {
+      "paperwork": "P",
+      "excavation": "E",
+      "foundation": "F",
+      "structural": "S",
+      "mep": "M"
     },
-    "crewCount": {
-      "title": "Crew on site",
-      "empty": "No labor log entries yet.",
-      "asOf": "as of {{date}}"
+    "schedule": {
+      "ahead": "Ahead {{points}} pts",
+      "behind": "Behind {{points}} pts",
+      "on_track": "On track",
+      "finished": "Finished {{date}}",
+      "unknown": "No schedule"
     },
-    "weatherImpact": {
-      "title": "Weather impact",
-      "empty": "No daily site reports yet.",
-      "daysImpacted": "{{impacted}} of {{total}} days impacted"
+    "tiles": {
+      "projects": "Projects reporting",
+      "projectsDetail": "{{active}} active · {{onHold}} on hold · {{completed}} completed",
+      "workComplete": "Work complete",
+      "workCompleteDetail": "Across all planned work · active projects behind: {{n}}",
+      "status": "Status",
+      "againstTime": "{{elapsed}} of the time elapsed · {{points}} pts",
+      "noSchedule": "No start or expected completion date",
+      "planMet": "Plan met · last 14 days",
+      "noReports14": "No reports in the last 14 days",
+      "reportCount": "Reports: {{n}}",
+      "againstPrevious14": "against the 14 days before",
+      "workers": "Workers on site",
+      "workersDetail": "Latest reporting day, {{date}}",
+      "noReports": "No reports",
+      "delays": "Reports with a delay · 30 days",
+      "delaysDetail": "{{delayed}} of {{total}} reports",
+      "noReports30": "No reports in the last 30 days"
     },
-    "overdueTasks": {
-      "title": "Overdue tasks ({{count}})",
-      "empty": "Nothing overdue right now.",
-      "assignedTo": "Assigned to {{name}}",
-      "dueDate": "Due {{date}}"
+    "projects": {
+      "title": "Projects",
+      "caption": "Work complete against time elapsed. Select a row to focus the rest of the page on that project.",
+      "empty": "No project has submitted a daily report yet.",
+      "project": "Project",
+      "status": "Status",
+      "nowIn": "Now in",
+      "workComplete": "Work complete",
+      "phases": "Phases",
+      "schedule": "Schedule",
+      "planMet": "Plan met",
+      "lastReport": "Last report",
+      "barTitle": "Work complete {{work}}, time elapsed {{elapsed}}",
+      "quiet": "No report for {{n}} days",
+      "keyWork": "Work complete",
+      "keyTime": "Time elapsed between start and expected completion",
+      "keyPhases": "Phases: P paperwork · E excavation · F foundation · S structure · M MEP"
     },
-    "stockMovement": {
-      "title": "Stock movement breakdown",
+    "planMetWeek": {
+      "title": "Plan met, by week",
+      "caption": "Share of daily reports where all the work planned for the day was done. Complete weeks only.",
+      "tooltip": "{{share}} plan met · reports: {{n}}"
+    },
+    "workersWeek": {
+      "title": "Workers on site, by week",
+      "captionAll": "Average workers present per reporting day, all projects together.",
+      "captionOne": "Average workers present per reporting day.",
+      "tooltip": "{{workers}} workers a day on average · reporting days: {{n}}"
+    },
+    "planMetWeather": {
+      "title": "Plan met, by weather",
+      "caption": "Share of site reports that met the day's plan under each condition. Office (paperwork) days and conditions with fewer than five reports are left out.",
+      "empty": "Not enough site reports yet.",
+      "tooltip": "{{share}} plan met · site reports: {{n}}"
+    },
+    "weather": {
+      "clear": "Clear",
+      "extreme_heat": "Extreme heat",
+      "sandstorm": "Sandstorm",
+      "rain": "Rain",
+      "other": "Other"
+    },
+    "delayCauses": {
+      "title": "Why days were delayed",
+      "caption": "Delayed reports since {{from}}: {{n}}. Most common causes, as the site wrote them.",
+      "empty": "No delays reported.",
+      "tooltip": "Delayed reports: {{n}}"
+    },
+    "stock": {
+      "title": "Stock by material",
+      "caption": "Received against issued. Each material is in its own unit.",
       "empty": "No stock movements recorded yet.",
-      "noMovements": "No movements recorded for this material.",
-      "movementType": {
-        "GoodsReceipt": "Goods receipt",
-        "MaterialIssue": "Material issue",
-        "StockTransfer": "Stock transfer",
-        "StockAdjustment": "Stock adjustment"
-      }
+      "material": "Material",
+      "received": "Received",
+      "issued": "Issued",
+      "onHand": "On hand",
+      "issuedShare": "Issued share"
+    },
+    "material": {
+      "rebar": "Rebar",
+      "cement": "Cement",
+      "blocks": "Blocks",
+      "ready_mix": "Ready-mix concrete",
+      "sand": "Sand",
+      "gravel": "Gravel",
+      "wood": "Timber",
+      "pipes": "Pipes",
+      "other": "Other"
+    },
+    "unit": {
+      "bag": "bags",
+      "ton": "t",
+      "kg": "kg",
+      "cubic_meter": "m³",
+      "piece": "pcs",
+      "roll": "rolls",
+      "box": "boxes",
+      "liter": "L"
+    },
+    "issueReasons": {
+      "title": "Where issued stock went",
+      "caption": "Stock issues by reason: {{n}}. Written off as damaged or wasted: {{wasted}} ({{share}}).",
+      "empty": "No stock has been issued yet.",
+      "tooltip": "{{n}} of {{total}} issues ({{share}})"
+    },
+    "reason": {
+      "used_in_construction": "Used on site",
+      "transferred": "Transferred",
+      "returned_to_supplier": "Returned to supplier",
+      "damaged_or_wasted": "Damaged or wasted",
+      "other": "Other"
+    },
+    "problems": {
+      "title": "Latest problems reported",
+      "caption": "Reports that flagged a problem since {{from}}: {{n}}. The most recent:",
+      "empty": "No problems reported."
+    },
+    "notes": {
+      "method": "How work complete is calculated: each unit (a permit milestone, a zone, a footing, a floor, one MEP trade on one floor) earns one day for every report that says the day's plan was met, up to a planned number of days for that kind of unit. A project's figure is days earned over days planned across all its units. The planned days are placeholders (zone 2, footing 2, floor 8, MEP trade 3, milestones 4/3/2/1) until the forms hold a real planned schedule.",
+      "withoutReports": "Projects with no daily reports yet, not shown: {{n}}."
     }
   },
   "fieldEditor": {

@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Platform.Application.Analytics.Queries.GetCrewCountByProject;
+using Platform.Application.Analytics.Queries.GetExecutiveOverview;
 using Platform.Application.Analytics.Queries.GetOverdueTasks;
 using Platform.Application.Analytics.Queries.GetProjectProgress;
 using Platform.Application.Analytics.Queries.GetStockMovementBreakdown;
@@ -22,6 +23,16 @@ public class AnalyticsController : ControllerBase
     private readonly ISender _sender;
 
     public AnalyticsController(ISender sender) => _sender = sender;
+
+    /// <summary>
+    /// Everything the Executive Overview page shows, in one response, read from the seven
+    /// forms that exist today. The five endpoints below predate the projects-centric rebuild
+    /// and read forms that no longer exist - the page no longer calls them.
+    /// </summary>
+    [HttpGet("executive-overview")]
+    public async Task<ActionResult<ExecutiveOverviewDto>> GetExecutiveOverview(
+        [FromQuery] Guid? projectId, CancellationToken cancellationToken) =>
+        Ok(await _sender.Send(new GetExecutiveOverviewQuery(projectId), cancellationToken));
 
     [HttpGet("project-progress")]
     public async Task<ActionResult<IReadOnlyList<ProjectProgressDto>>> GetProjectProgress(CancellationToken cancellationToken) =>
