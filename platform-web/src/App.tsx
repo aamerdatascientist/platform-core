@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Route, Routes, useLocation } from 'react-router-dom';
 import { getTokens, subscribe } from './auth/tokenStore';
+import { isDashboardPath } from './dashboardLink';
 import { BuilderHome } from './routes/BuilderHome';
 import { ExecutiveOverview } from './routes/ExecutiveOverview';
 import { FormBuilder } from './routes/FormBuilder';
@@ -21,6 +22,12 @@ export default function App() {
 
   useEffect(() => subscribe((tokens) => setAccessToken(tokens?.accessToken ?? null)), []);
 
+  const location = useLocation();
+
+  // The Executive Overview is a standalone page: no sidebar, and - when its link carries a
+  // share key - no sign-in either. It is checked before the sign-in gate for that reason.
+  if (isDashboardPath(location.pathname)) return <ExecutiveOverview token={accessToken} />;
+
   if (!accessToken) return <SignIn />;
 
   return (
@@ -28,7 +35,6 @@ export default function App() {
       <Route element={<Layout token={accessToken} />}>
         <Route index element={<Welcome />} />
         <Route path="forms/:formId" element={<FormView token={accessToken} />} />
-        <Route path="dashboards/executive-overview" element={<ExecutiveOverview token={accessToken} />} />
         <Route element={<RequireAdmin token={accessToken} />}>
           <Route path="builder" element={<BuilderHome token={accessToken} />} />
           <Route path="builder/:formId" element={<FormBuilder token={accessToken} />} />

@@ -21,8 +21,13 @@ namespace Platform.Api.Controllers;
 public class AnalyticsController : ControllerBase
 {
     private readonly ISender _sender;
+    private readonly IConfiguration _configuration;
 
-    public AnalyticsController(ISender sender) => _sender = sender;
+    public AnalyticsController(ISender sender, IConfiguration configuration)
+    {
+        _sender = sender;
+        _configuration = configuration;
+    }
 
     /// <summary>
     /// Everything the Executive Overview page shows, in one response, read from the seven
@@ -33,6 +38,18 @@ public class AnalyticsController : ControllerBase
     public async Task<ActionResult<ExecutiveOverviewDto>> GetExecutiveOverview(
         [FromQuery] Guid? projectId, CancellationToken cancellationToken) =>
         Ok(await _sender.Send(new GetExecutiveOverviewQuery(projectId), cancellationToken));
+
+    public record DashboardShareKeyResponse(string? Key);
+
+    /// <summary>
+    /// The key that opens the dashboard without a sign-in (see <see cref="DashboardShareKey"/>),
+    /// or null when public viewing is switched off. Available to every signed-in user, not
+    /// only administrators: the app opens the dashboard in its own tab using this key, so
+    /// anyone who can see the dashboard already has its address - and can share it.
+    /// </summary>
+    [HttpGet("executive-overview/share-key")]
+    public ActionResult<DashboardShareKeyResponse> GetExecutiveOverviewShareKey() =>
+        Ok(new DashboardShareKeyResponse(DashboardShareKey.Read(_configuration)));
 
     [HttpGet("project-progress")]
     public async Task<ActionResult<IReadOnlyList<ProjectProgressDto>>> GetProjectProgress(CancellationToken cancellationToken) =>

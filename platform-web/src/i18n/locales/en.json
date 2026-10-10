@@ -269,7 +269,7 @@
     },
     "projects": {
       "title": "Projects",
-      "caption": "Work complete against time elapsed. Select a row to focus the rest of the page on that project.",
+      "caption": "Bar: work complete. Tick: time elapsed. Planned days are placeholders. Select a row to focus on one project.",
       "empty": "No project has submitted a daily report yet.",
       "project": "Project",
       "status": "Status",
@@ -281,9 +281,7 @@
       "lastReport": "Last report",
       "barTitle": "Work complete {{work}}, time elapsed {{elapsed}}",
       "quiet": "No report for {{n}} days",
-      "keyWork": "Work complete",
-      "keyTime": "Time elapsed between start and expected completion",
-      "keyPhases": "Phases: P paperwork · E excavation · F foundation · S structure · M MEP"
+      "withoutReports": "Not shown, no daily reports yet: {{n}}"
     },
     "planMetWeek": {
       "title": "Plan met, by week",
@@ -298,7 +296,6 @@
     },
     "planMetWeather": {
       "title": "Plan met, by weather",
-      "caption": "Share of site reports that met the day's plan under each condition. Office (paperwork) days and conditions with fewer than five reports are left out.",
       "empty": "Not enough site reports yet.",
       "tooltip": "{{share}} plan met · site reports: {{n}}"
     },
@@ -310,20 +307,20 @@
       "other": "Other"
     },
     "delayCauses": {
-      "title": "Why days were delayed",
-      "caption": "Delayed reports since {{from}}: {{n}}. Most common causes, as the site wrote them.",
+      "title": "Why days were delayed ({{n}})",
       "empty": "No delays reported.",
       "tooltip": "Delayed reports: {{n}}"
     },
     "stock": {
       "title": "Stock by material",
-      "caption": "Received against issued. Each material is in its own unit.",
+      "caption": "Stock issues: {{n}} · damaged or wasted: {{wasted}} ({{share}})",
       "empty": "No stock movements recorded yet.",
       "material": "Material",
       "received": "Received",
       "issued": "Issued",
       "onHand": "On hand",
-      "issuedShare": "Issued share"
+      "issuedShare": "Issued share",
+      "more": "+{{n}} more materials"
     },
     "material": {
       "rebar": "Rebar",
@@ -346,27 +343,20 @@
       "box": "boxes",
       "liter": "L"
     },
-    "issueReasons": {
-      "title": "Where issued stock went",
-      "caption": "Stock issues by reason: {{n}}. Written off as damaged or wasted: {{wasted}} ({{share}}).",
-      "empty": "No stock has been issued yet.",
-      "tooltip": "{{n}} of {{total}} issues ({{share}})"
-    },
-    "reason": {
-      "used_in_construction": "Used on site",
-      "transferred": "Transferred",
-      "returned_to_supplier": "Returned to supplier",
-      "damaged_or_wasted": "Damaged or wasted",
-      "other": "Other"
-    },
     "problems": {
       "title": "Latest problems reported",
-      "caption": "Reports that flagged a problem since {{from}}: {{n}}. The most recent:",
+      "caption": "Flagged since {{from}}: {{n}} · latest {{shown}} shown",
       "empty": "No problems reported."
     },
-    "notes": {
-      "method": "How work complete is calculated: each unit (a permit milestone, a zone, a footing, a floor, one MEP trade on one floor) earns one day for every report that says the day's plan was met, up to a planned number of days for that kind of unit. A project's figure is days earned over days planned across all its units. The planned days are placeholders (zone 2, footing 2, floor 8, MEP trade 3, milestones 4/3/2/1) until the forms hold a real planned schedule.",
-      "withoutReports": "Projects with no daily reports yet, not shown: {{n}}."
+    "share": {
+      "needLinkTitle": "This dashboard needs a share link",
+      "needLinkBody": "Open it from the Asas app, or ask for the share link.",
+      "invalidTitle": "This link no longer works",
+      "invalidBody": "The share link has been replaced or switched off. Ask for the current link.",
+      "copyLink": "Copy share link",
+      "copied": "Copied",
+      "fullScreen": "Full screen",
+      "exitFullScreen": "Exit full screen"
     }
   },
   "fieldEditor": {

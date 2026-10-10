@@ -7,14 +7,17 @@ import { FormPicker } from '../components/FormPicker';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { Logo } from '../components/Logo';
 import { ModeToggle } from '../components/ModeToggle';
+import { buildDashboardUrl } from '../dashboardLink';
+import { getMode } from '../theme/mode';
 
 interface LayoutProps {
   token: string;
 }
 
 export function Layout({ token }: LayoutProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [dashboardKey, setDashboardKey] = useState<string | null>(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
 
@@ -24,6 +27,28 @@ export function Layout({ token }: LayoutProps) {
       .then((me) => setIsAdmin(me.roles.includes('Administrator')))
       .catch(() => setIsAdmin(false));
   }, [token]);
+
+  // Fetched up front, not on click: the dashboard opens in a new tab, and a browser only
+  // allows that directly inside the click itself - waiting on a request first would get the
+  // new tab blocked as a pop-up. Null (public viewing switched off on the server) is fine;
+  // the tab then opens on the signed-in session instead.
+  useEffect(() => {
+    api.analytics
+      .executiveOverviewShareKey(token)
+      .then((result) => setDashboardKey(result.key))
+      .catch(() => setDashboardKey(null));
+  }, [token]);
+
+  /**
+   * Opens the Executive Overview in its own tab, as a full-window page. With a share key the
+   * tab needs nothing from this one. Without it, the tab relies on being opened by this
+   * window: a tab opened this way starts with a copy of this tab's sign-in, which is why
+   * this is window.open and not a plain link (a plain new-tab link starts signed out).
+   */
+  function openDashboard() {
+    setMobileMenuOpen(false);
+    window.open(buildDashboardUrl({ shareKey: dashboardKey, language: i18n.language, mode: getMode() }), '_blank');
+  }
 
   // Close the drawer automatically on navigation - otherwise picking a form from it on
   // mobile would leave the drawer covering the screen instead of showing the new page.
@@ -122,9 +147,9 @@ export function Layout({ token }: LayoutProps) {
         <FormPicker token={token} />
 
         <div className="mt-6 space-y-2 border-t border-border rounded pt-3">
-          <NavLink to="/dashboards/executive-overview" className={navLinkClass}>
-            {t('sidebar.executiveOverview')}
-          </NavLink>
+          <button type="button" onClick={openDashboard} className={`${navLinkClass({ isActive: false })} w-full text-start`}>
+            {t('sidebar.executiveOverview')} <span aria-hidden="true">↗</span>
+          </button>
           {isAdmin && (
             <>
               <NavLink to="/builder" className={navLinkClass}>

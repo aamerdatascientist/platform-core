@@ -288,13 +288,28 @@ export const api = {
   },
 
   analytics: {
-    /** The whole Executive Overview page in one call; projectId narrows everything but the project list. */
+    /** The whole Executive Overview in one call; projectId narrows everything but the project list. */
     executiveOverview: (token: string, projectId?: string | null) =>
       request<ExecutiveOverviewDto>(
         `/api/analytics/executive-overview${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`,
         {},
         token,
       ),
+
+    /**
+     * The same data without a sign-in, opened by the share key the public link carries. The
+     * key travels in a header, never in the address sent to the server. No token is passed,
+     * so a failure here never triggers a token refresh or touches the signed-in session.
+     */
+    publicExecutiveOverview: (shareKey: string, projectId?: string | null) =>
+      request<ExecutiveOverviewDto>(
+        `/api/public/executive-overview${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`,
+        { headers: { 'X-Dashboard-Key': shareKey } },
+      ),
+
+    /** The key for the public link, or null when public viewing is switched off on the server. */
+    executiveOverviewShareKey: (token: string) =>
+      request<{ key: string | null }>('/api/analytics/executive-overview/share-key', {}, token),
   },
 
   workflow: {

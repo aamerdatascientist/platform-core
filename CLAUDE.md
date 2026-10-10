@@ -183,6 +183,28 @@ checkbox and the `Admin` user checkbox both left unchecked (the exact shape of t
 lockout), still loaded its Builder/Access page fully for Admin on a fresh reload - no 403,
 and the form still appeared in the sidebar nav despite the restriction. Nothing left open.
 
+## Executive Overview: standalone 16:9 page with a public share link - added 2026-10-10
+
+The dashboard is no longer a page inside the sidebar layout. It lives at
+`/dashboards/executive-overview` as a standalone, full-window page drawn on a fixed 1760x990
+stage that is scaled as a whole to fit the window (`routes/ExecutiveOverview.tsx`) - that is
+what keeps it exactly 16:9 on any screen. Because the stage never changes size, nothing on it
+may use a viewport-responsive (`sm:`/`lg:`) class; panels fill the grid cell they are given.
+The sidebar item opens it in a new tab (`window.open`, deliberately not a plain link - see
+`Layout.tsx`).
+
+**Public viewing is one config value, `Dashboard:ShareKey`** (Azure App Service setting
+`Dashboard__ShareKey`). Empty (the default) means public viewing is off. With a key of at
+least 32 characters set, `GET /api/public/executive-overview` returns the dashboard to anyone
+who sends that key in the `X-Dashboard-Key` header - this is the **only anonymous endpoint
+that returns business data**, and it answers 404 for a missing, wrong or unconfigured key.
+Replacing the value cuts off every link issued before; there is no per-link revocation and no
+database row behind it. The link carries the key in the URL fragment (`#k=...`), which browsers
+never send to a server. `GET /api/analytics/executive-overview/share-key` hands the key to any
+signed-in user (the app needs it to open the tab), so every user who can see the dashboard can
+also pass the link on - that is intended, not a leak. Don't add a second anonymous data
+endpoint by copying this one without the same key check.
+
 ## Established code conventions
 
 - Domain entities: private setters, static `Create` factories, `AuditableEntity` base.

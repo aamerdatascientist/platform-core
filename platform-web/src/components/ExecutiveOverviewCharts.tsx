@@ -6,23 +6,26 @@ import type { ReactNode } from 'react';
 // tokens (so they follow light/dark mode for free) with nothing new to install.
 
 /**
- * Width of an element, tracked as it resizes - the charts draw at real pixel size so text
- * never scales. A callback ref (not useRef) so the observer attaches whenever the element
- * actually appears: a chart first rendered in its "nothing to show" state has no element yet.
+ * Size of an element, tracked as it resizes - the charts draw at the real pixel size of the
+ * panel they sit in, so they fill it exactly and their text never scales. A callback ref
+ * (not useRef) so the observer attaches whenever the element actually appears: a chart
+ * first rendered in its "nothing to show" state has no element yet.
  */
-function useWidth() {
+function useSize() {
   const [element, setElement] = useState<HTMLDivElement | null>(null);
-  const [width, setWidth] = useState(0);
+  const [size, setSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
     if (!element) return;
-    setWidth(element.clientWidth);
-    const observer = new ResizeObserver((entries) => setWidth(entries[0].contentRect.width));
+    setSize({ width: element.clientWidth, height: element.clientHeight });
+    const observer = new ResizeObserver((entries) =>
+      setSize({ width: entries[0].contentRect.width, height: entries[0].contentRect.height }),
+    );
     observer.observe(element);
     return () => observer.disconnect();
   }, [element]);
 
-  return [setElement, width] as const;
+  return [setElement, size.width, size.height] as const;
 }
 
 export interface WeekPoint {
@@ -46,20 +49,21 @@ interface WeekChartProps {
   emptyText: string;
 }
 
-const HEIGHT = 220;
-const PAD = { left: 40, right: 16, top: 16, bottom: 28 };
+const PAD = { left: 40, right: 16, top: 18, bottom: 26 };
 
 function useWeekChart(points: WeekPoint[], max: number) {
-  const [ref, width] = useWidth();
+  const [ref, width, height] = useSize();
   const [hovered, setHovered] = useState<number | null>(null);
   const innerWidth = Math.max(0, width - PAD.left - PAD.right);
-  const innerHeight = HEIGHT - PAD.top - PAD.bottom;
+  const innerHeight = Math.max(0, height - PAD.top - PAD.bottom);
   const slot = points.length ? innerWidth / points.length : 0;
   const x = (index: number) => PAD.left + slot * (index + 0.5);
   const y = (value: number) => PAD.top + innerHeight * (1 - value / max);
-  // Thin the x labels out when the weeks get too close to read.
-  const labelEvery = slot > 0 ? Math.max(1, Math.ceil(46 / slot)) : 1;
-  return { ref, width, hovered, setHovered, innerWidth, innerHeight, slot, x, y, labelEvery };
+  // Thin the x labels out when the weeks get too close to read. The room a label needs
+  // depends on its text - an Arabic "12 سبتمبر" is far wider than "Sep 12".
+  const labelWidth = Math.max(46, ...points.map((point) => point.label.length * 7 + 12));
+  const labelEvery = slot > 0 ? Math.max(1, Math.ceil(labelWidth / slot)) : 1;
+  return { ref, width, height, hovered, setHovered, innerWidth, innerHeight, slot, x, y, labelEvery };
 }
 
 function Frame({
@@ -77,26 +81,26 @@ function Frame({
   ariaLabel: string;
   children: ReactNode;
 }) {
-  const { ref, width, hovered, setHovered, innerHeight, slot, x, y, labelEvery } = chart;
+  const { ref, width, height, hovered, setHovered, innerHeight, slot, x, y, labelEvery } = chart;
   const hoveredPoint = hovered === null ? null : points[hovered];
 
   return (
     // Time runs left to right in both languages, so the chart itself is always LTR - same
     // convention as the rest of the app's fixed-direction widgets.
-    <div ref={ref} dir="ltr" className="relative">
-      {width > 0 && (
-        <svg width={width} height={HEIGHT} role="img" aria-label={ariaLabel} className="block">
+    <div ref={ref} dir="ltr" className="relative h-full">
+      {width > 0 && height > 0 && (
+        <svg width={width} height={height} role="img" aria-label={ariaLabel} className="block">
           {ticks.map((tick) => (
             <g key={tick}>
               <line x1={PAD.left} x2={width - PAD.right} y1={y(tick)} y2={y(tick)} stroke="var(--border)" strokeWidth={1} opacity={0.6} />
-              <text x={PAD.left - 6} y={y(tick) + 4} textAnchor="end" fontSize={12} fill="var(--ink-soft)" className="font-mono font-normal">
+              <text x={PAD.left - 6} y={y(tick) + 4} textAnchor="end" fontSize={12} fill="var(--ink-soft)" className="font-mono">
                 {formatTick(tick)}
               </text>
             </g>
           ))}
           {points.map((point, index) =>
             index % labelEvery === 0 ? (
-              <text key={index} x={x(index)} y={HEIGHT - 8} textAnchor="middle" fontSize={12} fill="var(--ink-soft)" className="font-normal">
+              <text key={index} x={x(index)} y={height - 8} textAnchor="middle" fontSize={12} fill="var(--ink-soft)">
                 {point.label}
               </text>
             ) : null,
@@ -119,7 +123,7 @@ function Frame({
       )}
       {hoveredPoint && hovered !== null && (
         <div
-          className="pointer-events-none absolute top-0 z-10 max-w-[220px] rounded bg-ink px-2 py-1.5 text-xs font-normal text-panel"
+          className="pointer-events-none absolute top-0 z-10 max-w-[220px] rounded bg-ink px-2 py-1.5 text-xs text-panel"
           style={x(hovered) > width / 2 ? { right: width - x(hovered) + 10 } : { left: x(hovered) + 10 }}
         >
           {hoveredPoint.tooltip.map((line, index) => (
@@ -174,7 +178,7 @@ export function WeekLineChart({ points, max, ticks, formatTick, endLabel, ariaLa
           textAnchor="middle"
           fontSize={13}
           fill="var(--ink)"
-          className="font-mono font-normal"
+          className="font-mono"
         >
           {endLabel}
         </text>
@@ -224,30 +228,28 @@ export interface BarItem {
 }
 
 /**
- * Labelled horizontal bars. Plain HTML rather than SVG so Arabic labels wrap and align the
- * way the rest of the page's text does, and the bars grow from the reading direction's start.
+ * Labelled horizontal bars. Plain HTML rather than SVG so Arabic labels align the way the
+ * rest of the page's text does, and the bars grow from the reading direction's start. Each
+ * row is one line: a label too long for its column is cut with an ellipsis and shown in
+ * full on hover, so the list always takes the same height.
  */
 export function BarList({ items, max, emptyText }: { items: BarItem[]; max: number; emptyText: string }) {
   if (items.length === 0) return <p className="text-sm text-ink-soft">{emptyText}</p>;
 
   return (
-    <div className="space-y-2.5">
+    <div className="flex h-full flex-col justify-between">
       {items.map((item, index) => (
-        <div
-          key={index}
-          title={item.title}
-          className="grid grid-cols-[minmax(0,45%)_minmax(40px,1fr)_auto] items-center gap-3 sm:grid-cols-[minmax(0,38%)_minmax(60px,1fr)_auto]"
-        >
-          <span dir="auto" className="min-w-0 text-sm font-normal text-ink">
+        <div key={index} title={`${item.label} - ${item.title}`} className="grid grid-cols-[minmax(0,56%)_minmax(40px,1fr)_auto] items-center gap-2.5">
+          <span dir="auto" className="truncate text-sm text-ink">
             {item.label}
           </span>
-          <span className="relative h-4">
+          <span className="relative h-3.5">
             <span
               className={`absolute inset-y-0 start-0 rounded-e ${item.tone === 'danger' ? 'bg-danger' : 'bg-accent'}`}
               style={{ width: `${Math.max(1, (100 * item.value) / max)}%` }}
             />
           </span>
-          <span className="min-w-[2.5rem] text-end font-mono text-xs font-normal text-ink">{item.text}</span>
+          <span className="min-w-[2.25rem] text-end font-mono text-xs text-ink">{item.text}</span>
         </div>
       ))}
     </div>
