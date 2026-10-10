@@ -125,6 +125,17 @@ body {
   letter-spacing: 0 !important;
 }
 
+/* The mono face (IBM Plex Mono) is for Latin codes and figures and has no Arabic letters. In
+   Arabic, status tags and dates carry Arabic words inside font-mono elements; left to the
+   font stack those words can land on the device's own monospace Arabic (Courier New on
+   Windows), which looks nothing like the rest of the page. So in Arabic every mono element
+   is set in Tajawal outright - digits included, so a date like "10 أكتوبر" is one face -
+   with tabular figures to keep number columns aligned the way mono did. */
+:lang(ar) .font-mono {
+  font-family: Tajawal, system-ui, sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
 /* Themed scrollbar - mode-aware for free since it references the same tokens
    everything else does. Firefox (scrollbar-color/-width) and WebKit/Blink
    (::-webkit-scrollbar and friends) need separate rules - there's no shorthand that
