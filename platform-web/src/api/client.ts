@@ -52,6 +52,11 @@ async function refreshAccessToken(): Promise<string | null> {
           body: JSON.stringify({ refreshToken: stored.refreshToken }),
         });
         if (!response.ok) {
+          // Another tab may have refreshed first: refresh tokens are single-use, so ours was
+          // already spent, but the new pair is in shared storage - use it instead of signing
+          // everyone out.
+          const latest = getTokens();
+          if (latest && latest.refreshToken !== stored.refreshToken) return latest.accessToken;
           // The refresh token itself is invalid/expired/revoked - no recovering from
           // this client-side. Clear everything so the app falls back to the sign-in screen.
           setTokens(null);
@@ -119,6 +124,14 @@ export const api = {
 
     logout: (refreshToken: string) =>
       request<void>('/api/auth/logout', { method: 'POST', body: JSON.stringify({ refreshToken }) }),
+
+    /** Returns a fresh token pair for this device; every other session is signed out. */
+    changePassword: (token: string, currentPassword: string, newPassword: string) =>
+      request<TokenPair>(
+        '/api/auth/change-password',
+        { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) },
+        token,
+      ),
   },
 
   forms: {
@@ -174,6 +187,27 @@ export const api = {
     ) =>
       request<void>(
         `/api/forms/${formId}/fields/${fieldId}/visibility`,
+        { method: 'PUT', body: JSON.stringify(input) },
+        token,
+      ),
+
+    /** Whether the field must be answered, and its value rules. Works on a live form;
+     *  enforced for new submissions and record edits. */
+    updateFieldRules: (
+      token: string,
+      formId: string,
+      fieldId: string,
+      input: {
+        isRequired: boolean;
+        min: number | null;
+        max: number | null;
+        minExclusive: boolean;
+        regex: string | null;
+        noFutureDates: boolean;
+      },
+    ) =>
+      request<void>(
+        `/api/forms/${formId}/fields/${fieldId}/rules`,
         { method: 'PUT', body: JSON.stringify(input) },
         token,
       ),
@@ -300,6 +334,18 @@ export const api = {
       }
       return request<PagedResult<DynamicRow>>(`/api/forms/${formId}/submissions?${params}`, {}, token);
     },
+
+    /** Administrators: replace a record's values (the whole record, same shape as submit). */
+    update: (token: string, formId: string, recordId: string, values: Record<string, unknown>) =>
+      request<void>(
+        `/api/forms/${formId}/submissions/${recordId}`,
+        { method: 'PUT', body: JSON.stringify(values) },
+        token,
+      ),
+
+    /** Administrators: remove a record (soft delete - recoverable from the database). */
+    delete: (token: string, formId: string, recordId: string) =>
+      request<void>(`/api/forms/${formId}/submissions/${recordId}`, { method: 'DELETE' }, token),
   },
 
   analytics: {
@@ -387,6 +433,10 @@ export const api = {
 
     setActiveStatus: (token: string, userId: string, isActive: boolean) =>
       request<void>(`/api/users/${userId}/active-status`, { method: 'PUT', body: JSON.stringify({ isActive }) }, token),
+
+    /** Sets a new password for someone who forgot theirs, and signs them out everywhere. */
+    resetPassword: (token: string, userId: string, newPassword: string) =>
+      request<void>(`/api/users/${userId}/password`, { method: 'POST', body: JSON.stringify({ newPassword }) }, token),
   },
 
   roles: {

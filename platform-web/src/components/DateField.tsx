@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isRtl } from '../i18n';
+import { saudiTodayIso } from '../forms/fieldValues';
 
 /**
  * Date entry for form fields, replacing the browser's own <input type="date">.
@@ -26,9 +27,13 @@ export function toIsoDate(date: Date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
-/** Today on this device's calendar - for Saudi users, Saudi local time. */
+/**
+ * Today on the Saudi calendar, whatever time zone the device is set to - form dates are
+ * Saudi-local days (see DynamicDataRepository), and the server's "no future dates" check
+ * uses the same calendar.
+ */
 export function todayIso() {
-  return toIsoDate(new Date());
+  return saudiTodayIso();
 }
 
 function parseIso(value: string): { y: number; m: number; d: number } | null {
@@ -45,9 +50,11 @@ interface DateFieldProps {
   onChange: (value: string) => void;
   required: boolean;
   className: string;
+  /** Latest pickable day ("yyyy-mm-dd"), e.g. today for a field that can't be in the future. */
+  maxDate?: string;
 }
 
-export function DateField({ id, value, onChange, required, className }: DateFieldProps) {
+export function DateField({ id, value, onChange, required, className, maxDate }: DateFieldProps) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language.startsWith('ar') ? 'ar-u-nu-latn' : i18n.language;
   const rtl = isRtl(i18n.language);
@@ -69,22 +76,29 @@ export function DateField({ id, value, onChange, required, className }: DateFiel
     const close = (event: MouseEvent | TouchEvent) => {
       if (containerRef.current && !containerRef.current.contains(event.target as Node)) setOpen(false);
     };
+    // Escape closes it too, and gives the focus back to the field.
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      setOpen(false);
+      document.getElementById(id)?.focus();
+    };
     document.addEventListener('mousedown', close);
     document.addEventListener('touchstart', close);
+    document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('mousedown', close);
       document.removeEventListener('touchstart', close);
+      document.removeEventListener('keydown', onKey);
     };
-  }, [open]);
+  }, [open, id]);
 
   const longFormat = new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
   const monthFormat = new Intl.DateTimeFormat(locale, { month: 'long', timeZone: 'UTC' });
   const weekdayFormat = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' });
 
   const today = todayIso();
-  const yesterdayDate = new Date();
-  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-  const yesterday = toIsoDate(yesterdayDate);
+  const todayParts = parseIso(today)!;
+  const yesterday = toIsoDate(new Date(todayParts.y, todayParts.m, todayParts.d - 1));
 
   function pick(iso: string) {
     onChange(iso);
@@ -200,14 +214,16 @@ export function DateField({ id, value, onChange, required, className }: DateFiel
               const iso = `${view.y}-${pad(view.m + 1)}-${pad(day)}`;
               const isSelected = iso === value;
               const isToday = iso === today;
+              const isAfterMax = !!maxDate && iso > maxDate;
               return (
                 <button
                   key={iso}
                   type="button"
+                  disabled={isAfterMax}
                   onClick={() => pick(iso)}
                   aria-pressed={isSelected}
                   aria-label={longFormat.format(utc(view.y, view.m, day))}
-                  className={`h-10 rounded text-sm ${
+                  className={`h-10 rounded text-sm disabled:cursor-not-allowed disabled:opacity-30 ${
                     isSelected
                       ? 'bg-accent font-semibold text-accent-ink'
                       : isToday

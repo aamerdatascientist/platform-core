@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { api } from '../api/client';
+import { api, ApiError } from '../api/client';
 import { setTokens } from '../auth/tokenStore';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { Logo } from '../components/Logo';
@@ -23,7 +23,10 @@ export function SignIn() {
       const tokens = await api.auth.login(email, password);
       setTokens(tokens);
     } catch (err) {
-      setError({ err, fallbackKey: 'signIn.genericError' });
+      // A wrong email or password (401) gets the translated message, not the server's
+      // English text; too many attempts (429) is translated through its error code.
+      if (err instanceof ApiError && err.status === 401) setError({ key: 'signIn.wrongCredentials' });
+      else setError({ err, fallbackKey: 'signIn.genericError' });
     } finally {
       setSubmitting(false);
     }
@@ -48,6 +51,7 @@ export function SignIn() {
         <form onSubmit={handleSubmit} className="w-full space-y-3 px-10">
           <input
             type="email"
+            aria-label={t('signIn.emailPlaceholder')}
             placeholder={t('signIn.emailPlaceholder')}
             autoComplete="username"
             className="w-full border border-border rounded bg-bg px-3 py-2 text-sm focus:border-accent focus:outline-none"
@@ -56,6 +60,7 @@ export function SignIn() {
           />
           <input
             type="password"
+            aria-label={t('signIn.passwordPlaceholder')}
             placeholder={t('signIn.passwordPlaceholder')}
             autoComplete="current-password"
             className="w-full border border-border rounded bg-bg px-3 py-2 text-sm focus:border-accent focus:outline-none"

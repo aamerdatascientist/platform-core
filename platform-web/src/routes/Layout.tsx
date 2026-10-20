@@ -147,6 +147,12 @@ export function Layout({ token }: LayoutProps) {
         </div>
         <FormPicker token={token} />
 
+        <div className="mt-6 border-t border-border rounded pt-3">
+          <NavLink to="/account" className={navLinkClass}>
+            {t('sidebar.changePassword')}
+          </NavLink>
+        </div>
+
         {isAdmin && (
           <div className="mt-6 space-y-2 border-t border-border rounded pt-3">
             <>

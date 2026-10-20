@@ -19,13 +19,24 @@ interface ScopeChoice {
   label: string;
 }
 
+const PAGE_SIZE = 25;
+
 export function FormView({ token }: FormViewProps) {
   const { t } = useTranslation();
   const { formId } = useParams<{ formId: string }>();
 
   const [formDefinition, setFormDefinition] = useState<FormDefinitionDto | null>(null);
   const [submissions, setSubmissions] = useState<DynamicRow[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [selectedRecordId, setSelectedRecordId] = useState<string | null>(null);
+  // Administrators can correct or remove a record: editingRecord swaps the form at the top
+  // for one holding that record's values; confirmingDelete asks once before removing.
+  const [editingRecord, setEditingRecord] = useState<DynamicRow | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [recordNotice, setRecordNotice] = useState<string | null>(null);
+  const [recordError, setRecordError] = useErrorMessage();
   const [error, setError] = useErrorMessage();
 
   // The first active Lookup field on a form is, by this platform's own convention (see
@@ -55,6 +66,8 @@ export function FormView({ token }: FormViewProps) {
   useEffect(() => {
     if (!formId) return;
     setSelectedRecordId(null);
+    setEditingRecord(null);
+    setPage(1);
     setScopeValue('');
     setScopeChoices([]);
     setError(null);
@@ -98,13 +111,54 @@ export function FormView({ token }: FormViewProps) {
     if (!formId || !isAdmin) return;
     loadSubmissions(formId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formId, scopeValue, isAdmin]);
+  }, [formId, scopeValue, isAdmin, page]);
+
+  // A different project filter starts again from the first page.
+  useEffect(() => setPage(1), [scopeValue]);
+
+  // Picking another record closes any open delete question. (Old notices are cleared in the
+  // row click itself - clearing them here would also wipe "Record deleted.", since deleting
+  // clears the selection.)
+  useEffect(() => {
+    setConfirmingDelete(false);
+    setRecordError(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedRecordId]);
 
   async function loadSubmissions(id: string) {
     if (!isAdmin) return;
     const filter = scopeField && scopeValue ? { fieldCode: scopeField.code, value: scopeValue } : undefined;
-    const page = await api.submissions.list(token, id, 1, 25, filter);
-    setSubmissions(page.items);
+    try {
+      const result = await api.submissions.list(token, id, page, PAGE_SIZE, filter);
+      // Deleting the last record on a page leaves it empty - step back one.
+      if (result.items.length === 0 && page > 1) {
+        setPage(page - 1);
+        return;
+      }
+      setSubmissions(result.items);
+      setTotalCount(result.totalCount);
+    } catch {
+      setSubmissions([]);
+      setTotalCount(0);
+    }
+  }
+
+  async function deleteSelectedRecord() {
+    if (!formId || !selectedRecordId) return;
+    setDeleting(true);
+    setRecordError(null);
+    try {
+      await api.submissions.delete(token, formId, selectedRecordId);
+      setSelectedRecordId(null);
+      setEditingRecord(null);
+      setRecordNotice(t('formView.recordDeleted'));
+      await loadSubmissions(formId);
+    } catch (err) {
+      setRecordError({ err, fallbackKey: 'formView.deleteFailed' });
+    } finally {
+      setDeleting(false);
+      setConfirmingDelete(false);
+    }
   }
 
   if (error) return <p className="text-sm text-danger">{error}</p>;
@@ -132,11 +186,29 @@ export function FormView({ token }: FormViewProps) {
       <div className="space-y-8">
         <h2 className="font-display text-xl font-semibold uppercase tracking-[0.07em] text-ink">{formDefinition.name}</h2>
 
-        <FormRenderer
-          token={token}
-          formDefinition={formDefinition}
-          onSubmitted={() => formId && loadSubmissions(formId)}
-        />
+        {editingRecord ? (
+          <section className="rounded border border-accent p-4">
+            <h3 className="mb-4 text-label font-medium uppercase tracking-wider text-accent">{t('formView.editingRecord')}</h3>
+            <FormRenderer
+              key={`edit-${editingRecord.id}`}
+              token={token}
+              formDefinition={formDefinition}
+              editRecord={editingRecord}
+              onCancelEdit={() => setEditingRecord(null)}
+              onSubmitted={() => {
+                setEditingRecord(null);
+                setRecordNotice(t('formView.recordSaved'));
+                if (formId) loadSubmissions(formId);
+              }}
+            />
+          </section>
+        ) : (
+          <FormRenderer
+            token={token}
+            formDefinition={formDefinition}
+            onSubmitted={() => formId && loadSubmissions(formId)}
+          />
+        )}
 
         <div>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -165,15 +237,79 @@ export function FormView({ token }: FormViewProps) {
             token={token}
             fields={formDefinition.publishedVersion?.fields ?? []}
             rows={submissions}
-            onRowClick={setSelectedRecordId}
+            onRowClick={(id) => {
+              setSelectedRecordId(id);
+              setRecordNotice(null);
+            }}
             selectedRecordId={selectedRecordId}
+            page={page}
+            pageSize={PAGE_SIZE}
+            totalCount={totalCount}
+            onPageChange={setPage}
           />
         </div>
       </div>
 
       <div className="space-y-4 lg:sticky lg:top-8 lg:self-start">
+        {recordNotice && (
+          <p role="status" className="rounded border border-success p-3 text-sm text-ink">
+            {recordNotice}
+          </p>
+        )}
         {selectedRecordId ? (
           <>
+            <div className="rounded border border-border p-4">
+              <h3 className="mb-3 text-label font-medium uppercase tracking-wider text-ink-soft">{t('formView.recordActions')}</h3>
+              {confirmingDelete ? (
+                <div className="space-y-3">
+                  <p className="text-sm text-ink">{t('formView.confirmDelete')}</p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={deleteSelectedRecord}
+                      disabled={deleting}
+                      className="rounded bg-danger px-3 py-1.5 text-sm font-medium text-panel hover:opacity-90 disabled:opacity-50"
+                    >
+                      {deleting ? t('formView.deleting') : t('formView.deleteRecord')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingDelete(false)}
+                      disabled={deleting}
+                      className="rounded border border-border bg-panel px-3 py-1.5 text-sm text-ink hover:bg-bg"
+                    >
+                      {t('common.cancel')}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const record = submissions.find((r) => r.id === selectedRecordId);
+                      if (record) {
+                        setEditingRecord(record);
+                        setRecordNotice(null);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                        document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' });
+                      }
+                    }}
+                    className="rounded border border-border bg-panel px-3 py-1.5 text-sm text-ink hover:bg-bg"
+                  >
+                    {t('formView.editRecord')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingDelete(true)}
+                    className="rounded border border-danger bg-panel px-3 py-1.5 text-sm text-danger hover:bg-bg"
+                  >
+                    {t('formView.deleteRecord')}
+                  </button>
+                </div>
+              )}
+              {recordError && <p className="mt-2 text-sm text-danger">{recordError}</p>}
+            </div>
             <WorkflowPanel
               key={`workflow-${selectedRecordId}`}
               token={token}

@@ -3,12 +3,18 @@ import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import { DateField, todayIso } from './DateField';
+import { checkValue, isFieldVisible as fieldIsVisible, parseOptions, parseRules, recordToFormValues } from '../forms/fieldValues';
+import type { FieldProblem } from '../forms/fieldValues';
 import type { DropdownOption, FieldDefinitionDto, FormDefinitionDto } from '../types';
 
 interface FormRendererProps {
   token: string;
   formDefinition: FormDefinitionDto;
   onSubmitted?: () => void;
+  /** Set to correct an existing record (administrators): the form opens with its values and
+   *  saving replaces them. Attachments aren't edited here - they have their own panel. */
+  editRecord?: { id: string; values: Record<string, unknown> };
+  onCancelEdit?: () => void;
 }
 
 interface LookupChoice {
@@ -16,12 +22,21 @@ interface LookupChoice {
   label: string;
 }
 
-// A sentinel (rather than the resolved text) for the one per-field message this component
-// itself generates, so FieldInput can re-translate it live on a language switch - unlike
-// the other values fieldErrors can hold, which come from the backend's SubmissionValueValidator
-// already resolved to English text and (per FormRenderer's own submit handler) intentionally
-// left untranslated.
-const FIELD_REQUIRED_SENTINEL = '__FIELD_REQUIRED__';
+// A per-field problem is either one this component found itself (an i18n key, so it
+// re-translates live on a language switch) or the backend's own message, already resolved to
+// English text by SubmissionValueValidator and shown as-is - the checks below mirror the
+// backend's, so that only happens for a submission that got past them somehow.
+type FieldError = FieldProblem | { text: string };
+const REQUIRED: FieldError = { key: 'formRenderer.fieldRequired' };
+
+// Arabic keyboards type Arabic-Indic digits (٠١٢…) and the Arabic decimal mark; the number
+// fields accept them and store plain digits.
+function toLatinDigits(text: string): string {
+  return text
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[\u06F0-\u06F9]/g, (d) => String(d.charCodeAt(0) - 0x06f0))
+    .replace(/[\u066B\u060C]/g, '.');
+}
 
 /**
  * Renders a submission form for ANY published form, driven entirely by its field
@@ -42,18 +57,23 @@ const FIELD_REQUIRED_SENTINEL = '__FIELD_REQUIRED__';
  * The label is the target form's first ShortText field; there is still no designated
  * "display field" on FormDefinition (see CLAUDE.md's known gaps).
  */
-export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendererProps) {
+export function FormRenderer({ token, formDefinition, onSubmitted, editRecord, onCancelEdit }: FormRendererProps) {
   const { t } = useTranslation();
+  const isEditing = !!editRecord;
   const activeFields = useMemo(
-    () => formDefinition.publishedVersion?.fields.filter((f) => f.isActive) ?? [],
-    [formDefinition],
+    () =>
+      formDefinition.publishedVersion?.fields.filter((f) => f.isActive && !(isEditing && f.fieldType === 'Attachment')) ?? [],
+    [formDefinition, isEditing],
   );
 
   // A required date starts on today: most entries (a daily report, a stock movement) are for
   // today, and it is one less thing to fill in. Optional dates (e.g. a project's expected
-  // completion) start empty, since today would usually be wrong for them.
-  const initialValues = () =>
-    Object.fromEntries(activeFields.filter((f) => f.fieldType === 'DateTime' && f.isRequired).map((f) => [f.code, todayIso()]));
+  // completion) start empty, since today would usually be wrong for them. A record being
+  // edited starts from its own stored values instead.
+  const initialValues = (): Record<string, string> =>
+    editRecord
+      ? recordToFormValues(activeFields, editRecord.values)
+      : Object.fromEntries(activeFields.filter((f) => f.fieldType === 'DateTime' && f.isRequired).map((f) => [f.code, todayIso()]));
 
   const [values, setValues] = useState<Record<string, string>>(initialValues);
   // Set when a submission has just been saved: the form is replaced by a confirmation until
@@ -64,7 +84,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
   const [dynamicDropdownOptions, setDynamicDropdownOptions] = useState<Record<string, string[]>>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useErrorMessage();
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, FieldError>>({});
 
   useEffect(() => {
     setValues(initialValues());
@@ -108,7 +128,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
     // activeFields is derived from formDefinition each render via useMemo, not a stable
     // reference - depend on the form's id/version instead to avoid re-fetching on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formDefinition.id, formDefinition.publishedVersion?.id, token]);
+  }, [formDefinition.id, formDefinition.publishedVersion?.id, token, editRecord?.id]);
 
   const filteredLookupFields = useMemo(
     () => activeFields.filter((f) => f.fieldType === 'Lookup' && f.lookupFormDefinitionId && f.filterByFieldCode),
@@ -148,6 +168,13 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
 
   function setValue(code: string, value: string) {
     setValues((prev) => ({ ...prev, [code]: value }));
+    // The problem shown under a field goes away as soon as it is being fixed.
+    setFieldErrors((prev) => {
+      if (!(code in prev)) return prev;
+      const next = { ...prev };
+      delete next[code];
+      return next;
+    });
   }
 
   function setAttachmentFile(code: string, file: File | null) {
@@ -159,33 +186,11 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
     });
   }
 
-  function parseOptions(optionsJson: string | null): DropdownOption[] {
-    if (!optionsJson) return [];
-    try {
-      return JSON.parse(optionsJson) as DropdownOption[];
-    } catch {
-      return [];
-    }
-  }
-
-  // Mirrors the backend's SubmissionValueValidator.IsFieldVisible exactly - a field with no
-  // condition is always visible; otherwise it's visible only when its controlling field's
-  // CURRENT value (from this component's own `values` state, not the backend) is one of
-  // visibleWhenValuesJson. Keeping these two implementations in sync is what makes the "same
-  // 3-question shape per phase" branching form actually work: this is what hides/shows the
-  // right block as the person picks a Phase, and the backend copy is what still enforces it
-  // if a submission ever bypasses this UI (direct API use, a stale cached form, etc.).
-  function isFieldVisible(field: FieldDefinitionDto): boolean {
-    if (!field.visibleWhenFieldCode) return true;
-    const controllingValue = values[field.visibleWhenFieldCode];
-    if (controllingValue === undefined) return false;
-    try {
-      const allowed = JSON.parse(field.visibleWhenValuesJson ?? '[]') as string[];
-      return allowed.includes(controllingValue);
-    } catch {
-      return false;
-    }
-  }
+  // Same rule as the backend's SubmissionValueValidator.IsFieldVisible (both read the
+  // allowed values the same tolerant way - see forms/fieldValues.ts). This is what shows the
+  // right block as the person picks a Phase; the backend copy still enforces it if a
+  // submission ever bypasses this UI.
+  const isFieldVisible = (field: FieldDefinitionDto) => fieldIsVisible(field, values);
 
   const visibleFields = useMemo(() => activeFields.filter(isFieldVisible), [activeFields, values]);
 
@@ -233,14 +238,23 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
     e.preventDefault();
     setError(null);
 
-    const missing: Record<string, string> = {};
+    const problems: Record<string, FieldError> = {};
     visibleFields.forEach((f) => {
-      if (!f.isRequired) return;
-      const isMissing = f.fieldType === 'Attachment' ? !attachmentFiles[f.code] : !values[f.code];
-      if (isMissing) missing[f.code] = FIELD_REQUIRED_SENTINEL;
+      // Blank or spaces-only counts as not answered, as it does on the server.
+      const isMissing = f.fieldType === 'Attachment' ? !attachmentFiles[f.code] : !(values[f.code] ?? '').trim();
+      if (isMissing) {
+        if (f.isRequired) problems[f.code] = REQUIRED;
+        return;
+      }
+      if (f.fieldType === 'Attachment') return;
+      const problem = checkValue(f, values[f.code]);
+      if (problem) problems[f.code] = problem;
     });
-    if (Object.keys(missing).length > 0) {
-      setFieldErrors(missing);
+    if (Object.keys(problems).length > 0) {
+      setFieldErrors(problems);
+      // Bring the first problem into view - on a phone it is usually far above the button.
+      const first = visibleFields.find((f) => problems[f.code]);
+      if (first) document.getElementById(`field-${first.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
     }
     setFieldErrors({});
@@ -250,7 +264,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
       const payload: Record<string, unknown> = {};
       visibleFields.forEach((f) => {
         if (f.fieldType === 'Attachment') return; // never part of the JSON body - no physical column
-        const raw = values[f.code];
+        const raw = values[f.code]?.trim();
         if (raw === undefined || raw === '') {
           payload[f.code] = null;
         } else if (f.fieldType === 'Number' || f.fieldType === 'Decimal') {
@@ -261,6 +275,12 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
           payload[f.code] = raw;
         }
       });
+
+      if (editRecord) {
+        await api.submissions.update(token, formDefinition.id, editRecord.id, payload);
+        onSubmitted?.();
+        return;
+      }
 
       const { id: recordId } = await api.submissions.submit(token, formDefinition.id, payload);
 
@@ -296,9 +316,9 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
       if (err instanceof ApiError && err.errors) {
         // Backend keys these by field.code exactly (see SubmissionValueValidator) - no
         // translation needed, just take the first message per field for display.
-        const perField: Record<string, string> = {};
+        const perField: Record<string, FieldError> = {};
         Object.entries(err.errors).forEach(([code, messages]) => {
-          if (messages.length > 0) perField[code] = messages[0];
+          if (messages.length > 0) perField[code] = { text: messages[0] };
         });
         setFieldErrors(perField);
         setError(null);
@@ -328,7 +348,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4" noValidate>
       {visibleFields.map((field) => (
         <FieldInput
           key={field.id}
@@ -348,18 +368,46 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
               ? activeFields.find((f) => f.code === field.filterByFieldCode)?.label ?? field.filterByFieldCode
               : undefined
           }
+          isFiltered={!!field.filterByFieldCode}
         />
       ))}
 
+      {isEditing && formDefinition.publishedVersion?.fields.some((f) => f.isActive && f.fieldType === 'Attachment') && (
+        <p className="text-xs text-ink-soft">{t('formRenderer.attachmentsNotEditedHere')}</p>
+      )}
+
+      {Object.keys(fieldErrors).length > 0 && (
+        <p className="text-sm text-danger" role="alert">
+          {t('formRenderer.fixHighlighted')}
+        </p>
+      )}
       {error && <p className="text-sm text-danger">{error}</p>}
 
-      <button
-        type="submit"
-        disabled={submitting}
-        className="w-full bg-accent rounded px-4 py-2 text-sm font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
-      >
-        {submitting ? t('formRenderer.submitting') : t('formRenderer.submit')}
-      </button>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <button
+          type="submit"
+          disabled={submitting}
+          className="w-full bg-accent rounded px-4 py-2 text-sm font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
+        >
+          {isEditing
+            ? submitting
+              ? t('formRenderer.saving')
+              : t('formRenderer.saveChanges')
+            : submitting
+              ? t('formRenderer.submitting')
+              : t('formRenderer.submit')}
+        </button>
+        {isEditing && onCancelEdit && (
+          <button
+            type="button"
+            onClick={onCancelEdit}
+            disabled={submitting}
+            className="w-full rounded border border-border bg-panel px-4 py-2 text-sm text-ink hover:bg-bg sm:w-auto"
+          >
+            {t('common.cancel')}
+          </button>
+        )}
+      </div>
     </form>
   );
 }
@@ -375,27 +423,36 @@ function FieldInput({
   dynamicOptions,
   lookupChoices,
   filterWaitingOnLabel,
+  isFiltered,
 }: {
   field: FieldDefinitionDto;
   value: string;
   onChange: (v: string) => void;
   selectedFileName?: string;
   onFileChange: (file: File | null) => void;
-  error?: string;
+  error?: FieldError;
   options: DropdownOption[];
   /** Live distinct values from another form's field - set only for a Dropdown with
    *  dynamicOptionsSourceFormDefinitionId/FieldCode. Undefined while still loading. */
   dynamicOptions?: string[];
   lookupChoices?: LookupChoice[];
   filterWaitingOnLabel?: string;
+  /** A cascading Lookup (e.g. Zone narrowed by Project) - changes the "no choices" hint. */
+  isFiltered?: boolean;
 }) {
   const { t } = useTranslation();
-  const baseClass =
-    'w-full border border-border rounded bg-bg px-3 py-2 text-sm focus:border-accent focus:outline-none';
+  const inputId = `field-${field.id}`;
+  const errorId = `${inputId}-error`;
+  const baseClass = `w-full border rounded bg-bg px-3 py-2 text-sm focus:border-accent focus:outline-none ${
+    error ? 'border-danger' : 'border-border'
+  }`;
+  const a11y = { id: inputId, 'aria-invalid': error ? true : undefined, 'aria-describedby': error ? errorId : undefined };
+  const rules = parseRules(field.validationRulesJson);
+  const noChoices = field.fieldType === 'Lookup' && !filterWaitingOnLabel && lookupChoices !== undefined && lookupChoices.length === 0;
 
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-ink">
+      <label htmlFor={inputId} className="mb-1 block text-sm font-medium text-ink">
         {field.label}
         {field.isRequired && <span className="text-danger"> *</span>}
       </label>
@@ -413,15 +470,15 @@ function FieldInput({
           )}
         </div>
       ) : field.fieldType === 'LongText' ? (
-        <textarea className={baseClass} rows={3} value={value} onChange={(e) => onChange(e.target.value)} />
+        <textarea {...a11y} className={baseClass} rows={3} value={value} onChange={(e) => onChange(e.target.value)} />
       ) : field.fieldType === 'Boolean' ? (
-        <select className={baseClass} value={value} onChange={(e) => onChange(e.target.value)}>
+        <select {...a11y} className={baseClass} value={value} onChange={(e) => onChange(e.target.value)}>
           <option value="">{t('common.select')}</option>
           <option value="true">{t('common.yes')}</option>
           <option value="false">{t('common.no')}</option>
         </select>
       ) : field.fieldType === 'Dropdown' && field.dynamicOptionsSourceFormDefinitionId ? (
-        <select className={baseClass} value={value} onChange={(e) => onChange(e.target.value)}>
+        <select {...a11y} className={baseClass} value={value} onChange={(e) => onChange(e.target.value)}>
           <option value="">{dynamicOptions ? t('common.select') : t('formRenderer.loadingOptions')}</option>
           {(dynamicOptions ?? []).map((v) => (
             <option key={v} value={v}>
@@ -430,7 +487,7 @@ function FieldInput({
           ))}
         </select>
       ) : field.fieldType === 'Dropdown' ? (
-        <select className={baseClass} value={value} onChange={(e) => onChange(e.target.value)}>
+        <select {...a11y} className={baseClass} value={value} onChange={(e) => onChange(e.target.value)}>
           <option value="">{t('common.select')}</option>
           {options.map((o) => (
             <option key={o.value} value={o.value}>
@@ -439,13 +496,21 @@ function FieldInput({
           ))}
         </select>
       ) : field.fieldType === 'Lookup' ? (
-        <select className={baseClass} value={value} onChange={(e) => onChange(e.target.value)} disabled={!!filterWaitingOnLabel}>
+        <select
+          {...a11y}
+          className={baseClass}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={!!filterWaitingOnLabel || noChoices}
+        >
           <option value="">
             {filterWaitingOnLabel
               ? t('formRenderer.chooseFilterSourceFirst', { label: filterWaitingOnLabel })
-              : lookupChoices
-                ? t('common.select')
-                : t('formRenderer.loadingOptions')}
+              : noChoices
+                ? t('formRenderer.noChoices')
+                : lookupChoices
+                  ? t('common.select')
+                  : t('formRenderer.loadingOptions')}
           </option>
           {(lookupChoices ?? []).map((c) => (
             <option key={c.id} value={c.id}>
@@ -454,22 +519,41 @@ function FieldInput({
           ))}
         </select>
       ) : field.fieldType === 'DateTime' ? (
-        <DateField id={`field-${field.id}`} value={value} onChange={onChange} required={field.isRequired} className={baseClass} />
-      ) : field.fieldType === 'Number' || field.fieldType === 'Decimal' ? (
-        <input
-          type="number"
-          step={field.fieldType === 'Decimal' ? '0.01' : '1'}
-          className={baseClass}
+        <DateField
+          id={inputId}
           value={value}
-          onChange={(e) => onChange(e.target.value)}
+          onChange={onChange}
+          required={field.isRequired}
+          className={baseClass}
+          maxDate={rules.noFutureDates ? todayIso() : undefined}
+        />
+      ) : field.fieldType === 'Number' || field.fieldType === 'Decimal' ? (
+        // A text box with a numeric keypad rather than <input type="number">: the number box
+        // accepts "1e3" and "+5", silently turns bad input into an empty value, and shows its
+        // own English-only messages. checkValue() validates the text instead.
+        <input
+          {...a11y}
+          type="text"
+          inputMode={field.fieldType === 'Decimal' ? 'decimal' : 'numeric'}
+          autoComplete="off"
+          dir="ltr"
+          className={`${baseClass} text-start`}
+          value={value}
+          onChange={(e) => onChange(toLatinDigits(e.target.value))}
         />
       ) : (
-        <input type="text" className={baseClass} value={value} onChange={(e) => onChange(e.target.value)} />
+        <input {...a11y} type="text" className={baseClass} value={value} onChange={(e) => onChange(e.target.value)} />
+      )}
+
+      {noChoices && (
+        <p className="mt-1 text-xs text-ink-soft">
+          {isFiltered ? t('formRenderer.noChoicesForFilter') : t('formRenderer.noChoicesHint')}
+        </p>
       )}
 
       {error && (
-        <p className="mt-1 text-xs text-danger">
-          {error === FIELD_REQUIRED_SENTINEL ? t('formRenderer.fieldRequired') : error}
+        <p id={errorId} className="mt-1 text-xs text-danger">
+          {'text' in error ? error.text : t(error.key, error.params)}
         </p>
       )}
     </div>

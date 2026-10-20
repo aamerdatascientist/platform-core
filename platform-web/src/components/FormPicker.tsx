@@ -45,7 +45,9 @@ export function FormPicker({ token }: FormPickerProps) {
       {Object.entries(byModule).map(([moduleName, moduleForms]) => (
         <div key={moduleName}>
           <h3 className="mb-1.5 text-micro font-medium uppercase tracking-wider text-sidebar-ink">
-            {moduleName}
+            {/* Module names are typed in English in the builder; the known ones have a
+                translation, anything else shows as typed. */}
+            {t(`moduleName.${moduleName}`, { defaultValue: moduleName })}
           </h3>
           <ul className="space-y-0.5">
             {moduleForms.map((form) => {

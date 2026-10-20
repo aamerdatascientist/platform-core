@@ -9,7 +9,8 @@
     "noForms": "No forms exist yet.",
     "notPublished": "Not published yet",
     "draft": "draft",
-    "loadFormsError": "Could not load forms."
+    "loadFormsError": "Could not load forms.",
+    "changePassword": "Change password"
   },
   "common": {
     "cancel": "Cancel",
@@ -21,7 +22,8 @@
     "remove": "Remove",
     "empty": "—",
     "toggleLanguage": "Toggle language",
-    "toggleMode": "Toggle light/dark mode"
+    "toggleMode": "Toggle light/dark mode",
+    "saving": "Saving…"
   },
   "signIn": {
     "subtitle": "Sign in to continue",
@@ -29,11 +31,12 @@
     "passwordPlaceholder": "Password",
     "signIn": "Sign in",
     "signingIn": "Signing in…",
-    "genericError": "Check your email and password and try again."
+    "genericError": "Check your email and password and try again.",
+    "wrongCredentials": "Wrong email or password. Check them and try again."
   },
   "welcome": {
     "title": "Pick a form to get started",
-    "subtitle": "Choose one from the list on the left."
+    "subtitle": "Choose one from the menu."
   },
   "formStatus": {
     "Draft": "Draft",
@@ -124,14 +127,26 @@
     "reorderError": "Could not reorder the fields."
   },
   "formView": {
-    "recordsHeading": "Records - select one for workflow status",
-    "selectRecordPrompt": "Select a record to see its workflow status",
+    "recordsHeading": "Records - select one to edit, delete or see its status",
+    "selectRecordPrompt": "Select a record to edit or delete it, or see its workflow status",
     "andAttachments": " and attachments",
     "loadError": "Could not load that form.",
-    "allScopes": "All"
+    "allScopes": "All",
+    "recordActions": "This record",
+    "editRecord": "Edit",
+    "deleteRecord": "Delete",
+    "deleting": "Deleting…",
+    "confirmDelete": "Delete this record? It disappears from the records, the choices and the dashboard.",
+    "deleteFailed": "Could not delete that record.",
+    "recordDeleted": "Record deleted.",
+    "recordSaved": "Changes saved.",
+    "editingRecord": "Editing a record"
   },
   "submissionsTable": {
-    "noRecords": "No records yet - the first submission above will appear here."
+    "noRecords": "No records yet - the first submission above will appear here.",
+    "showing": "{{from}}-{{to}} of {{total}}",
+    "previous": "Previous",
+    "next": "Next"
   },
   "formRenderer": {
     "fieldRequired": "Required",
@@ -154,7 +169,14 @@
     "month": "Month",
     "year": "Year",
     "partialUploadFailure_one": "The entry was saved, but this file didn't upload: {{files}}. Ask an administrator to add it to the entry.",
-    "partialUploadFailure_other": "The entry was saved, but these files didn't upload: {{files}}. Ask an administrator to add them to the entry."
+    "partialUploadFailure_other": "The entry was saved, but these files didn't upload: {{files}}. Ask an administrator to add them to the entry.",
+    "fixHighlighted": "Some answers need fixing - see the highlighted fields.",
+    "saveChanges": "Save changes",
+    "saving": "Saving…",
+    "attachmentsNotEditedHere": "Attachments are changed from the Attachments panel, not here.",
+    "noChoices": "Nothing to choose yet",
+    "noChoicesHint": "There is nothing to pick here yet. Ask an administrator to add it.",
+    "noChoicesForFilter": "Nothing has been added for this selection yet. Ask an administrator to add it."
   },
   "workflowPanel": {
     "loadingStatus": "Loading status…",
@@ -180,6 +202,9 @@
       "field": {
         "codeMustBeLatin": "Code must be Latin letters, digits, and underscores only, starting with a letter (e.g. 'quantity_received') - it becomes a database column name. Use 'Field name' for the human-readable label shown on the form, which can be in any language."
       }
+    },
+    "auth": {
+      "tooManyAttempts": "Too many attempts. Wait a few minutes and try again."
     }
   },
   "userManagement": {
@@ -216,7 +241,16 @@
     "saveRoles": "Save roles",
     "saving": "Saving…",
     "toggleActiveError": "Could not update that user.",
-    "saveRolesError": "Could not update roles for that user."
+    "saveRolesError": "Could not update roles for that user.",
+    "resetPassword": "Reset password",
+    "resetExplain": "Set a new password for {{name}}. They will be signed out everywhere and sign in with this one; they can change it later from \"Change password\".",
+    "newPassword": "New password (min. 10 characters)",
+    "generate": "Generate",
+    "setPassword": "Set password",
+    "resetTooShort": "The password needs at least 10 characters.",
+    "resetError": "Could not reset that password.",
+    "resetDone": "Done. Give {{name}} this password:",
+    "close": "Close"
   },
   "executiveOverview": {
     "title": "Executive overview",
@@ -412,6 +446,48 @@
     "changeTypeError": "Could not change this field's type.",
     "archiveError": "Could not archive this field.",
     "restoreError": "Could not restore this field.",
-    "deleteError": "Could not delete this field."
+    "deleteError": "Could not delete this field.",
+    "rules": "Rules",
+    "rulesDescription": "Whether this field must be answered, and which values are accepted. Applies to new entries and record edits straight away; existing records are not changed.",
+    "requiredLabel": "Required",
+    "requiredWhenVisible": "This field is shown only under a condition - it is required only when shown.",
+    "min": "Minimum",
+    "max": "Maximum",
+    "minExclusive": "Must be more than the minimum",
+    "pattern": "Pattern (regular expression, optional)",
+    "noFutureDates": "Don't allow future dates",
+    "rulesError": "Could not save the rules."
+  },
+  "moduleName": {
+    "Daily Reports": "Daily reports",
+    "Operations": "Operations",
+    "StockManagement": "Stock management",
+    "Stock Management": "Stock management"
+  },
+  "fieldRules": {
+    "wholeNumber": "Enter a whole number (digits only).",
+    "number": "Enter a number, e.g. 12.5",
+    "tooLarge": "That number is too large.",
+    "atLeast": "Must be at least {{min}}.",
+    "moreThan": "Must be more than {{min}}.",
+    "atMost": "Must be at most {{max}}.",
+    "noFuture": "This date can't be in the future.",
+    "tooLong": "Too long - at most {{max}} characters.",
+    "format": "Not in the expected format."
+  },
+  "account": {
+    "title": "Change password",
+    "subtitle": "Your other devices will be signed out. This one stays signed in.",
+    "currentPassword": "Current password",
+    "newPassword": "New password (at least {{min}} characters)",
+    "repeatPassword": "Repeat the new password",
+    "change": "Change password",
+    "changed": "Password changed.",
+    "allRequired": "Fill in your current and new password.",
+    "tooShort": "The new password needs at least {{min}} characters.",
+    "mismatch": "The two new passwords don't match.",
+    "sameAsCurrent": "The new password must be different from the current one.",
+    "wrongCurrent": "The current password is wrong.",
+    "failed": "Could not change the password."
   }
 }

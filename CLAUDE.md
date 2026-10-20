@@ -67,11 +67,11 @@ relabel/reorder above): pure metadata, no column touched, no confirmation needed
 published form with live data.
 
 Three places this has to stay in sync, or it silently breaks:
-1. `SubmissionValueValidator.IsFieldVisible` (backend) - gates the `IsRequired` check on
+1. `SubmissionValueValidator.IsFieldVisible` (backend; values read by `ParseAllowedValues`) - gates the `IsRequired` check on
    whether the condition is actually met by what was submitted, not just whether
    `VisibleWhenFieldCode` is set. A conditionally-hidden field is never required, even if
    `IsRequired` is `true`.
-2. `FormRenderer.tsx`'s own `isFieldVisible` (frontend) - has to compute the identical
+2. `isFieldVisible` in `platform-web/src/forms/fieldValues.ts` (frontend, used by `FormRenderer.tsx`) - has to compute the identical
    answer from the same two field properties, since this is what actually shows/hides the
    right block as the person fills out the form. Kept as two separate implementations (no
    shared validation module between the C# and TS sides yet), so a change to one's logic
@@ -205,6 +205,37 @@ administrators (the app needs it to open the tab), so any administrator can pass
 that is intended, not a leak. Since 2026-10-20 all of `/api/analytics/*` is administrator-only
 and the sidebar link shows for administrators only (Project managers don't see the dashboard). Don't add a second anonymous data
 endpoint by copying this one without the same key check.
+
+## Hardening batch (2026-10-20) - field rules, record edits, sign-in, headers
+
+- **Field rules on live forms**: `PUT /api/forms/{id}/fields/{fieldId}/rules` (`UpdateFieldRulesCommand`)
+  sets `IsRequired` plus `ValidationRulesJson` = `{min, max, minExclusive, regex, noFutureDates}`.
+  Safe bucket. A live column is **never** made NOT NULL afterwards; `IDynamicSchemaService.DropNotNullAsync`
+  removes it whenever a live field stops being unconditionally required (archive, made conditional,
+  required switched off). `scripts/go-live/find-not-null-columns.sql` finds columns left NOT NULL by
+  changes made before this existed; `scripts/go-live/apply-field-rules.ps1` sets the live rules.
+- **Visibility values are read tolerantly** on both sides: live data stores some
+  `VisibleWhenValuesJson` as a bare JSON string (`"true"`), not an array. Backend
+  `SubmissionValueValidator.ParseAllowedValues` and frontend `forms/fieldValues.ts`
+  `parseAllowedValues` must keep agreeing (exact match, never substring; booleans compare as
+  "true"/"false"). Before this the backend treated those fields as never required.
+- **Validator** also: blank/whitespace text = missing; text is trimmed and blank stored as null
+  (`SubmissionValueValidator.Normalize`); rejects values the columns can't hold (int range,
+  numeric(18,4), varchar(400)); dates judged on the Saudi calendar. `forms/fieldValues.ts`
+  `checkValue` mirrors these checks client-side so messages are translated.
+- **Records**: `PUT/DELETE /api/forms/{formId}/submissions/{recordId}` (admins). PUT is the
+  whole record, validated like a submission. DELETE is a soft delete (`IsDeleted`).
+- **Auth**: wrong password is 401 (`UnauthorizedException`), not 403. A wrong *current* password
+  on `POST /api/auth/change-password` is a 400 on purpose - the client treats an authenticated
+  401 as "refresh and retry". `POST /api/users/{id}/password` is the admin reset. Both revoke
+  the user's refresh tokens. Sign-in and change-password are rate limited per IP
+  (`RateLimitPolicies`, 20 per 5 min, 429 with code `auth.tooManyAttempts`).
+- **Tokens live in localStorage** (`auth/tokenStore.ts`), shared by tabs through the `storage`
+  event; a refresh that fails because another tab already rotated the token picks up the new one.
+- **Security headers**: API adds its own (`SecurityHeadersMiddleware`, HSTS outside dev). The site's
+  CSP is in `platform-web/public/staticwebapp.config.json` and **names the API origin in
+  connect-src** - if `VITE_API_BASE_URL` ever changes, change it there too or every API call is
+  blocked. No inline scripts: the pre-mount dir/theme code is `public/boot.js`.
 
 ## Established code conventions
 

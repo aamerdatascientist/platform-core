@@ -26,6 +26,13 @@ export function UserManagement({ token }: UserManagementProps) {
   const [pendingRoleIds, setPendingRoleIds] = useState<Set<string>>(new Set());
   const [savingRoles, setSavingRoles] = useState(false);
 
+  // Password reset for someone who forgot theirs: one open panel at a time.
+  const [resettingFor, setResettingFor] = useState<string | null>(null);
+  const [resetPassword, setResetPassword] = useState('');
+  const [submittingReset, setSubmittingReset] = useState(false);
+  const [resetDoneFor, setResetDoneFor] = useState<string | null>(null);
+  const [resetError, setResetError] = useErrorMessage();
+
   const [creatingRole, setCreatingRole] = useState(false);
   const [newRoleName, setNewRoleName] = useState('');
   const [newRoleDescription, setNewRoleDescription] = useState('');
@@ -72,6 +79,38 @@ export function UserManagement({ token }: UserManagementProps) {
       setError({ err, fallbackKey: 'userManagement.createUserError' });
     } finally {
       setSubmittingUser(false);
+    }
+  }
+
+  function startReset(userId: string) {
+    setResettingFor(resettingFor === userId ? null : userId);
+    setResetPassword('');
+    setResetDoneFor(null);
+    setResetError(null);
+  }
+
+  /** 12 characters without look-alikes (0/O, 1/l/I), easy to read out over the phone. */
+  function generatePassword() {
+    const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const bytes = new Uint32Array(12);
+    crypto.getRandomValues(bytes);
+    setResetPassword(Array.from(bytes, (b) => alphabet[b % alphabet.length]).join(''));
+  }
+
+  async function handleResetPassword(userId: string) {
+    setResetError(null);
+    if (resetPassword.length < 10) {
+      setResetError({ key: 'userManagement.resetTooShort' });
+      return;
+    }
+    setSubmittingReset(true);
+    try {
+      await api.users.resetPassword(token, userId, resetPassword);
+      setResetDoneFor(userId);
+    } catch (err) {
+      setResetError({ err, fallbackKey: 'userManagement.resetError' });
+    } finally {
+      setSubmittingReset(false);
     }
   }
 
@@ -265,7 +304,7 @@ export function UserManagement({ token }: UserManagementProps) {
           <div className="space-y-1">
             {users.map((u) => (
               <div key={u.id} className="border border-border rounded bg-panel shadow-recessed">
-                <div className="flex items-center justify-between px-3 py-2">
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                   <div>
                     <span className="text-sm font-medium text-ink">{u.displayName}</span>
                     <span className="ms-2 text-xs text-ink-soft">{u.email}</span>
@@ -281,7 +320,7 @@ export function UserManagement({ token }: UserManagementProps) {
                       )}
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
                     <span className={`text-label uppercase tracking-wider ${u.isActive ? 'text-success' : 'text-danger'}`}>
                       {u.isActive ? t('userManagement.active') : t('userManagement.deactivated')}
                     </span>
@@ -292,6 +331,12 @@ export function UserManagement({ token }: UserManagementProps) {
                       {t('userManagement.editRoles')}
                     </button>
                     <button
+                      onClick={() => startReset(u.id)}
+                      className="text-label uppercase tracking-wide text-ink-soft hover:text-ink"
+                    >
+                      {t('userManagement.resetPassword')}
+                    </button>
+                    <button
                       onClick={() => handleToggleActive(u)}
                       className={`text-label uppercase tracking-wide hover:opacity-70 ${u.isActive ? 'text-danger' : 'text-success'}`}
                     >
@@ -299,6 +344,59 @@ export function UserManagement({ token }: UserManagementProps) {
                     </button>
                   </div>
                 </div>
+
+                {resettingFor === u.id && (
+                  <div className="border-t border-border rounded bg-bg p-3">
+                    {resetDoneFor === u.id ? (
+                      <div className="space-y-2">
+                        <p className="text-sm text-ink" role="status">
+                          {t('userManagement.resetDone', { name: u.displayName })}
+                        </p>
+                        <p dir="ltr" className="font-mono text-sm text-ink">{resetPassword}</p>
+                        <button onClick={() => setResettingFor(null)} className="px-3 py-1.5 text-sm text-ink-soft">
+                          {t('userManagement.close')}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-xs text-ink-soft">{t('userManagement.resetExplain', { name: u.displayName })}</p>
+                        <div className="flex flex-wrap gap-2">
+                          <input
+                            type="text"
+                            dir="ltr"
+                            autoComplete="off"
+                            spellCheck={false}
+                            aria-label={t('userManagement.newPassword')}
+                            placeholder={t('userManagement.newPassword')}
+                            className="min-w-0 flex-1 rounded border border-border bg-panel px-3 py-1.5 font-mono text-sm text-ink focus:border-accent focus:outline-none"
+                            value={resetPassword}
+                            onChange={(e) => setResetPassword(e.target.value)}
+                          />
+                          <button
+                            type="button"
+                            onClick={generatePassword}
+                            className="rounded border border-border bg-panel px-3 py-1.5 text-sm text-ink hover:bg-bg"
+                          >
+                            {t('userManagement.generate')}
+                          </button>
+                        </div>
+                        {resetError && <p className="text-sm text-danger">{resetError}</p>}
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleResetPassword(u.id)}
+                            disabled={submittingReset}
+                            className="bg-accent rounded px-3 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50"
+                          >
+                            {submittingReset ? t('userManagement.saving') : t('userManagement.setPassword')}
+                          </button>
+                          <button onClick={() => setResettingFor(null)} className="px-3 py-1.5 text-sm text-ink-soft">
+                            {t('common.cancel')}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {editingRolesFor === u.id && (
                   <div className="border-t border-border rounded bg-bg p-3">

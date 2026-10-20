@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { parseAllowedValues, parseRules } from '../forms/fieldValues';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import { useErrorMessage } from '../hooks/useErrorMessage';
@@ -52,7 +53,7 @@ interface FieldEditorRowProps {
 
 /** Which risky operation has its confirmation open. Only one at a time - these each state a
  *  different consequence, and stacking them would make it ambiguous what's being confirmed. */
-type OpenPanel = 'none' | 'code' | 'type' | 'remove' | 'visibility' | 'lookup-filter';
+type OpenPanel = 'none' | 'code' | 'type' | 'remove' | 'visibility' | 'lookup-filter' | 'rules';
 
 /**
  * One field in the builder, with all six edit operations split by risk exactly the way the
@@ -81,13 +82,27 @@ export function FieldEditorRow({
   const [deleteConfirmDraft, setDeleteConfirmDraft] = useState('');
 
   const [conditionFieldDraft, setConditionFieldDraft] = useState(field.visibleWhenFieldCode ?? '');
-  const [conditionValuesDraft, setConditionValuesDraft] = useState<Set<string>>(() => {
-    try {
-      return new Set(field.visibleWhenValuesJson ? (JSON.parse(field.visibleWhenValuesJson) as string[]) : []);
-    } catch {
-      return new Set();
-    }
-  });
+  // parseAllowedValues, not a bare JSON.parse: some live conditions are stored as a single
+  // JSON string ("true"), which new Set() would split into letters.
+  const [conditionValuesDraft, setConditionValuesDraft] = useState<Set<string>>(
+    () => new Set(parseAllowedValues(field.visibleWhenValuesJson)),
+  );
+
+  // "Required" and value rules (min/max, more-than, pattern, no future dates).
+  const initialRules = parseRules(field.validationRulesJson);
+  const [requiredDraft, setRequiredDraft] = useState(field.isRequired);
+  const [minDraft, setMinDraft] = useState(initialRules.min?.toString() ?? '');
+  const [maxDraft, setMaxDraft] = useState(initialRules.max?.toString() ?? '');
+  const [minExclusiveDraft, setMinExclusiveDraft] = useState(initialRules.minExclusive);
+  const [regexDraft, setRegexDraft] = useState(initialRules.regex ?? '');
+  const [noFutureDraft, setNoFutureDraft] = useState(initialRules.noFutureDates);
+  const isNumeric = field.fieldType === 'Number' || field.fieldType === 'Decimal';
+  const isText = field.fieldType === 'ShortText' || field.fieldType === 'LongText';
+  const toNumber = (text: string) => (text.trim() === '' || Number.isNaN(Number(text)) ? null : Number(text));
+  const rulesDraftInvalid =
+    (minDraft.trim() !== '' && toNumber(minDraft) === null) ||
+    (maxDraft.trim() !== '' && toNumber(maxDraft) === null) ||
+    (toNumber(minDraft) !== null && toNumber(maxDraft) !== null && toNumber(minDraft)! > toNumber(maxDraft)!);
 
   function toggleConditionValueDraft(value: string) {
     setConditionValuesDraft((prev) => {
@@ -110,14 +125,15 @@ export function FieldEditorRow({
     setTypeDraft(field.fieldType);
     setDeleteConfirmDraft('');
     setConditionFieldDraft(field.visibleWhenFieldCode ?? '');
-    try {
-      setConditionValuesDraft(
-        new Set(field.visibleWhenValuesJson ? (JSON.parse(field.visibleWhenValuesJson) as string[]) : []),
-      );
-    } catch {
-      setConditionValuesDraft(new Set());
-    }
+    setConditionValuesDraft(new Set(parseAllowedValues(field.visibleWhenValuesJson)));
     setFilterByFieldDraft(field.filterByFieldCode ?? '');
+    const rules = parseRules(field.validationRulesJson);
+    setRequiredDraft(field.isRequired);
+    setMinDraft(rules.min?.toString() ?? '');
+    setMaxDraft(rules.max?.toString() ?? '');
+    setMinExclusiveDraft(rules.minExclusive);
+    setRegexDraft(rules.regex ?? '');
+    setNoFutureDraft(rules.noFutureDates);
   }
 
   async function run(action: () => Promise<void>, fallbackKey: string) {
@@ -223,6 +239,16 @@ export function FieldEditorRow({
             </button>
           ) : (
             <>
+              {field.fieldType !== 'Attachment' && (
+                <button
+                  type="button"
+                  onClick={() => setPanel(panel === 'rules' ? 'none' : 'rules')}
+                  disabled={busy}
+                  className="text-label uppercase tracking-wide text-ink-soft hover:opacity-70"
+                >
+                  {t('fieldEditor.rules')}
+                </button>
+              )}
               {controllableFields.length > 0 && (
                 <button
                   type="button"
@@ -271,6 +297,106 @@ export function FieldEditorRow({
           )}
         </span>
       </div>
+
+      {/* --- Safe: required + value rules. Enforced by the server for new submissions; the
+          only DDL is dropping NOT NULL when "required" is switched off on a live form. --- */}
+      {panel === 'rules' && (
+        <div className="mt-3 border-t border-border pt-3">
+          <p className="mb-3 text-sm text-ink-soft">{t('fieldEditor.rulesDescription')}</p>
+          <div className="space-y-3">
+            <label className="flex items-center gap-2 text-sm text-ink">
+              <input type="checkbox" checked={requiredDraft} disabled={busy} onChange={(e) => setRequiredDraft(e.target.checked)} />
+              {t('fieldEditor.requiredLabel')}
+            </label>
+            {field.visibleWhenFieldCode && requiredDraft && (
+              <p className="text-xs text-ink-soft">{t('fieldEditor.requiredWhenVisible')}</p>
+            )}
+
+            {isNumeric && (
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="text-sm text-ink">
+                  {t('fieldEditor.min')}
+                  <input
+                    dir="ltr"
+                    inputMode="decimal"
+                    className={`${inputClass} mt-1 !w-28`}
+                    value={minDraft}
+                    disabled={busy}
+                    onChange={(e) => setMinDraft(e.target.value)}
+                  />
+                </label>
+                <label className="text-sm text-ink">
+                  {t('fieldEditor.max')}
+                  <input
+                    dir="ltr"
+                    inputMode="decimal"
+                    className={`${inputClass} mt-1 !w-28`}
+                    value={maxDraft}
+                    disabled={busy}
+                    onChange={(e) => setMaxDraft(e.target.value)}
+                  />
+                </label>
+                <label className="flex items-center gap-2 pb-2 text-sm text-ink">
+                  <input
+                    type="checkbox"
+                    checked={minExclusiveDraft}
+                    disabled={busy || minDraft.trim() === ''}
+                    onChange={(e) => setMinExclusiveDraft(e.target.checked)}
+                  />
+                  {t('fieldEditor.minExclusive')}
+                </label>
+              </div>
+            )}
+
+            {isText && (
+              <label className="block text-sm text-ink">
+                {t('fieldEditor.pattern')}
+                <input
+                  dir="ltr"
+                  className={`${inputClass} mt-1 max-w-sm font-mono`}
+                  value={regexDraft}
+                  disabled={busy}
+                  onChange={(e) => setRegexDraft(e.target.value)}
+                />
+              </label>
+            )}
+
+            {field.fieldType === 'DateTime' && (
+              <label className="flex items-center gap-2 text-sm text-ink">
+                <input type="checkbox" checked={noFutureDraft} disabled={busy} onChange={(e) => setNoFutureDraft(e.target.checked)} />
+                {t('fieldEditor.noFutureDates')}
+              </label>
+            )}
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={busy || rulesDraftInvalid}
+                onClick={() =>
+                  run(
+                    () =>
+                      api.forms.updateFieldRules(token, formId, field.id, {
+                        isRequired: requiredDraft,
+                        min: isNumeric ? toNumber(minDraft) : null,
+                        max: isNumeric ? toNumber(maxDraft) : null,
+                        minExclusive: isNumeric && toNumber(minDraft) !== null && minExclusiveDraft,
+                        regex: isText && regexDraft.trim() ? regexDraft.trim() : null,
+                        noFutureDates: field.fieldType === 'DateTime' && noFutureDraft,
+                      }),
+                    'fieldEditor.rulesError',
+                  )
+                }
+                className="bg-accent rounded px-3 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50"
+              >
+                {t('common.save')}
+              </button>
+              <button type="button" onClick={closePanel} disabled={busy} className="text-sm text-ink-soft hover:opacity-70">
+                {t('common.cancel')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* --- Safe: conditional visibility. Metadata only, no column touched - unlike the
           panels below this needs no "here's the consequence" copy, just Save/Cancel. --- */}
