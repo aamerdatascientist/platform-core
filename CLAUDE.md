@@ -190,8 +190,8 @@ The dashboard is no longer a page inside the sidebar layout. It lives at
 stage that is scaled as a whole to fit the window (`routes/ExecutiveOverview.tsx`) - that is
 what keeps it exactly 16:9 on any screen. Because the stage never changes size, nothing on it
 may use a viewport-responsive (`sm:`/`lg:`) class; panels fill the grid cell they are given.
-The sidebar item opens it in a new tab (`window.open`, deliberately not a plain link - see
-`Layout.tsx`).
+The Settings page's "Executive overview" row opens it in a new tab (`window.open`, deliberately
+not a plain link - see `routes/Settings.tsx`).
 
 **Public viewing is one config value, `Dashboard:ShareKey`** (Azure App Service setting
 `Dashboard__ShareKey`). Empty (the default) means public viewing is off. With a key of at
@@ -203,7 +203,11 @@ database row behind it. The link carries the key in the URL fragment (`#k=...`),
 never send to a server. `GET /api/analytics/executive-overview/share-key` hands the key to signed-in
 administrators (the app needs it to open the tab), so any administrator can pass the link on -
 that is intended, not a leak. Since 2026-10-20 all of `/api/analytics/*` is administrator-only
-and the sidebar link shows for administrators only (Project managers don't see the dashboard). Don't add a second anonymous data
+and the dashboard link shows for administrators only (Project managers don't see the dashboard).
+
+**Since 2026-10-21 the sidebar holds only the forms plus one Settings link.** Everything else -
+account and password, sign out, language, light/dark, and the admin-only dashboard / form
+builder / users & roles - is on `/settings` (`routes/Settings.tsx`); `/account` redirects there. Don't add a second anonymous data
 endpoint by copying this one without the same key check.
 
 ## Hardening batch (2026-10-20) - field rules, record edits, sign-in, headers

@@ -10,7 +10,8 @@
     "notPublished": "لم يُنشر بعد",
     "draft": "مسودة",
     "loadFormsError": "تعذر تحميل النماذج.",
-    "changePassword": "تغيير كلمة المرور"
+    "changePassword": "تغيير كلمة المرور",
+    "settings": "الإعدادات"
   },
   "common": {
     "cancel": "إلغاء",
@@ -489,5 +490,17 @@
     "sameAsCurrent": "يجب أن تختلف كلمة المرور الجديدة عن الحالية.",
     "wrongCurrent": "كلمة المرور الحالية غير صحيحة.",
     "failed": "تعذر تغيير كلمة المرور."
+  },
+  "settings": {
+    "title": "الإعدادات",
+    "account": "حسابك",
+    "display": "العرض",
+    "language": "اللغة",
+    "appearance": "الوضع الفاتح / الداكن",
+    "administration": "الإدارة",
+    "dashboardHint": "تُفتح في علامة تبويب جديدة",
+    "formBuilder": "منشئ النماذج",
+    "formBuilderHint": "إنشاء النماذج وتعديل حقولها وقواعدها",
+    "usersHint": "الحسابات والأدوار وإعادة تعيين كلمات المرور"
   }
 }

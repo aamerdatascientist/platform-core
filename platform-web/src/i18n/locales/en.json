@@ -10,7 +10,8 @@
     "notPublished": "Not published yet",
     "draft": "draft",
     "loadFormsError": "Could not load forms.",
-    "changePassword": "Change password"
+    "changePassword": "Change password",
+    "settings": "Settings"
   },
   "common": {
     "cancel": "Cancel",
@@ -489,5 +490,17 @@
     "sameAsCurrent": "The new password must be different from the current one.",
     "wrongCurrent": "The current password is wrong.",
     "failed": "Could not change the password."
+  },
+  "settings": {
+    "title": "Settings",
+    "account": "Your account",
+    "display": "Display",
+    "language": "Language",
+    "appearance": "Light / dark mode",
+    "administration": "Administration",
+    "dashboardHint": "Opens in a new tab",
+    "formBuilder": "Form builder",
+    "formBuilderHint": "Create forms and change their fields and rules",
+    "usersHint": "Accounts, roles and password resets"
   }
 }

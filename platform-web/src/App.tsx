@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { getTokens, subscribe } from './auth/tokenStore';
 import { isDashboardPath } from './dashboardLink';
-import { Account } from './routes/Account';
 import { BuilderHome } from './routes/BuilderHome';
 import { ExecutiveOverview } from './routes/ExecutiveOverview';
 import { FormBuilder } from './routes/FormBuilder';
 import { FormView } from './routes/FormView';
 import { Layout } from './routes/Layout';
+import { Settings } from './routes/Settings';
 import { SignIn } from './routes/SignIn';
 import { UserManagement } from './routes/UserManagement';
 import { Welcome } from './routes/Welcome';
@@ -36,7 +36,8 @@ export default function App() {
       <Route element={<Layout token={accessToken} />}>
         <Route index element={<Welcome />} />
         <Route path="forms/:formId" element={<FormView token={accessToken} />} />
-        <Route path="account" element={<Account token={accessToken} />} />
+        <Route path="settings" element={<Settings token={accessToken} />} />
+        <Route path="account" element={<Navigate to="/settings" replace />} />
         <Route element={<RequireAdmin token={accessToken} />}>
           <Route path="builder" element={<BuilderHome token={accessToken} />} />
           <Route path="builder/:formId" element={<FormBuilder token={accessToken} />} />

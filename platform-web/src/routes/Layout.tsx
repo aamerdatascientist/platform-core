@@ -1,71 +1,30 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink, Outlet, useLocation } from 'react-router-dom';
-import { api } from '../api/client';
-import { getTokens, setTokens } from '../auth/tokenStore';
 import { FormPicker } from '../components/FormPicker';
-import { LanguageToggle } from '../components/LanguageToggle';
 import { Logo } from '../components/Logo';
-import { ModeToggle } from '../components/ModeToggle';
-import { buildDashboardUrl } from '../dashboardLink';
-import { getMode } from '../theme/mode';
 
 interface LayoutProps {
   token: string;
 }
 
+/**
+ * The app shell: a sidebar with the forms people fill in, and one Settings link for everything
+ * else (account, password, sign out, language, light/dark, and the admin pages) - see
+ * routes/Settings.tsx.
+ */
 export function Layout({ token }: LayoutProps) {
-  const { t, i18n } = useTranslation();
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [dashboardKey, setDashboardKey] = useState<string | null>(null);
+  const { t } = useTranslation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
-
-  useEffect(() => {
-    api.auth
-      .me(token)
-      .then((me) => setIsAdmin(me.roles.includes('Administrator')))
-      .catch(() => setIsAdmin(false));
-  }, [token]);
-
-  // Fetched up front, not on click: the dashboard opens in a new tab, and a browser only
-  // allows that directly inside the click itself - waiting on a request first would get the
-  // new tab blocked as a pop-up. Null (public viewing switched off on the server) is fine;
-  // the tab then opens on the signed-in session instead.
-  useEffect(() => {
-    if (!isAdmin) return; // the dashboard, and its key, are for administrators only
-    api.analytics
-      .executiveOverviewShareKey(token)
-      .then((result) => setDashboardKey(result.key))
-      .catch(() => setDashboardKey(null));
-  }, [token, isAdmin]);
-
-  /**
-   * Opens the Executive Overview in its own tab, as a full-window page. With a share key the
-   * tab needs nothing from this one. Without it, the tab relies on being opened by this
-   * window: a tab opened this way starts with a copy of this tab's sign-in, which is why
-   * this is window.open and not a plain link (a plain new-tab link starts signed out).
-   */
-  function openDashboard() {
-    setMobileMenuOpen(false);
-    window.open(buildDashboardUrl({ shareKey: dashboardKey, language: i18n.language, mode: getMode() }), '_blank');
-  }
+  // The builder and users pages are reached from Settings, so Settings stays highlighted there.
+  const inSettings = /^\/(settings|builder|admin)(\/|$)/.test(location.pathname);
 
   // Close the drawer automatically on navigation - otherwise picking a form from it on
   // mobile would leave the drawer covering the screen instead of showing the new page.
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
-
-  function handleSignOut() {
-    const stored = getTokens();
-    // Best-effort - don't block signing out locally on a network round-trip.
-    if (stored) api.auth.logout(stored.refreshToken).catch(() => {});
-    setTokens(null);
-  }
-
-  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `block text-xs font-medium uppercase tracking-wide ${isActive ? 'text-sidebar-ink-strong' : 'text-sidebar-ink hover:text-sidebar-ink-strong'}`;
 
   return (
     // h-screen + overflow-hidden here, not min-h-screen, is what actually makes the
@@ -128,46 +87,23 @@ export function Layout({ token }: LayoutProps) {
             <Logo size="sm" />
             <span className="font-display text-sm font-semibold uppercase tracking-[0.07em] text-sidebar-ink-strong">ASAS</span>
           </div>
-          <button
-            onClick={handleSignOut}
-            className="text-label uppercase tracking-wide text-sidebar-ink hover:text-sidebar-ink-strong"
-          >
-            {t('sidebar.signOut')}
-          </button>
         </div>
         <div className="rivet-strip mb-4" />
-        {/* dir="ltr" here, not just on each Switch individually - otherwise this row
-            itself reorders under an inherited RTL context even though each toggle's
-            own internal layout stays correct on its own. flex-wrap is a safety net,
-            not the primary fix - a fixed physical position matters more than a tight
-            one-line fit if the sidebar is ever narrower than both switches combined. */}
-        <div dir="ltr" className="mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 px-1">
-          <LanguageToggle />
-          <ModeToggle />
-        </div>
         <FormPicker token={token} />
 
-        <div className="mt-6 border-t border-border rounded pt-3">
-          <NavLink to="/account" className={navLinkClass}>
-            {t('sidebar.changePassword')}
-          </NavLink>
-        </div>
-
-        {isAdmin && (
-          <div className="mt-6 space-y-2 border-t border-border rounded pt-3">
-            <>
-              <button type="button" onClick={openDashboard} className={`${navLinkClass({ isActive: false })} w-full text-start`}>
-                {t('sidebar.executiveOverview')} <span aria-hidden="true">↗</span>
-              </button>
-              <NavLink to="/builder" className={navLinkClass}>
-                {t('sidebar.buildForms')}
-              </NavLink>
-              <NavLink to="/admin/users" className={navLinkClass}>
-                {t('sidebar.users')}
-              </NavLink>
-            </>
+        <div className="mt-auto pt-6">
+          <div className="border-t border-border pt-3">
+            <NavLink
+              to="/settings"
+              className={`flex items-center gap-2 rounded px-3 py-2 text-sm transition-colors ${
+                inSettings ? 'bg-accent font-medium text-accent-ink' : 'text-sidebar-ink hover:bg-border/40 hover:text-sidebar-ink-strong'
+              }`}
+            >
+              <GearIcon />
+              {t('sidebar.settings')}
+            </NavLink>
           </div>
-        )}
+        </div>
       </aside>
 
       {/* overflow-x-hidden / overscroll-x-none / touch-pan-y here, not just on html/body in
@@ -185,5 +121,14 @@ export function Layout({ token }: LayoutProps) {
         <Outlet />
       </main>
     </div>
+  );
+}
+
+function GearIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
   );
 }
