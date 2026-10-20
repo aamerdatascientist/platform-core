@@ -3,6 +3,108 @@
 Update this file at the end of every session - what changed, what's next. Keep CLAUDE.md
 itself stable; this is where the narrative goes.
 
+## Current state - 2026-10-21 (read this first)
+
+**Asas is live at https://asasksa.co and in use by the client.** Frontend on Azure Static Web
+Apps, API on Azure App Service, data in Railway Postgres. A push to `main` deploys both
+through GitHub Actions in about a minute; the API restarts for 30-60 seconds afterwards, so
+a page loaded during that window may need one reload.
+
+### Live forms (7)
+
+| Module | Form (code) |
+| --- | --- |
+| Daily Reports | Daily progress report (`daily-progress-report`) |
+| Operations | Projects (`projects`), zones (`project-zones`), footings (`project-footings`), floors (`project-floors`) |
+| Stock Management | Stock inflow (`stock-inflow`), stock outflow (`stock-outflow`) |
+
+### Users and roles
+
+- **Administrator** - everything.
+- **Project manager / مدير مشروع** (added 2026-10-20) - Eng Hazem and Eng Qasim. They see
+  and fill in the Daily progress report only: no dashboard, no submitted-records list, no
+  form builder, no users & roles. Enforced on the server, not just hidden in the UI.
+
+### What shipped 2026-10-10 to 2026-10-21
+
+- **Executive Overview** rebuilt on the seven live forms: a standalone 16:9 page opening in its
+  own tab, with an optional public secret link (`Dashboard:ShareKey`). Administrators only.
+  Work-complete uses placeholder planned days per unit (see `OverviewProgressPlan`) - **real
+  planned durations from the client are still needed** to make that figure meaningful.
+- **Tajawal** for Arabic and English, one type scale.
+- **Dummy data** (5 `DUMMY-` projects, 3 months) was loaded on 2026-10-10 for the demo, then
+  the client review on 2026-10-19 decided to clear all form data for real use
+  (`scripts/go-live/` on branch `chore/go-live-clear-form-data`).
+- **Project manager role and access** (2026-10-20): the lookup-options endpoint lets a form's
+  dropdowns work for people who can't open the master-data forms themselves.
+- **Clear success screen** after submitting, and a **custom date picker** (Today / Yesterday /
+  calendar, weeks from Saturday, correct arrow direction in Arabic).
+- **Hardening batch** (2026-10-20, from a deliberate "test it harshly" pass) - see CLAUDE.md's
+  "Hardening batch" section for the technical detail:
+  - field rules on live forms (required, min / more-than / max, pattern, no future dates),
+    editable from the builder's new **Rules** button;
+  - conditionally required fields are now actually required (the live conditions were stored
+    in a shape the server couldn't read);
+  - blank answers, impossible numbers, "1e3", Arabic digits, oversized values all handled;
+  - records list shows the right day, dropdown labels and paging; **admins can edit and
+    delete records** (delete is a soft delete);
+  - archiving a required live field no longer breaks later submissions;
+  - wrong password is a clear 401 message; per-IP sign-in rate limit; change own password;
+    admin password reset; sign-in kept across tabs and browser restarts;
+  - security headers on the API and the site (CSP, HSTS, frame denial);
+  - translated module names and welcome text; empty dropdowns explain themselves.
+- **Settings page** (2026-10-21): the sidebar now holds only the forms plus **Settings**, which
+  has the account (password, sign out), language, light/dark, and for administrators the
+  dashboard, form builder and users & roles.
+
+### Live field rules (applied 2026-10-21, through the API)
+
+- Daily progress report: report date not in the future; crew count at least 0; milestone,
+  zone, footing, floor, MEP trade and MEP room required when their phase is chosen; delay
+  cause and problem description required when the matching yes/no is yes.
+- Stock inflow / outflow: date not in the future; quantity more than 0.
+- Projects: total floors at least 0.
+- Eight visibility conditions stored as a bare string were rewritten as JSON arrays.
+
+`scripts/go-live/apply-field-rules.ps1` reproduces these if they ever need re-applying.
+
+### How it was verified
+
+- `dotnet test`: **118/118** (100 unit/handler tests + 18 against a real Postgres), on the
+  hardening branch before it was deployed.
+- Built site tested in a browser with a mocked API: 41 checks (English desktop, Arabic phone,
+  admin and project manager, CSP active with no violations).
+- After each deploy, checked on the live site in the owner's signed-in browser: new routes
+  present, 401 on a wrong password, security headers, existing sign-ins carried over,
+  Settings page and its arrows.
+
+### Open items - in priority order
+
+1. **Rotate the Railway Postgres password and the Blob Storage account key** (see "Before going
+   live" at the bottom). The app is now in real use, so this is overdue.
+2. **Run `scripts/go-live/find-not-null-columns.sql`** in Railway's query editor (read-only)
+   and apply any `DROP NOT NULL` fixes it lists - columns left NOT NULL by archives or rule
+   changes made before 2026-10-20 would still block submissions.
+3. **Review the daily-report records**: some look like test entries (e.g. "000" as the delay
+   cause). Delete the real test ones from the records list.
+4. **Get real planned durations** from the client for the dashboard's work-complete figure.
+5. Watch the **sign-in rate limit** (20 attempts per 5 minutes per IP): a site office whose
+   workers share one internet address could hit it if many sign in at once.
+6. Known gaps still open (details in CLAUDE.md): first-admin bootstrap; no guard when renaming
+   or deleting a field another field's visibility depends on; no designated Lookup display
+   field; no builder panel for dynamic dropdown sources; no workflow designer UI; no
+   workflows on the live forms.
+
+### Working notes for the next session
+
+- **Deploying**: the owner approves each production deploy; a push of a tested branch to
+  `main` (fast-forward only) is the deploy.
+- **Sandbox network**: NuGet is allowed since 2026-10-21 (claude.ai Settings > Capabilities);
+  Docker registries are not - see CLAUDE.md for the local Postgres image workaround, or add
+  `mirror.gcr.io` to the allowed domains.
+- **Live checks** go through the owner's signed-in browser panel (desktop app); the sandbox
+  itself can't reach the live API or Railway.
+
 ## Verified end-to-end against a real database - by the project owner, not just Code's sandbox
 
 **All four phases built so far, plus every feature added since, now meet this bar.** All
@@ -238,7 +340,9 @@ the current database.
   Attachments UI too, not just the pages the first design-refresh commit touched. Both
   are confirmed present in `main`.
 
-## Immediate next steps, in priority order
+## Earlier next-steps list (2026-10-04) - kept for history
+
+Superseded by "Open items" in "Current state - 2026-10-21" at the top of this file.
 
 The frontend app shell (routing, workflow status/approval UI), File Management, and the
 Postgres migration are all fully done. The Form Builder UI is built but not yet fully
@@ -404,8 +508,11 @@ fact, not something to re-research if it comes up again:
   Embedded (a Fabric capacity, roughly $260+/month minimum) or an insecure public link -
   neither is acceptable for this use case.
 
-**Current phase: Phase 0 - auditing.** Reviewing the existing `Report_*` views and the
-current aggregate-query surface before building anything new.
+**Status 2026-10-21:** phases 1 and 2 are done in their first form - the Executive Overview
+(one aggregate query, `GetExecutiveOverviewQuery`, over the seven live forms) is live, and
+phase 3 was met differently than planned: instead of a kiosk token, the dashboard has a
+public secret-link mode (`Dashboard:ShareKey`, see CLAUDE.md). Phase 4 (scheduled PDF
+reports) hasn't started. The original "Phase 0 - auditing" note is superseded.
 
 **Planned phases:**
 1. A real analytics query layer - CQRS-pattern aggregate queries (matching this

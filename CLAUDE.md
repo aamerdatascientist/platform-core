@@ -130,9 +130,9 @@ feature's three):
    `DynamicOptionsSourceFieldCode` forward when copying fields into a new draft version, same
    as `VisibleWhenFieldCode`/`FilterByFieldCode`. Same "easy to miss, no error if you do" risk.
 
-**Known gap, shared with `FilterByFieldCode`**: no admin UI yet to configure this from the
-Form Builder screen (`AddFieldForm.tsx`/`FieldEditorRow.tsx`) - the two Stock Module forms
-were created directly via the API (`scripts/seed-stock-inflow-outflow-forms.ps1`), which is
+**Known gap**: no admin UI yet to configure this from the Form Builder screen
+(`AddFieldForm.tsx`/`FieldEditorRow.tsx`; the lookup-filter panel exists, this one doesn't) -
+the two Stock Module forms were created directly via the API (`scripts/seed-stock-inflow-outflow-forms.ps1`), which is
 why this shipped without one. Worth adding a panel mirroring the existing lookup-filter one
 (pick a form, then pick a field on it) before the next form that needs this is built by hand
 through the builder instead of a script.
@@ -275,28 +275,19 @@ builder / users & roles - is on `/settings` (`routes/Settings.tsx`); `/account` 
 - Local dev DB is **Postgres** (Railway-hosted), not Docker/local Postgres - Docker
   doesn't work on **Aamer's** machine (corporate-locked virtualization). Don't suggest Docker
   as a local dev database again.
-- **A fresh Claude Code sandbox has no .NET SDK installed at all and cannot restore NuGet
-  packages**, discovered 2026-10-03 - don't assume either from an earlier session's success.
-  `dotnet` isn't on PATH or anywhere on disk at session start; `sudo -n apt-get install -y
-  dotnet-sdk-8.0` (Ubuntu 24.04's own `noble-updates` repo, reachable through the sandbox's
-  proxy) fixes that part in about a minute. NuGet itself is a separate, harder blocker:
-  `api.nuget.org` gets a flat 403 from the agent proxy (confirmed via
-  `curl $HTTPS_PROXY/__agentproxy/status` - an organization policy denial, not a transient
-  failure, and retrying or routing around it is explicitly the wrong move per the proxy's own
-  README). This means **no `dotnet restore`, `dotnet build`, or `dotnet test` is possible in
-  this state** - not even `dotnet tool install --global dotnet-ef` works, since that also
-  pulls from NuGet. The entry below about running Testcontainers integration tests assumes a
-  sandbox where this was already working; if NuGet is blocked, that's not reachable either.
-  **Work this had to be done without a compiler in this session**: a migration's `.cs` +
-  `.Designer.cs` were hand-written by copying `ApplicationDbContextModelSnapshot.cs`'s
-  current body into the new migration's Designer file (same content, just a different class
-  name/`[Migration]` attribute - confirmed structurally identical to how the real EF tooling
-  generates it, by diffing the snapshot against the previous migration's own Designer.cs) and
-  editing both in the same places, rather than `dotnet ef migrations add`. If NuGet is
-  reachable in a future session, prefer the real tooling over this workaround - it's a
-  careful manual reproduction of what `dotnet ef` would do, not a replacement for it, and a
-  genuine syntax mistake in hand-written EF model-snapshot code has no compiler here to catch
-  it before a human does.
+- **A fresh cloud sandbox has no .NET SDK installed**: `sudo -n apt-get install -y
+  dotnet-sdk-8.0` (Ubuntu's own repo, reachable through the proxy) fixes that in about a
+  minute. **NuGet depends on the account's network allowlist.** Until 2026-10-21 `api.nuget.org`
+  was refused (403 from the agent proxy), so no `dotnet restore/build/test` was possible and
+  work was verified with stub-compiled harnesses instead. Aamer then allowed it under
+  claude.ai **Settings > Capabilities** (network egress, extra allowed domains), and
+  restore/build/test work normally. If a new session gets a 403 again, check that setting
+  first (`curl -sS "$HTTPS_PROXY/__agentproxy/status"` lists the refused hosts) rather than
+  working around it. With NuGet blocked, the fallback that worked: compile the changed
+  files against hand-written stand-ins for MediatR/FluentValidation/EF Core, and run pure
+  logic (e.g. `SubmissionValueValidator`) in a small console harness. Migrations written
+  without `dotnet ef` were hand-copied from the model snapshot - prefer the real tooling
+  whenever NuGet works.
 - **Claude Code's sandbox CAN run the Testcontainers integration tests**, contrary to what
   was assumed for several sessions - it just needs two things set up first, neither of them
   obvious:
@@ -316,7 +307,15 @@ builder / users & roles - is on `/settings` (`routes/Settings.tsx`); `/account` 
   and the Docker socket mounted, which fails here; the tradeoff is that containers aren't
   auto-reaped, which doesn't matter in a throwaway sandbox. Verified: 54/54 green against a
   real Postgres 15.1. Don't write off a Postgres-backed test as unverifiable here without
-  trying this first. Azure SQL was the original dev/prod database; it's been **fully decommissioned**
+  trying this first. **2026-10-21: `mirror.gcr.io` and Docker Hub were both refused by the
+  allowlist.** Workaround that ran all 18 Postgres tests green: build a local image tagged
+  `postgres:15.1` (the tag Testcontainers asks for) from Ubuntu packages - `debootstrap
+  --variant=minbase noble`, `apt-get install postgresql-16` in the chroot, a small
+  entrypoint that runs `initdb` with `POSTGRES_USER/PASSWORD/DB` and treats arguments that
+  start with `-` as `postgres` options, then `docker import` with `USER postgres` - and run
+  `TESTCONTAINERS_RYUK_DISABLED=true dotnet test`. Adding `mirror.gcr.io` to the allowed
+  domains is the simpler fix.
+- Azure SQL was the original dev/prod database; it's been **fully decommissioned**
   since the Postgres migration completed (see `docs/PROJECT_STATUS.md`) - don't
   reintroduce it as a reference point, and don't assume any Azure SQL-specific gotcha
   below this point still applies to the live database.

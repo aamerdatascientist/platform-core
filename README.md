@@ -28,13 +28,20 @@ for the full rationale.
 ## What's built and live right now
 
 - **Identity/Access**: register (admin-gated — no public signup), login, refresh-token
-  rotation, logout.
+  rotation, logout, change your own password, admin password reset, per-IP sign-in rate
+  limit. Roles in use: **Administrator** and **Project manager** (fills in the daily report
+  only).
 - **Form Engine**: create/publish forms; dynamic table + reporting-view generation;
   submit and page through submissions. A published form's fields can be live-edited
   directly (relabel, reorder, add a field, rename a field's code, change its type,
   archive, or permanently delete) with no draft/republish cycle required — see
   CLAUDE.md's "Field editing" section for exactly which operations are safe vs. which
   require explicit confirmation.
+- **Field rules on live forms**: required, min / more-than / max, text pattern, no future
+  dates — set from the Form Builder's **Rules** button, enforced on the server and mirrored
+  in the browser so messages are translated.
+- **Records**: administrators see each form's submitted records (paged, with the right
+  Saudi day and dropdown labels) and can edit or delete them (delete is a soft delete).
 - **Conditional field visibility ("branching")**: a field can be shown/required only
   when another field on the same form has a certain value.
 - **Filtered/cascading Lookup fields**: a Lookup field can narrow its candidates by
@@ -53,8 +60,13 @@ for the full rationale.
   published workflow per form.
 - **File Management**: upload/list/view/delete attachments via Azure Blob Storage,
   including attaching a file inline while filling out a form.
-- Full **Arabic/RTL** bilingual UI (`react-i18next`), and a dark/light-mode visual design
-  ("Structural steel") across the whole authenticated app shell.
+- **Executive Overview** dashboard (administrators): a standalone 16:9 page over the live
+  forms, with an optional public secret link.
+- **Settings page**: the sidebar lists only the forms; account, password, sign out, language,
+  light/dark mode and the admin pages all live under Settings.
+- Full **Arabic/RTL** bilingual UI (`react-i18next`), Tajawal type, and a dark/light-mode
+  visual design ("Structural steel").
+- Security headers on the API and the site (CSP, HSTS, frame denial).
 
 See `docs/PROJECT_STATUS.md` for exactly what's been verified against the real
 production database vs. what still needs a real pass, and for the current list of live
@@ -64,9 +76,9 @@ forms/modules.
 the full reasoning on each): no workflow-designer UI (workflows are still created via the
 API or PowerShell scripts); no automated first-admin-bootstrap (the current admin account
 was created via a one-off direct SQL insert); no designated Lookup "display field" (the
-frontend guesses the first `ShortText` field on the target form); analytics/reporting is
-being built directly into the webapp (see PROJECT_STATUS.md's "Analytics / Reporting
-direction" for the phased plan — Metabase and Power BI were both evaluated and rejected).
+frontend guesses the first `ShortText` field on the target form); scheduled PDF reports
+(analytics is built into the webapp — see PROJECT_STATUS.md's "Analytics / Reporting
+direction"; Metabase and Power BI were both evaluated and rejected).
 
 ## Repo layout
 
@@ -133,17 +145,18 @@ candidates"). Don't stand up a local database for this project.
 6. **Run the frontend** — see `platform-web/README.md` for the up-to-date frontend setup
    (it's the real app now, not a prototype).
 
-7. **Run the integration tests** (needs Docker + a registry mirror in a restricted
-   sandbox — see CLAUDE.md's environment gotchas for the exact invocation that works
-   around agent-proxy restrictions):
+7. **Run the tests**: `dotnet test` from the repo root. Most tests run in memory; the
+   `DynamicSchemaServiceTests` start a real Postgres through Testcontainers and need Docker
+   (not available on the owner's machine — they run in CI-like sandboxes; see CLAUDE.md's
+   environment gotchas for the invocation and the offline-image workaround). To skip them:
    ```
-   dotnet test tests/Platform.Infrastructure.IntegrationTests
+   dotnet test --filter "FullyQualifiedName!~DynamicSchemaServiceTests"
    ```
 
 ## A smoke-test walkthrough once it's running
 
-1. `POST /api/auth/login` as the existing admin account (see `docs/PROJECT_STATUS.md`
-   for current credentials) — grab the access token, use it as a Bearer token from here
+1. `POST /api/auth/login` as the existing admin account (ask the project owner — credentials
+   are never kept in the repo) — grab the access token, use it as a Bearer token from here
    on. `POST /api/auth/register` requires an existing Administrator token itself, so
    there's no self-service way to create the very first user — see CLAUDE.md's "Known
    gaps" for why.
