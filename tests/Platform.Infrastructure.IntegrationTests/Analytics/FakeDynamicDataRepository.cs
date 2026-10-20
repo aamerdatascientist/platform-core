@@ -13,9 +13,8 @@ public class FakeDynamicDataRepository : IDynamicDataRepository
 {
     public Dictionary<string, int> Counts { get; } = new();
 
-    /// <summary>Full result set per table, for QueryAsync - the Executive Overview handlers
-    /// use this to resolve master-data forms (Projects/Materials/Locations) and, for
-    /// Projects specifically, as their own primary data source.</summary>
+    /// <summary>Full result set per table, for QueryAsync (which pages and filters it the
+    /// way the real repository does).</summary>
     public Dictionary<string, List<DynamicRow>> Rows { get; } = new();
 
     public Task<int> CountAsync(string tableName, CancellationToken cancellationToken = default)
@@ -30,14 +29,17 @@ public class FakeDynamicDataRepository : IDynamicDataRepository
         string tableName, IReadOnlyCollection<FieldDefinition> activeFields, int page, int pageSize,
         DynamicRowFilter? filter = null, CancellationToken cancellationToken = default)
     {
-        if (filter is not null)
-            throw new NotSupportedException("Not used by the analytics query handler tests.");
         if (!Rows.TryGetValue(tableName, out var rows))
             throw new InvalidOperationException($"Test bug: no fake rows registered for table '{tableName}'.");
 
-        // No real paging - every Executive Overview caller fetches page 1 of a generous
-        // page size expecting the whole (small) master-data set back, same as production.
-        return Task.FromResult(new PagedResult<DynamicRow>(rows, rows.Count, page, pageSize));
+        // Equality filter, same predicate as the real repository's WHERE "{code}" = @value.
+        var matching = filter is null
+            ? rows
+            : rows.Where(r => Equals(r.Values.GetValueOrDefault(filter.FieldCode), filter.Value)).ToList();
+
+        // Real paging, so callers that loop over pages are exercised the way production runs them.
+        var items = matching.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        return Task.FromResult(new PagedResult<DynamicRow>(items, matching.Count, page, pageSize));
     }
 
     public Task<Guid> InsertAsync(

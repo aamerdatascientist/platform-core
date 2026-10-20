@@ -207,6 +207,21 @@ export const api = {
     getFieldDynamicOptions: (token: string, formId: string, fieldId: string) =>
       request<string[]>(`/api/forms/${formId}/fields/${fieldId}/dynamic-options`, {}, token),
 
+    /**
+     * The choices for a Lookup field on this form: each target row's id and display label,
+     * nothing else. Checked against access to THIS form, so it works for people who can't
+     * open the target form itself. filterValue: the sibling value a cascading Lookup is
+     * narrowed by (e.g. the picked project, for Zone).
+     */
+    lookupOptions: (token: string, formId: string, fieldId: string, filterValue?: string) =>
+      request<{ id: string; label: string }[]>(
+        `/api/forms/${formId}/fields/${fieldId}/lookup-options${
+          filterValue ? `?filterValue=${encodeURIComponent(filterValue)}` : ''
+        }`,
+        {},
+        token,
+      ),
+
     /** Takes the complete ordered list of ACTIVE field ids - a partial list is rejected. */
     reorderFields: (token: string, formId: string, orderedFieldIds: string[]) =>
       request<void>(

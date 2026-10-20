@@ -35,11 +35,11 @@ const FIELD_REQUIRED_SENTINEL = '__FIELD_REQUIRED__';
  * generic failure - the data isn't lost, just that one file needs retrying afterward via
  * the Attachments panel.
  *
- * Known simplification: Lookup fields need a human-readable label for their dropdown,
- * but FieldDefinitionDto has no designated "display field" for the target form yet - the
- * backend doesn't expose one. This convention-guesses the first ShortText field on the
- * target form's published version. Fine for now; formalizing a real DisplayFieldCode on
- * FormDefinition (backend change) would remove the guesswork.
+ * Lookup choices come from the backend's lookup-options endpoint (id + label only), checked
+ * against access to THIS form - so someone who may fill in a form but not open the master-
+ * data form it points at (a project manager and the Projects form) still gets the choices.
+ * The label is the target form's first ShortText field; there is still no designated
+ * "display field" on FormDefinition (see CLAUDE.md's known gaps).
  */
 export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendererProps) {
   const { t } = useTranslation();
@@ -84,29 +84,10 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
     const lookupFields = activeFields.filter(
       (f) => f.fieldType === 'Lookup' && f.lookupFormDefinitionId && !f.filterByFieldCode,
     );
-    const uniqueTargets = [...new Set(lookupFields.map((f) => f.lookupFormDefinitionId as string))];
-
-    uniqueTargets.forEach(async (targetFormId) => {
+    lookupFields.forEach(async (field) => {
       try {
-        const targetDef = await api.forms.get(token, targetFormId);
-        const displayField = targetDef.publishedVersion?.fields.find(
-          (f) => f.isActive && f.fieldType === 'ShortText',
-        );
-        const submissions = await api.submissions.list(token, targetFormId, 1, 200);
-        const choices: LookupChoice[] = submissions.items.map((row) => ({
-          id: row.id,
-          label: displayField ? String(row.values[displayField.code] ?? row.id) : row.id,
-        }));
-
-        setLookupChoices((prev) => {
-          const next = { ...prev };
-          lookupFields
-            .filter((f) => f.lookupFormDefinitionId === targetFormId)
-            .forEach((f) => {
-              next[f.code] = choices;
-            });
-          return next;
-        });
+        const choices: LookupChoice[] = await api.forms.lookupOptions(token, formDefinition.id, field.id);
+        setLookupChoices((prev) => ({ ...prev, [field.code]: choices }));
       } catch {
         // A failed lookup fetch shouldn't block the rest of the form from rendering -
         // that field just won't have options, and the required-field check below will
@@ -144,19 +125,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
         return;
       }
       try {
-        const targetFormId = field.lookupFormDefinitionId as string;
-        const targetDef = await api.forms.get(token, targetFormId);
-        const displayField = targetDef.publishedVersion?.fields.find(
-          (f) => f.isActive && f.fieldType === 'ShortText',
-        );
-        const submissions = await api.submissions.list(token, targetFormId, 1, 200, {
-          fieldCode: field.filterByFieldCode as string,
-          value: sourceValue,
-        });
-        const choices: LookupChoice[] = submissions.items.map((row) => ({
-          id: row.id,
-          label: displayField ? String(row.values[displayField.code] ?? row.id) : row.id,
-        }));
+        const choices: LookupChoice[] = await api.forms.lookupOptions(token, formDefinition.id, field.id, sourceValue);
         setLookupChoices((prev) => ({ ...prev, [field.code]: choices }));
       } catch {
         // Same philosophy as the unfiltered fetch above - a failed fetch just leaves this

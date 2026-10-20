@@ -33,11 +33,12 @@ export function Layout({ token }: LayoutProps) {
   // new tab blocked as a pop-up. Null (public viewing switched off on the server) is fine;
   // the tab then opens on the signed-in session instead.
   useEffect(() => {
+    if (!isAdmin) return; // the dashboard, and its key, are for administrators only
     api.analytics
       .executiveOverviewShareKey(token)
       .then((result) => setDashboardKey(result.key))
       .catch(() => setDashboardKey(null));
-  }, [token]);
+  }, [token, isAdmin]);
 
   /**
    * Opens the Executive Overview in its own tab, as a full-window page. With a share key the
@@ -146,12 +147,12 @@ export function Layout({ token }: LayoutProps) {
         </div>
         <FormPicker token={token} />
 
-        <div className="mt-6 space-y-2 border-t border-border rounded pt-3">
-          <button type="button" onClick={openDashboard} className={`${navLinkClass({ isActive: false })} w-full text-start`}>
-            {t('sidebar.executiveOverview')} <span aria-hidden="true">↗</span>
-          </button>
-          {isAdmin && (
+        {isAdmin && (
+          <div className="mt-6 space-y-2 border-t border-border rounded pt-3">
             <>
+              <button type="button" onClick={openDashboard} className={`${navLinkClass({ isActive: false })} w-full text-start`}>
+                {t('sidebar.executiveOverview')} <span aria-hidden="true">↗</span>
+              </button>
               <NavLink to="/builder" className={navLinkClass}>
                 {t('sidebar.buildForms')}
               </NavLink>
@@ -159,8 +160,8 @@ export function Layout({ token }: LayoutProps) {
                 {t('sidebar.users')}
               </NavLink>
             </>
-          )}
-        </div>
+          </div>
+        )}
       </aside>
 
       {/* overflow-x-hidden / overscroll-x-none / touch-pan-y here, not just on html/body in

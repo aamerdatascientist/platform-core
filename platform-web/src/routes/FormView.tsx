@@ -36,6 +36,18 @@ export function FormView({ token }: FormViewProps) {
   const [scopeChoices, setScopeChoices] = useState<ScopeChoice[]>([]);
   const [scopeValue, setScopeValue] = useState<string>('');
 
+  // Only administrators see what has already been submitted (the records list, and the
+  // workflow/attachments panel that opens from it); everyone else just fills the form in.
+  // Null until known, so nothing record-related is fetched or flashed for a non-admin. The
+  // server enforces the same rule - this only keeps the page from asking.
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  useEffect(() => {
+    api.auth
+      .me(token)
+      .then((me) => setIsAdmin(me.roles.includes('Administrator')))
+      .catch(() => setIsAdmin(false));
+  }, [token]);
+
   const scopeField = formDefinition?.publishedVersion?.fields.find(
     (f) => f.isActive && f.fieldType === 'Lookup' && f.lookupFormDefinitionId,
   );
@@ -53,12 +65,11 @@ export function FormView({ token }: FormViewProps) {
         setFormDefinition(null);
         setError({ err, fallbackKey: 'formView.loadError' });
       });
-    loadSubmissions(formId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formId, token]);
 
   useEffect(() => {
-    if (!scopeField?.lookupFormDefinitionId) {
+    if (!isAdmin || !scopeField?.lookupFormDefinitionId) {
       setScopeChoices([]);
       return;
     }
@@ -81,22 +92,23 @@ export function FormView({ token }: FormViewProps) {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scopeField?.lookupFormDefinitionId, token]);
+  }, [scopeField?.lookupFormDefinitionId, token, isAdmin]);
 
   useEffect(() => {
-    if (!formId) return;
+    if (!formId || !isAdmin) return;
     loadSubmissions(formId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scopeValue]);
+  }, [formId, scopeValue, isAdmin]);
 
   async function loadSubmissions(id: string) {
+    if (!isAdmin) return;
     const filter = scopeField && scopeValue ? { fieldCode: scopeField.code, value: scopeValue } : undefined;
     const page = await api.submissions.list(token, id, 1, 25, filter);
     setSubmissions(page.items);
   }
 
   if (error) return <p className="text-sm text-danger">{error}</p>;
-  if (!formDefinition)
+  if (!formDefinition || isAdmin === null)
     return (
       <div className="flex items-center gap-2">
         <LoadingSpinner size="sm" />
@@ -105,6 +117,15 @@ export function FormView({ token }: FormViewProps) {
     );
 
   const attachmentFields = formDefinition.publishedVersion?.fields.filter((f) => f.isActive && f.fieldType === 'Attachment') ?? [];
+
+  if (!isAdmin) {
+    return (
+      <div className="max-w-3xl space-y-8">
+        <h2 className="font-display text-xl font-semibold uppercase tracking-[0.07em] text-ink">{formDefinition.name}</h2>
+        <FormRenderer token={token} formDefinition={formDefinition} onSubmitted={() => {}} />
+      </div>
+    );
+  }
 
   return (
     <div className="grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">

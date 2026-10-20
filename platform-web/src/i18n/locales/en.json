@@ -356,7 +356,9 @@
       "copyLink": "Copy share link",
       "copied": "Copied",
       "fullScreen": "Full screen",
-      "exitFullScreen": "Exit full screen"
+      "exitFullScreen": "Exit full screen",
+      "forbiddenTitle": "This dashboard is for administrators",
+      "forbiddenBody": "Your account can fill in forms but can't view the dashboard."
     }
   },
   "fieldEditor": {

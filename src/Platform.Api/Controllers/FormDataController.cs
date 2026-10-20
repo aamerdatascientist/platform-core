@@ -34,7 +34,14 @@ public class FormDataController : ControllerBase
         return Ok(new { id });
     }
 
+    /// <summary>
+    /// Every submitted record of a form - administrators only (2026-10-20). Other users fill
+    /// forms in but don't browse what everyone else submitted; the form's own Lookup
+    /// dropdowns get their choices from GET /api/forms/{id}/fields/{fieldId}/lookup-options
+    /// instead, so locking this down doesn't empty them.
+    /// </summary>
     [HttpGet]
+    [Authorize(Roles = "Administrator")]
     public async Task<ActionResult<PagedResult<DynamicRow>>> List(
         Guid formId, [FromQuery] int page = 1, [FromQuery] int pageSize = 25,
         [FromQuery] string? filterFieldCode = null, [FromQuery] string? filterValue = null,

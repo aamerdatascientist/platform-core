@@ -17,8 +17,11 @@ namespace Platform.Application.Forms.Queries.GetFieldDynamicOptions;
 /// metadata, the same way a Lookup field's candidates are resolved from its own
 /// LookupFormDefinitionId rather than from a parameter the frontend has to already know.
 /// </summary>
+///
+/// Form-scoped (IFormScopedRequest): only someone who can open the form being filled in gets
+/// its options - before 2026-10-20 any signed-in user could read them for any form.
 public record GetFieldDynamicOptionsQuery(Guid FormDefinitionId, Guid FieldDefinitionId)
-    : IRequest<IReadOnlyList<string>>;
+    : IRequest<IReadOnlyList<string>>, IFormScopedRequest;
 
 public class GetFieldDynamicOptionsQueryValidator : AbstractValidator<GetFieldDynamicOptionsQuery>
 {

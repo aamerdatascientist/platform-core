@@ -11,13 +11,14 @@ using Platform.Application.Analytics.Queries.GetWeatherImpactedDays;
 namespace Platform.Api.Controllers;
 
 /// <summary>
-/// Read-only dashboard aggregate endpoints. No role-gating, deliberately - unlike form
-/// access (FormAccessChecker), nothing about these KPIs is scoped per-user today; every
-/// authenticated user sees the same Executive Overview.
+/// Read-only dashboard aggregate endpoints - administrators only (2026-10-20: the dashboard
+/// is for management, not for site users such as project managers). The KPIs aren't scoped
+/// per user, so the only gate is the role. Viewing without a sign-in goes through the
+/// separate share-key endpoint, PublicDashboardController.
 /// </summary>
 [ApiController]
 [Route("api/analytics")]
-[Authorize]
+[Authorize(Roles = "Administrator")]
 public class AnalyticsController : ControllerBase
 {
     private readonly ISender _sender;
@@ -43,9 +44,8 @@ public class AnalyticsController : ControllerBase
 
     /// <summary>
     /// The key that opens the dashboard without a sign-in (see <see cref="DashboardShareKey"/>),
-    /// or null when public viewing is switched off. Available to every signed-in user, not
-    /// only administrators: the app opens the dashboard in its own tab using this key, so
-    /// anyone who can see the dashboard already has its address - and can share it.
+    /// or null when public viewing is switched off. Administrators only, like the rest of this
+    /// controller: the app opens the dashboard in its own tab using this key.
     /// </summary>
     [HttpGet("executive-overview/share-key")]
     public ActionResult<DashboardShareKeyResponse> GetExecutiveOverviewShareKey() =>

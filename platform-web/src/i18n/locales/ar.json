@@ -356,7 +356,9 @@
       "copyLink": "نسخ رابط المشاركة",
       "copied": "تم النسخ",
       "fullScreen": "ملء الشاشة",
-      "exitFullScreen": "إنهاء ملء الشاشة"
+      "exitFullScreen": "إنهاء ملء الشاشة",
+      "forbiddenTitle": "هذه اللوحة مخصصة للمسؤولين",
+      "forbiddenBody": "يمكن لحسابك تعبئة النماذج، لكن لا يمكنه عرض لوحة المعلومات."
     }
   },
   "fieldEditor": {

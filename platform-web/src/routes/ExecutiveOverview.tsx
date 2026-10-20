@@ -98,7 +98,7 @@ export function ExecutiveOverview({ token }: { token: string | null }) {
   const [link] = useState(() => readDashboardLink(window.location.hash));
   const [data, setData] = useState<ExecutiveOverviewDto | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [failure, setFailure] = useState<'invalid' | 'error' | null>(null);
+  const [failure, setFailure] = useState<'invalid' | 'forbidden' | 'error' | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [mode, setCurrentMode] = useState(getMode());
   const [copied, setCopied] = useState(false);
@@ -149,12 +149,18 @@ export function ExecutiveOverview({ token }: { token: string | null }) {
       .catch((err) => {
         if (requestId !== latestRequest.current) return;
         // The public endpoint answers 404 for a missing, wrong or retired key.
-        setFailure(link.shareKey && err instanceof ApiError && err.status === 404 ? 'invalid' : 'error');
+        if (link.shareKey && err instanceof ApiError && err.status === 404) setFailure('invalid');
+        // Signed in, but not an administrator - the dashboard is for management only.
+        else if (!link.shareKey && err instanceof ApiError && err.status === 403) setFailure('forbidden');
+        else setFailure('error');
       });
   }, [link.shareKey, token, selectedId, refreshTick]);
 
   if (!link.shareKey && !token) {
     return <Message title={t('executiveOverview.share.needLinkTitle')} body={t('executiveOverview.share.needLinkBody')} />;
+  }
+  if (failure === 'forbidden') {
+    return <Message title={t('executiveOverview.share.forbiddenTitle')} body={t('executiveOverview.share.forbiddenBody')} />;
   }
   if (failure === 'invalid') {
     return <Message title={t('executiveOverview.share.invalidTitle')} body={t('executiveOverview.share.invalidBody')} />;

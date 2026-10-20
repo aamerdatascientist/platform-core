@@ -20,6 +20,7 @@ using Platform.Application.Forms.Commands.SetFormAllowedUsers;
 using Platform.Application.Forms.Commands.StartNewFormVersion;
 using Platform.Application.Forms.Dtos;
 using Platform.Application.Forms.Queries.GetFieldDynamicOptions;
+using Platform.Application.Forms.Queries.GetLookupOptions;
 using Platform.Application.Forms.Queries.GetFormDefinition;
 using Platform.Application.Forms.Queries.GetFormsList;
 using Platform.Domain.Forms.Enums;
@@ -157,6 +158,15 @@ public class FormsController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<string>>> GetFieldDynamicOptions(
         Guid id, Guid fieldId, CancellationToken cancellationToken) =>
         Ok(await _sender.Send(new GetFieldDynamicOptionsQuery(id, fieldId), cancellationToken));
+
+    /// <summary>The choices for a Lookup field on this form (Id + display label only) - see
+    /// GetLookupOptionsQuery. Checked against access to THIS form, not the Lookup's target,
+    /// so a form can be filled in by people who can't open the master-data form it points at.
+    /// filterValue is the value picked in the sibling field a cascading Lookup is narrowed by.</summary>
+    [HttpGet("{id:guid}/fields/{fieldId:guid}/lookup-options")]
+    public async Task<ActionResult<IReadOnlyList<LookupOptionDto>>> GetLookupOptions(
+        Guid id, Guid fieldId, [FromQuery] string? filterValue, CancellationToken cancellationToken) =>
+        Ok(await _sender.Send(new GetLookupOptionsQuery(id, fieldId, filterValue), cancellationToken));
 
     public record ReorderFieldsRequest(IReadOnlyList<Guid> OrderedFieldIds);
 
