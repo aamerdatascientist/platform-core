@@ -204,11 +204,11 @@ never send to a server. `GET /api/analytics/executive-overview/share-key` hands 
 administrators (the app needs it to open the tab), so any administrator can pass the link on -
 that is intended, not a leak. Since 2026-10-20 all of `/api/analytics/*` is administrator-only
 and the dashboard link shows for administrators only (Project managers don't see the dashboard).
+Don't add a second anonymous data endpoint by copying this one without the same key check.
 
 **Since 2026-10-21 the sidebar holds only the forms plus one Settings link.** Everything else -
 account and password, sign out, language, light/dark, and the admin-only dashboard / form
-builder / users & roles - is on `/settings` (`routes/Settings.tsx`); `/account` redirects there. Don't add a second anonymous data
-endpoint by copying this one without the same key check.
+builder / users & roles - is on `/settings` (`routes/Settings.tsx`); `/account` redirects there.
 
 ## Hardening batch (2026-10-20) - field rules, record edits, sign-in, headers
 
