@@ -7,6 +7,7 @@ import { ChangePasswordForm } from '../components/ChangePasswordForm';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { ModeToggle } from '../components/ModeToggle';
 import { buildDashboardUrl } from '../dashboardLink';
+import { isRtl } from '../i18n';
 import { getMode } from '../theme/mode';
 import type { CurrentUserDto } from '../types';
 
@@ -25,6 +26,7 @@ export function Settings({ token }: SettingsProps) {
   const [me, setMe] = useState<CurrentUserDto | null>(null);
   const [dashboardKey, setDashboardKey] = useState<string | null>(null);
   const isAdmin = me?.roles.includes('Administrator') ?? false;
+  const rtl = isRtl(i18n.language);
 
   useEffect(() => {
     api.auth.me(token).then(setMe).catch(() => setMe(null));
@@ -119,31 +121,47 @@ export function Settings({ token }: SettingsProps) {
                 <span className="block text-sm font-medium text-ink">{t('sidebar.executiveOverview')}</span>
                 <span className="block text-xs text-ink-soft">{t('settings.dashboardHint')}</span>
               </span>
-              <span aria-hidden="true" className="text-ink-soft">
-                ↗
-              </span>
+              <RowIcon kind="external" rtl={rtl} />
             </button>
             <Link to="/builder" className={rowButtonClass}>
               <span>
                 <span className="block text-sm font-medium text-ink">{t('settings.formBuilder')}</span>
                 <span className="block text-xs text-ink-soft">{t('settings.formBuilderHint')}</span>
               </span>
-              <span aria-hidden="true" className="text-ink-soft rtl:rotate-180">
-                ›
-              </span>
+              <RowIcon kind="next" rtl={rtl} />
             </Link>
             <Link to="/admin/users" className={rowButtonClass}>
               <span>
                 <span className="block text-sm font-medium text-ink">{t('userManagement.title')}</span>
                 <span className="block text-xs text-ink-soft">{t('settings.usersHint')}</span>
               </span>
-              <span aria-hidden="true" className="text-ink-soft rtl:rotate-180">
-                ›
-              </span>
+              <RowIcon kind="next" rtl={rtl} />
             </Link>
           </div>
         </section>
       )}
     </div>
+  );
+}
+
+/**
+ * Row arrows drawn as SVG and flipped explicitly for Arabic: text glyphs (› ↗) get mirrored
+ * by some browsers inside right-to-left text and not others, and a CSS rotate on an inline
+ * span does nothing - the same problem the calendar's month arrows had. In Arabic the row's
+ * arrow sits on the left, so "next" points left and "opens elsewhere" points up-left.
+ */
+function RowIcon({ kind, rtl }: { kind: 'next' | 'external'; rtl: boolean }) {
+  const path =
+    kind === 'next'
+      ? rtl
+        ? 'M15 18l-6-6 6-6'
+        : 'M9 6l6 6-6 6'
+      : rtl
+        ? 'M17 17L7 7M7 15V7h8'
+        : 'M7 17L17 7M9 7h8v8';
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0 text-ink-soft">
+      <path d={path} />
+    </svg>
   );
 }
