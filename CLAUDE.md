@@ -200,9 +200,10 @@ who sends that key in the `X-Dashboard-Key` header - this is the **only anonymou
 that returns business data**, and it answers 404 for a missing, wrong or unconfigured key.
 Replacing the value cuts off every link issued before; there is no per-link revocation and no
 database row behind it. The link carries the key in the URL fragment (`#k=...`), which browsers
-never send to a server. `GET /api/analytics/executive-overview/share-key` hands the key to any
-signed-in user (the app needs it to open the tab), so every user who can see the dashboard can
-also pass the link on - that is intended, not a leak. Don't add a second anonymous data
+never send to a server. `GET /api/analytics/executive-overview/share-key` hands the key to signed-in
+administrators (the app needs it to open the tab), so any administrator can pass the link on -
+that is intended, not a leak. Since 2026-10-20 all of `/api/analytics/*` is administrator-only
+and the sidebar link shows for administrators only (Project managers don't see the dashboard). Don't add a second anonymous data
 endpoint by copying this one without the same key check.
 
 ## Established code conventions

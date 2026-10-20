@@ -141,9 +141,20 @@
     "submit": "إرسال",
     "submitting": "جارٍ الإرسال…",
     "submitFailed": "فشل الإرسال.",
-    "partialUploadFailure_one": "تم حفظ السجل، لكن تعذر رفع: {{files}}. يمكنك إضافته مرة أخرى باختيار هذا السجل أدناه.",
-    "partialUploadFailure_other": "تم حفظ السجل، لكن تعذر رفع: {{files}}. يمكنك إضافتها مرة أخرى باختيار هذا السجل أدناه.",
-    "noPublishedVersion": "هذا النموذج ليس له نسخة منشورة بعد."
+    "noPublishedVersion": "هذا النموذج ليس له نسخة منشورة بعد.",
+    "submittedTitle": "تم الإرسال بنجاح",
+    "submittedBody": "تم حفظ الإدخال الساعة {{time}}.",
+    "submitAnother": "إرسال إدخال آخر",
+    "pickDate": "اختر تاريخاً",
+    "today": "اليوم",
+    "yesterday": "أمس",
+    "clearDate": "مسح",
+    "previousMonth": "الشهر السابق",
+    "nextMonth": "الشهر التالي",
+    "month": "الشهر",
+    "year": "السنة",
+    "partialUploadFailure_one": "تم حفظ الإدخال، لكن لم يتم رفع هذا الملف: {{files}}. اطلب من المسؤول إضافته إلى الإدخال.",
+    "partialUploadFailure_other": "تم حفظ الإدخال، لكن لم يتم رفع هذه الملفات: {{files}}. اطلب من المسؤول إضافتها إلى الإدخال."
   },
   "workflowPanel": {
     "loadingStatus": "جارٍ تحميل الحالة…",

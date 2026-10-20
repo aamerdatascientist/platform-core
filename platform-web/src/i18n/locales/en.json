@@ -141,9 +141,20 @@
     "submit": "Submit",
     "submitting": "Submitting…",
     "submitFailed": "Submission failed.",
-    "partialUploadFailure_one": "Record saved, but couldn't upload: {{files}}. You can add it again by selecting this record below.",
-    "partialUploadFailure_other": "Record saved, but couldn't upload: {{files}}. You can add them again by selecting this record below.",
-    "noPublishedVersion": "This form has no published version yet."
+    "noPublishedVersion": "This form has no published version yet.",
+    "submittedTitle": "Submitted successfully",
+    "submittedBody": "Your entry was saved at {{time}}.",
+    "submitAnother": "Submit another",
+    "pickDate": "Choose a date",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "clearDate": "Clear",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "month": "Month",
+    "year": "Year",
+    "partialUploadFailure_one": "The entry was saved, but this file didn't upload: {{files}}. Ask an administrator to add it to the entry.",
+    "partialUploadFailure_other": "The entry was saved, but these files didn't upload: {{files}}. Ask an administrator to add them to the entry."
   },
   "workflowPanel": {
     "loadingStatus": "Loading status…",

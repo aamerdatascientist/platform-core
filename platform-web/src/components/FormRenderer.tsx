@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
 import { useErrorMessage } from '../hooks/useErrorMessage';
+import { DateField, todayIso } from './DateField';
 import type { DropdownOption, FieldDefinitionDto, FormDefinitionDto } from '../types';
 
 interface FormRendererProps {
@@ -48,7 +49,16 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
     [formDefinition],
   );
 
-  const [values, setValues] = useState<Record<string, string>>({});
+  // A required date starts on today: most entries (a daily report, a stock movement) are for
+  // today, and it is one less thing to fill in. Optional dates (e.g. a project's expected
+  // completion) start empty, since today would usually be wrong for them.
+  const initialValues = () =>
+    Object.fromEntries(activeFields.filter((f) => f.fieldType === 'DateTime' && f.isRequired).map((f) => [f.code, todayIso()]));
+
+  const [values, setValues] = useState<Record<string, string>>(initialValues);
+  // Set when a submission has just been saved: the form is replaced by a confirmation until
+  // the person chooses to submit another, so success is impossible to miss.
+  const [submittedAt, setSubmittedAt] = useState<Date | null>(null);
   const [attachmentFiles, setAttachmentFiles] = useState<Record<string, File>>({});
   const [lookupChoices, setLookupChoices] = useState<Record<string, LookupChoice[]>>({});
   const [dynamicDropdownOptions, setDynamicDropdownOptions] = useState<Record<string, string[]>>({});
@@ -57,10 +67,11 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    setValues({});
+    setValues(initialValues());
     setAttachmentFiles({});
     setError(null);
     setFieldErrors({});
+    setSubmittedAt(null);
 
     // Dynamic-options Dropdowns (e.g. Outflow's "material" sourced from Inflow's "material")
     // fetch once per form load, same cadence as an unfiltered Lookup - their live distinct-
@@ -277,8 +288,9 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
         }
       }
 
-      setValues({});
+      setValues(initialValues());
       setAttachmentFiles({});
+      setSubmittedAt(new Date());
       onSubmitted?.();
     } catch (err) {
       if (err instanceof ApiError && err.errors) {
@@ -300,6 +312,19 @@ export function FormRenderer({ token, formDefinition, onSubmitted }: FormRendere
 
   if (!formDefinition.publishedVersion) {
     return <p className="text-sm text-ink-soft">{t('formRenderer.noPublishedVersion')}</p>;
+  }
+
+  if (submittedAt) {
+    return (
+      <SubmittedNotice
+        submittedAt={submittedAt}
+        warning={error}
+        onAnother={() => {
+          setSubmittedAt(null);
+          setError(null);
+        }}
+      />
+    );
   }
 
   return (
@@ -429,7 +454,7 @@ function FieldInput({
           ))}
         </select>
       ) : field.fieldType === 'DateTime' ? (
-        <input type="date" className={baseClass} value={value} onChange={(e) => onChange(e.target.value)} />
+        <DateField id={`field-${field.id}`} value={value} onChange={onChange} required={field.isRequired} className={baseClass} />
       ) : field.fieldType === 'Number' || field.fieldType === 'Decimal' ? (
         <input
           type="number"
@@ -447,6 +472,58 @@ function FieldInput({
           {error === FIELD_REQUIRED_SENTINEL ? t('formRenderer.fieldRequired') : error}
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Shown in place of the form right after a successful submission. It takes the form's place
+ * (rather than a small message by the button) so it can't be missed on a phone, where the
+ * person is scrolled to the bottom of a long form; it is scrolled into view and announced to
+ * screen readers. "Submit another" brings back an empty form.
+ */
+function SubmittedNotice({
+  submittedAt,
+  warning,
+  onAnother,
+}: {
+  submittedAt: Date;
+  warning: string | null;
+  onAnother: () => void;
+}) {
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language.startsWith('ar') ? 'ar-u-nu-latn' : i18n.language;
+  const time = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' }).format(submittedAt);
+  const innerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    innerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    innerRef.current?.focus();
+  }, []);
+
+  return (
+    <div
+      ref={innerRef}
+      role="status"
+      tabIndex={-1}
+      className="rounded border border-success bg-panel p-6 text-center shadow-recessed outline-none"
+    >
+      <div
+        aria-hidden="true"
+        className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success text-3xl leading-none text-panel"
+      >
+        ✓
+      </div>
+      <h3 className="mt-3 font-display text-xl font-bold text-ink">{t('formRenderer.submittedTitle')}</h3>
+      <p className="mt-1 text-sm text-ink-soft">{t('formRenderer.submittedBody', { time })}</p>
+      {warning && <p className="mt-3 text-sm text-danger">{warning}</p>}
+      <button
+        type="button"
+        onClick={onAnother}
+        className="mt-5 w-full rounded bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink hover:opacity-90 sm:w-auto"
+      >
+        {t('formRenderer.submitAnother')}
+      </button>
     </div>
   );
 }
