@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { isRtl } from '../i18n';
 
 /**
  * Date entry for form fields, replacing the browser's own <input type="date">.
@@ -49,6 +50,7 @@ interface DateFieldProps {
 export function DateField({ id, value, onChange, required, className }: DateFieldProps) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language.startsWith('ar') ? 'ar-u-nu-latn' : i18n.language;
+  const rtl = isRtl(i18n.language);
   const [open, setOpen] = useState(false);
   const selected = parseIso(value);
   const now = new Date();
@@ -151,12 +153,12 @@ export function DateField({ id, value, onChange, required, className }: DateFiel
       {open && (
         <div role="dialog" aria-label={t('formRenderer.pickDate')} className="mt-2 max-w-sm rounded border border-border bg-panel p-3 shadow-recessed">
           <div className="mb-3 flex items-center gap-2">
-            {/* Previous always points left and next always points right, in both languages -
-                in Arabic the previous button simply sits on the right, so the two arrows face
-                each other. Agreed with Aamer 2026-10-20. Drawn as SVG because text arrows
-                (‹ ›) are mirrored by the browser inside right-to-left text. */}
+            {/* Each arrow points outward, toward the side its button sits on: in Arabic the
+                previous-month button is on the right and points right, next is on the left and
+                points left (confirmed by Aamer 2026-10-20). Drawn as SVG because text arrows
+                (‹ ›) get mirrored by some browsers inside right-to-left text and not others. */}
             <button type="button" className={navClass} onClick={() => shiftMonth(-1)} aria-label={t('formRenderer.previousMonth')}>
-              <Chevron direction="left" />
+              <Chevron direction={rtl ? 'right' : 'left'} />
             </button>
             <select
               aria-label={t('formRenderer.month')}
@@ -183,7 +185,7 @@ export function DateField({ id, value, onChange, required, className }: DateFiel
               ))}
             </select>
             <button type="button" className={navClass} onClick={() => shiftMonth(1)} aria-label={t('formRenderer.nextMonth')}>
-              <Chevron direction="right" />
+              <Chevron direction={rtl ? 'left' : 'right'} />
             </button>
           </div>
 
