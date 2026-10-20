@@ -29,6 +29,28 @@ public interface IDynamicDataRepository
         Guid submittedByUserId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>
+    /// Overwrites every active, non-Attachment field of one non-deleted row with
+    /// <paramref name="values"/> (a field missing from the dictionary becomes null - the same
+    /// full-record shape InsertAsync takes) and stamps ModifiedAtUtc/ModifiedByUserId. False
+    /// when no such row exists (never existed, or deleted).
+    /// </summary>
+    Task<bool> UpdateAsync(
+        string tableName,
+        IReadOnlyCollection<FieldDefinition> activeFields,
+        Guid id,
+        IReadOnlyDictionary<string, object?> values,
+        Guid modifiedByUserId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Soft delete: sets IsDeleted (so every read, count and dashboard skips the row) and
+    /// stamps ModifiedAtUtc/ModifiedByUserId. The row and its values stay in the table. False
+    /// when no such non-deleted row exists.
+    /// </summary>
+    Task<bool> SoftDeleteAsync(
+        string tableName, Guid id, Guid deletedByUserId, CancellationToken cancellationToken = default);
+
     Task<DynamicRow?> GetByIdAsync(
         string tableName,
         IReadOnlyCollection<FieldDefinition> activeFields,

@@ -339,6 +339,37 @@ public class DynamicSchemaService : IDynamicSchemaService
             "Renamed column {FromCode} to {ToCode} on {TableName}", fromCode, toCode, tableName);
     }
 
+    public async Task DropNotNullAsync(string tableName, string columnCode, CancellationToken cancellationToken = default)
+    {
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
+        SqlTypeMapper.AssertSafePostgresIdentifier(columnCode);
+
+        // Only touches a column that exists and is currently NOT NULL, so calling this on a
+        // field that never had the constraint (or on an Attachment field, which has no column)
+        // is a harmless no-op rather than an error.
+        const string probe = """
+            SELECT is_nullable = 'NO'
+            FROM information_schema.columns
+            WHERE table_schema = current_schema() AND table_name = @table AND column_name = @column
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using (var check = new NpgsqlCommand(probe, connection))
+        {
+            check.Parameters.AddWithValue("table", tableName);
+            check.Parameters.AddWithValue("column", columnCode);
+            if (await check.ExecuteScalarAsync(cancellationToken) is not true) return;
+        }
+
+        var sql = $"ALTER TABLE \"{tableName}\" ALTER COLUMN \"{columnCode}\" DROP NOT NULL;";
+        await using var command = new NpgsqlCommand(sql, connection);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+
+        _logger.LogInformation("Dropped NOT NULL from {ColumnCode} on {TableName}", columnCode, tableName);
+    }
+
     public async Task<IReadOnlyList<Guid>> FindRowsFailingTypeChangeAsync(
         string tableName, FieldDefinition field, FieldType newType, int maxRows = 10,
         CancellationToken cancellationToken = default)

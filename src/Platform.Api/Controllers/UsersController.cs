@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Platform.Application.Identity.Commands.ResetUserPassword;
 using Platform.Application.Identity.Commands.SetUserActiveStatus;
 using Platform.Application.Identity.Commands.SetUserRoles;
 using Platform.Application.Identity.Queries.GetUsers;
@@ -26,6 +27,17 @@ public class UsersController : ControllerBase
     public async Task<IActionResult> SetRoles(Guid id, SetRolesRequest request, CancellationToken cancellationToken)
     {
         await _sender.Send(new SetUserRolesCommand(id, request.RoleIds), cancellationToken);
+        return NoContent();
+    }
+
+    public record ResetPasswordRequest(string NewPassword);
+
+    /// <summary>Sets a new password for a user who forgot theirs, and signs them out
+    /// everywhere.</summary>
+    [HttpPost("{id:guid}/password")]
+    public async Task<IActionResult> ResetPassword(Guid id, ResetPasswordRequest request, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new ResetUserPasswordCommand(id, request.NewPassword), cancellationToken);
         return NoContent();
     }
 

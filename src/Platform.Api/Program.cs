@@ -1,8 +1,10 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.IdentityModel.Tokens;
+using Platform.Api;
 using Platform.Api.Middleware;
 using Platform.Application;
 using Platform.Infrastructure;
@@ -111,17 +113,38 @@ builder.Services.AddCors(options =>
             .AllowAnyHeader().AllowAnyMethod());
 });
 
+builder.Services.AddPlatformRateLimiting();
+
+// The real client address, for per-IP rate limiting. Azure App Service's front end appends it
+// to X-Forwarded-For; with the default ForwardLimit of 1 only that last entry is used, so a
+// client can't pick its own address by sending a forged header. The front end's own address
+// isn't fixed, hence no KnownProxies/KnownNetworks list.
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownNetworks.Clear();
+    options.KnownProxies.Clear();
+});
+
 var app = builder.Build();
+
+app.UseForwardedHeaders();
+app.UseMiddleware<SecurityHeadersMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
+else
+{
+    app.UseHsts();
+}
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseHttpsRedirection();
 app.UseCors("Default");
+app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

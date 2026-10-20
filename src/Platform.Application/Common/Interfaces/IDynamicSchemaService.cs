@@ -62,6 +62,17 @@ public interface IDynamicSchemaService
         string tableName, string fromCode, string toCode, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// ALTER TABLE ... ALTER COLUMN ... DROP NOT NULL. Idempotent (a nullable column is left
+    /// alone, and so is a column that doesn't exist). Needed whenever a live field stops being
+    /// unconditionally required while its column was created NOT NULL at first publish -
+    /// archiving it, making it conditional, or switching IsRequired off - or every later
+    /// submission (which no longer sends a value for it) fails with a raw not-null violation.
+    /// Never the other way round: a live column is never made NOT NULL, because existing rows
+    /// may legitimately hold nulls; "required" on a live form is enforced by the validator.
+    /// </summary>
+    Task DropNotNullAsync(string tableName, string columnCode, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Dry run for a type change: returns the Ids of rows whose current value would NOT
     /// survive conversion to <paramref name="newType"/>, capped at <paramref name="maxRows"/>
     /// so a wholly-incompatible column reports a usable sample instead of every row in the

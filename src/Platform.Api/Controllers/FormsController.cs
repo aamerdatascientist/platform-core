@@ -14,6 +14,7 @@ using Platform.Application.Forms.Commands.RestoreField;
 using Platform.Application.Forms.Commands.UpdateFieldDynamicOptionsSource;
 using Platform.Application.Forms.Commands.UpdateFieldLabel;
 using Platform.Application.Forms.Commands.UpdateFieldLookupFilter;
+using Platform.Application.Forms.Commands.UpdateFieldRules;
 using Platform.Application.Forms.Commands.UpdateFieldVisibility;
 using Platform.Application.Forms.Commands.SetFormAllowedRoles;
 using Platform.Application.Forms.Commands.SetFormAllowedUsers;
@@ -116,6 +117,24 @@ public class FormsController : ControllerBase
     {
         await _sender.Send(
             new UpdateFieldVisibilityCommand(id, fieldId, request.VisibleWhenFieldCode, request.VisibleWhenValuesJson),
+            cancellationToken);
+        return NoContent();
+    }
+
+    public record UpdateFieldRulesRequest(
+        bool IsRequired, double? Min, double? Max, bool MinExclusive, string? Regex, bool NoFutureDates);
+
+    /// <summary>Safe: sets "required" and the value rules (min/max, pattern, no future
+    /// dates). Works on a published form with live data; enforced for new submissions.</summary>
+    [HttpPut("{id:guid}/fields/{fieldId:guid}/rules")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> UpdateFieldRules(
+        Guid id, Guid fieldId, UpdateFieldRulesRequest request, CancellationToken cancellationToken)
+    {
+        await _sender.Send(
+            new UpdateFieldRulesCommand(
+                id, fieldId, request.IsRequired, request.Min, request.Max, request.MinExclusive, request.Regex,
+                request.NoFutureDates),
             cancellationToken);
         return NoContent();
     }

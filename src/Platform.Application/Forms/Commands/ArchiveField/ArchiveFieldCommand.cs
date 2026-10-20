@@ -63,6 +63,13 @@ public class ArchiveFieldCommandHandler : IRequestHandler<ArchiveFieldCommand>
                     "or published. Add another field first, or delete the whole form.")
             });
 
+        // An archived field is never sent again, so a column created NOT NULL (an
+        // unconditionally required field at first publish) would reject every later
+        // submission. DDL first: if the metadata save then fails, a nullable column on a
+        // still-active field is harmless (the validator still enforces "required").
+        if (target.IsLive && target.LiveTableName is { } tableName)
+            await _schemaService.DropNotNullAsync(tableName, field.Code, cancellationToken);
+
         field.Deactivate();
         await _db.SaveChangesAsync(cancellationToken);
 

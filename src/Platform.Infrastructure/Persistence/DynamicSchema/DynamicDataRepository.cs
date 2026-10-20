@@ -73,6 +73,59 @@ public class DynamicDataRepository : IDynamicDataRepository
         return await connection.ExecuteScalarAsync<Guid>(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
     }
 
+    public async Task<bool> UpdateAsync(
+        string tableName,
+        IReadOnlyCollection<FieldDefinition> activeFields,
+        Guid id,
+        IReadOnlyDictionary<string, object?> values,
+        Guid modifiedByUserId,
+        CancellationToken cancellationToken = default)
+    {
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
+        var writableFields = activeFields.Where(f => f.FieldType != FieldType.Attachment).ToList();
+
+        var parameters = new DynamicParameters();
+        parameters.Add("Id", id);
+        parameters.Add("ModifiedAtUtc", DateTime.UtcNow);
+        parameters.Add("ModifiedByUserId", modifiedByUserId);
+
+        var assignments = new List<string> { "\"ModifiedAtUtc\" = @ModifiedAtUtc", "\"ModifiedByUserId\" = @ModifiedByUserId" };
+        foreach (var field in writableFields)
+        {
+            SqlTypeMapper.AssertSafePostgresIdentifier(field.Code);
+            var paramName = $"field_{field.Code}";
+            assignments.Add($"\"{field.Code}\" = @{paramName}");
+            var rawValue = values.TryGetValue(field.Code, out var v) ? v : null;
+            parameters.Add(paramName, ConvertFieldValue(field.FieldType, rawValue), MapToDbType(field.FieldType));
+        }
+
+        var sql = $"""
+            UPDATE "{tableName}" SET {string.Join(", ", assignments)}
+            WHERE "Id" = @Id AND "IsDeleted" = false;
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        var affected = await connection.ExecuteAsync(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+        return affected > 0;
+    }
+
+    public async Task<bool> SoftDeleteAsync(
+        string tableName, Guid id, Guid deletedByUserId, CancellationToken cancellationToken = default)
+    {
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
+        var sql = $"""
+            UPDATE "{tableName}"
+            SET "IsDeleted" = true, "ModifiedAtUtc" = @ModifiedAtUtc, "ModifiedByUserId" = @ModifiedByUserId
+            WHERE "Id" = @Id AND "IsDeleted" = false;
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        var affected = await connection.ExecuteAsync(new CommandDefinition(
+            sql, new { Id = id, ModifiedAtUtc = DateTime.UtcNow, ModifiedByUserId = deletedByUserId },
+            cancellationToken: cancellationToken));
+        return affected > 0;
+    }
+
     public async Task<DynamicRow?> GetByIdAsync(
         string tableName, IReadOnlyCollection<FieldDefinition> activeFields, Guid id,
         CancellationToken cancellationToken = default)

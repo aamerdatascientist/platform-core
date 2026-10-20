@@ -219,6 +219,21 @@ public class FieldDefinition : AuditableEntity
                 nameof(dynamicOptionsSourceFieldCode));
     }
 
+    /// <summary>
+    /// Safe metadata change: whether a value must be given. On a published form this is
+    /// enforced by SubmissionValueValidator only - the physical column is never made NOT NULL
+    /// after the fact (old rows may hold nulls), and is made nullable when this turns off.
+    /// </summary>
+    public void SetRequired(bool isRequired) => IsRequired = isRequired;
+
+    /// <summary>
+    /// Safe metadata change: replaces the field's validation rules (min/max, pattern,
+    /// no-future-dates) as stored JSON. Null or blank clears them. The caller builds the JSON;
+    /// this only normalizes blank to null.
+    /// </summary>
+    public void SetValidationRules(string? validationRulesJson) =>
+        ValidationRulesJson = string.IsNullOrWhiteSpace(validationRulesJson) ? null : validationRulesJson;
+
     public void Deactivate() => IsActive = false;
 
     public void UpdateLabel(string label) => Label = label.Trim();

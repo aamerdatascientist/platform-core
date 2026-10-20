@@ -2,7 +2,9 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Platform.Application.Common.Interfaces;
+using Platform.Application.Forms.Commands.DeleteSubmission;
 using Platform.Application.Forms.Commands.SubmitFormData;
+using Platform.Application.Forms.Commands.UpdateSubmission;
 using Platform.Application.Forms.Queries.GetFormSubmissions;
 
 namespace Platform.Api.Controllers;
@@ -32,6 +34,27 @@ public class FormDataController : ControllerBase
 
         var id = await _sender.Send(new SubmitFormDataCommand(formId, values, userId), cancellationToken);
         return Ok(new { id });
+    }
+
+    /// <summary>Corrects a submitted record - administrators only. The body is the whole
+    /// record, in the same shape as a new submission, and is validated the same way.</summary>
+    [HttpPut("{recordId:guid}")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> Update(
+        Guid formId, Guid recordId, [FromBody] Dictionary<string, object?> values, CancellationToken cancellationToken)
+    {
+        await _sender.Send(
+            new UpdateSubmissionCommand(formId, recordId, values, _currentUser.UserId!.Value), cancellationToken);
+        return NoContent();
+    }
+
+    /// <summary>Removes a submitted record (soft delete) - administrators only.</summary>
+    [HttpDelete("{recordId:guid}")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> Delete(Guid formId, Guid recordId, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new DeleteSubmissionCommand(formId, recordId, _currentUser.UserId!.Value), cancellationToken);
+        return NoContent();
     }
 
     /// <summary>

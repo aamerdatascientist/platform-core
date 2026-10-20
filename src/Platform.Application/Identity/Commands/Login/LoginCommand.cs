@@ -41,7 +41,7 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, TokenPair>
         // Deliberately identical failure for "no such user" and "wrong password" -
         // don't let the API reveal which emails are registered.
         if (user is null || !user.IsActive || !_passwordHasher.Verify(request.Password, user.PasswordHash))
-            throw new Common.Exceptions.ForbiddenAccessException("Invalid email or password.");
+            throw new Common.Exceptions.UnauthorizedException("Invalid email or password.");
 
         var roleIds = user.UserRoles.Select(ur => ur.RoleId).ToList();
         var roleNames = await _db.Roles

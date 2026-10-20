@@ -53,6 +53,39 @@ public class FakeDynamicDataRepository : IDynamicDataRepository
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Not used by the analytics query handler tests.");
 
+    /// <summary>Who changed or deleted which row, for the record edit/delete tests.</summary>
+    public List<(string Table, Guid Id, Guid UserId)> Modifications { get; } = new();
+
+    public Task<bool> UpdateAsync(
+        string tableName, IReadOnlyCollection<FieldDefinition> activeFields, Guid id,
+        IReadOnlyDictionary<string, object?> values, Guid modifiedByUserId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!Rows.TryGetValue(tableName, out var rows))
+            throw new InvalidOperationException($"Test bug: no fake rows registered for table '{tableName}'.");
+        var index = rows.FindIndex(r => r.Id == id);
+        if (index < 0) return Task.FromResult(false);
+
+        // Same full-record overwrite as the real UPDATE: every writable active field is set,
+        // and one missing from the values becomes null.
+        var updated = activeFields
+            .Where(f => f.FieldType != Platform.Domain.Forms.Enums.FieldType.Attachment)
+            .ToDictionary(f => f.Code, f => values.GetValueOrDefault(f.Code));
+        rows[index] = new DynamicRow(id, updated);
+        Modifications.Add((tableName, id, modifiedByUserId));
+        return Task.FromResult(true);
+    }
+
+    public Task<bool> SoftDeleteAsync(
+        string tableName, Guid id, Guid deletedByUserId, CancellationToken cancellationToken = default)
+    {
+        if (!Rows.TryGetValue(tableName, out var rows))
+            throw new InvalidOperationException($"Test bug: no fake rows registered for table '{tableName}'.");
+        var removed = rows.RemoveAll(r => r.Id == id) > 0;
+        if (removed) Modifications.Add((tableName, id, deletedByUserId));
+        return Task.FromResult(removed);
+    }
+
     public Task<IReadOnlyList<string>> GetDistinctColumnValuesAsync(
         string tableName, string columnCode, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Not used by the analytics query handler tests.");

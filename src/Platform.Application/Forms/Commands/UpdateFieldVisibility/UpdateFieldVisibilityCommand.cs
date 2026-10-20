@@ -32,8 +32,13 @@ public class UpdateFieldVisibilityCommandValidator : AbstractValidator<UpdateFie
 public class UpdateFieldVisibilityCommandHandler : IRequestHandler<UpdateFieldVisibilityCommand>
 {
     private readonly IApplicationDbContext _db;
+    private readonly IDynamicSchemaService _schemaService;
 
-    public UpdateFieldVisibilityCommandHandler(IApplicationDbContext db) => _db = db;
+    public UpdateFieldVisibilityCommandHandler(IApplicationDbContext db, IDynamicSchemaService schemaService)
+    {
+        _db = db;
+        _schemaService = schemaService;
+    }
 
     public async Task Handle(UpdateFieldVisibilityCommand request, CancellationToken cancellationToken)
     {
@@ -74,6 +79,12 @@ public class UpdateFieldVisibilityCommandHandler : IRequestHandler<UpdateFieldVi
                 new FluentValidation.Results.ValidationFailure(nameof(request.VisibleWhenFieldCode), ex.Message)
             });
         }
+
+        // A field that becomes conditional is left out of every submission that hides it, so
+        // a NOT NULL column (created when it was unconditionally required at first publish)
+        // must become nullable - otherwise those submissions fail with a raw database error.
+        if (target.IsLive && target.LiveTableName is { } tableName && field.VisibleWhenFieldCode is not null)
+            await _schemaService.DropNotNullAsync(tableName, field.Code, cancellationToken);
 
         await _db.SaveChangesAsync(cancellationToken);
         // No reporting-view refresh needed: unlike Label, visibility condition feeds nothing

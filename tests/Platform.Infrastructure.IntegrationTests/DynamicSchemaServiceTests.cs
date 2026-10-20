@@ -416,6 +416,29 @@ public class DynamicSchemaServiceTests : IAsyncLifetime
             .Should().Be(1L, "a column added to a live table leaves existing rows null");
     }
 
+    [Fact]
+    public async Task DropNotNullAsync_MakesARequiredColumnNullable_AndIsIdempotent()
+    {
+        var form = FormDefinition.Create("live-required", "Live Required", "Operations", null);
+        var draft = form.GetDraftVersion();
+        draft.AddField("other", "Other", FieldType.ShortText, false, null, null, null);
+        draft.AddField("must", "Must", FieldType.ShortText, true, null, null, null);
+        draft.MarkPublished();
+        var tableName = await _sut.EnsureTableForPublishedVersionAsync(form, draft);
+        form.MarkPublished(draft, tableName);
+        await _sut.RefreshReportingViewAsync(form, draft);
+
+        var isNotNull = $"SELECT (is_nullable = 'NO')::int FROM information_schema.columns WHERE table_name = '{tableName}' AND column_name = 'must';";
+        (await ScalarAsync(isNotNull)).Should().Be(1, "an unconditionally required field gets NOT NULL at first publish");
+
+        await _sut.DropNotNullAsync(tableName, "must");
+        await _sut.DropNotNullAsync(tableName, "must");
+        await _sut.DropNotNullAsync(tableName, "no_such_column");
+
+        (await ScalarAsync(isNotNull)).Should().Be(0);
+        await InsertRowAsync(tableName, "other", "'saved without must'");
+    }
+
     private async Task<Guid> InsertRowAsync(string tableName, string columnCode, string valueLiteral)
     {
         var id = Guid.NewGuid();

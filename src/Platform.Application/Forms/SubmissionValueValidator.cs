@@ -24,6 +24,37 @@ public static class SubmissionValueValidator
     // on every submission against that field until the process itself is unresponsive.
     private static readonly TimeSpan RegexMatchTimeout = TimeSpan.FromMilliseconds(250);
 
+    private const int ShortTextMaxLength = 400;
+
+    /// <summary>
+    /// The values as they should be stored: text is trimmed, and blank or whitespace-only text
+    /// becomes null (so "   " is never saved as an answer). Run after <see cref="Validate"/>,
+    /// on the same dictionary, before handing the values to the repository.
+    /// </summary>
+    public static IReadOnlyDictionary<string, object?> Normalize(
+        IEnumerable<FieldDefinition> activeFields, IReadOnlyDictionary<string, object?> values)
+    {
+        var textCodes = activeFields
+            .Where(f => f.FieldType is FieldType.ShortText or FieldType.LongText or FieldType.Dropdown)
+            .Select(f => f.Code)
+            .ToHashSet(StringComparer.Ordinal);
+
+        var result = new Dictionary<string, object?>(values.Count, StringComparer.Ordinal);
+        foreach (var (code, raw) in values)
+        {
+            if (textCodes.Contains(code) && TryGetString(raw, out var text))
+            {
+                var trimmed = text.Trim();
+                result[code] = trimmed.Length == 0 ? null : trimmed;
+            }
+            else
+            {
+                result[code] = raw;
+            }
+        }
+        return result;
+    }
+
     public static IDictionary<string, string[]> Validate(
         IEnumerable<FieldDefinition> activeFields, IReadOnlyDictionary<string, object?> values)
     {
@@ -41,7 +72,10 @@ public static class SubmissionValueValidator
         foreach (var field in activeFields.Where(f => f.FieldType != FieldType.Attachment))
         {
             values.TryGetValue(field.Code, out var raw);
-            var isPresent = raw is not null && raw is not JsonElement { ValueKind: JsonValueKind.Null };
+            // Blank or whitespace-only text counts as not answered: "   " in a required
+            // description is not a description.
+            var isPresent = raw is not null && raw is not JsonElement { ValueKind: JsonValueKind.Null } &&
+                            !(TryGetString(raw, out var asText) && string.IsNullOrWhiteSpace(asText));
 
             // A conditionally-hidden field (its controlling field's submitted value doesn't
             // match VisibleWhenValuesJson) is inapplicable to this submission, so it's never
@@ -66,6 +100,9 @@ public static class SubmissionValueValidator
                         AddError(field.Code, $"'{field.Label}' must be a whole number.");
                     else if (numVal % 1 != 0)
                         AddError(field.Code, $"'{field.Label}' must be a whole number, not a decimal.");
+                    // The column is a Postgres integer; anything outside it was a raw 500.
+                    else if (numVal is > int.MaxValue or < int.MinValue)
+                        AddError(field.Code, $"'{field.Label}' is too large.");
                     else
                         CheckRange(field.Label, numVal, rules, AddError, field.Code);
                     break;
@@ -73,6 +110,9 @@ public static class SubmissionValueValidator
                 case FieldType.Decimal:
                     if (!TryGetDecimal(raw, out var decVal))
                         AddError(field.Code, $"'{field.Label}' must be a number.");
+                    // numeric(18,4): at most 14 digits before the point.
+                    else if (Math.Abs(decVal) >= 100_000_000_000_000m)
+                        AddError(field.Code, $"'{field.Label}' is too large.");
                     else
                         CheckRange(field.Label, decVal, rules, AddError, field.Code);
                     break;
@@ -83,9 +123,12 @@ public static class SubmissionValueValidator
                     break;
 
                 case FieldType.DateTime:
-                    if (!TryGetString(raw, out var dateStr) ||
-                        !DateTime.TryParse(dateStr, CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+                    if (!TryGetString(raw, out var dateStr) || TryGetLocalDate(dateStr) is not { } localDate)
                         AddError(field.Code, $"'{field.Label}' must be a valid date.");
+                    else if (localDate.Year is < 1900 or > 2200)
+                        AddError(field.Code, $"'{field.Label}' must be a valid date.");
+                    else if (rules?.NoFutureDates == true && localDate > SaudiToday())
+                        AddError(field.Code, $"'{field.Label}' can't be in the future.");
                     break;
 
                 case FieldType.Dropdown:
@@ -115,6 +158,9 @@ public static class SubmissionValueValidator
 
                 case FieldType.ShortText:
                 case FieldType.LongText:
+                    // ShortText is varchar(400); a longer value was a raw database error.
+                    if (field.FieldType == FieldType.ShortText && TryGetString(raw, out var shortVal) && shortVal.Trim().Length > ShortTextMaxLength)
+                        AddError(field.Code, $"'{field.Label}' must be at most {ShortTextMaxLength} characters.");
                     if (TryGetString(raw, out var textVal) && rules?.Regex is { Length: > 0 } pattern)
                     {
                         bool matches;
@@ -134,12 +180,39 @@ public static class SubmissionValueValidator
         return errors.ToDictionary(kv => kv.Key, kv => kv.Value.ToArray());
     }
 
+    /// <summary>
+    /// Form dates are Saudi-local calendar dates (see DynamicDataRepository): a plain
+    /// "yyyy-mm-dd" is that day; a timestamp with an explicit offset or Z is converted to
+    /// Riyadh time first; one without an offset is already Riyadh time.
+    /// </summary>
+    private static readonly TimeSpan SaudiArabiaOffset = TimeSpan.FromHours(3);
+
+    private static DateOnly SaudiToday() => DateOnly.FromDateTime(DateTime.UtcNow + SaudiArabiaOffset);
+
+    private static DateOnly? TryGetLocalDate(string text)
+    {
+        if (!DateTime.TryParse(text, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed))
+            return null;
+        var local = parsed.Kind switch
+        {
+            DateTimeKind.Utc => parsed + SaudiArabiaOffset,
+            DateTimeKind.Local => parsed.ToUniversalTime() + SaudiArabiaOffset,
+            _ => parsed,
+        };
+        return DateOnly.FromDateTime(local);
+    }
+
     private static void CheckRange(string label, decimal value, ValidationRules? rules, Action<string, string> addError, string code)
     {
-        if (rules?.Min is { } min && (double)value < min)
-            addError(code, $"'{label}' must be at least {min}.");
+        if (rules?.Min is { } exclusiveMin && rules.MinExclusive == true)
+        {
+            if ((double)value <= exclusiveMin)
+                addError(code, $"'{label}' must be more than {exclusiveMin.ToString(CultureInfo.InvariantCulture)}.");
+        }
+        else if (rules?.Min is { } min && (double)value < min)
+            addError(code, $"'{label}' must be at least {min.ToString(CultureInfo.InvariantCulture)}.");
         if (rules?.Max is { } max && (double)value > max)
-            addError(code, $"'{label}' must be at most {max}.");
+            addError(code, $"'{label}' must be at most {max.ToString(CultureInfo.InvariantCulture)}.");
     }
 
     private static bool TryGetString(object? raw, out string value)
@@ -205,23 +278,66 @@ public static class SubmissionValueValidator
     /// false (not visible, so not required), matching this file's existing convention
     /// elsewhere of failing open toward not blocking the submitter over bad/missing admin
     /// metadata (see IsAllowedDropdownValue, ParseRules).
+    ///
+    /// Both sides are compared as text, so a Boolean controlling field (submitted as JSON
+    /// true/false) matches an allowed value of "true"/"false". The allowed values are read
+    /// tolerantly by <see cref="ParseAllowedValues"/> - the live Daily Progress Report stores
+    /// some conditions as a single JSON string ("\"true\"") rather than an array, which this
+    /// used to reject, leaving those fields never required. FormRenderer.tsx's
+    /// parseAllowedValues must read them the same way.
     /// </summary>
     private static bool IsFieldVisible(FieldDefinition field, IReadOnlyDictionary<string, object?> values)
     {
         if (string.IsNullOrWhiteSpace(field.VisibleWhenFieldCode)) return true;
 
         if (!values.TryGetValue(field.VisibleWhenFieldCode, out var controllingRaw) ||
-            !TryGetString(controllingRaw, out var controllingValue))
+            ToComparableText(controllingRaw) is not { } controllingValue)
             return false;
 
+        return ParseAllowedValues(field.VisibleWhenValuesJson).Contains(controllingValue);
+    }
+
+    private static string? ToComparableText(object? raw) => raw switch
+    {
+        null => null,
+        string s => s,
+        bool b => b ? "true" : "false",
+        JsonElement { ValueKind: JsonValueKind.String } je => je.GetString(),
+        JsonElement { ValueKind: JsonValueKind.True } => "true",
+        JsonElement { ValueKind: JsonValueKind.False } => "false",
+        JsonElement { ValueKind: JsonValueKind.Number } je => je.GetRawText(),
+        JsonElement => null,
+        IFormattable f => f.ToString(null, CultureInfo.InvariantCulture),
+        _ => raw.ToString(),
+    };
+
+    /// <summary>
+    /// The allowed values of a visibility condition. Accepts the documented shape (a JSON
+    /// array, e.g. ["excavation","foundation"]) and the shapes found in live data: a single JSON
+    /// string ("excavation"), a JSON string that itself holds an array, and bare true/false or
+    /// numbers. Anything unreadable gives no values (field hidden, never required).
+    /// </summary>
+    public static IReadOnlyList<string> ParseAllowedValues(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return Array.Empty<string>();
         try
         {
-            var allowed = JsonSerializer.Deserialize<List<string>>(field.VisibleWhenValuesJson ?? "[]", CaseInsensitive);
-            return allowed is not null && allowed.Contains(controllingValue);
+            using var document = JsonDocument.Parse(json);
+            var root = document.RootElement;
+            if (root.ValueKind == JsonValueKind.String)
+            {
+                var inner = root.GetString() ?? string.Empty;
+                // A string holding an array: decode once more.
+                if (inner.TrimStart().StartsWith('[')) return ParseAllowedValues(inner);
+                return new[] { inner };
+            }
+            if (root.ValueKind == JsonValueKind.Array)
+                return root.EnumerateArray().Select(e => ToComparableText(e)).OfType<string>().ToList();
+            return ToComparableText(root) is { } single ? new[] { single } : Array.Empty<string>();
         }
         catch (JsonException)
         {
-            return false;
+            return Array.Empty<string>();
         }
     }
 
@@ -253,5 +369,10 @@ public static class SubmissionValueValidator
     }
 
     private record DropdownOption(string Value, string Label);
-    private record ValidationRules(double? Min, double? Max, string? Regex);
+    /// <summary>
+    /// FieldDefinition.ValidationRulesJson. Min/Max apply to Number and Decimal (MinExclusive
+    /// makes Min a strict "more than", e.g. a quantity that must be above zero); Regex to
+    /// ShortText and LongText; NoFutureDates to DateTime (judged on the Saudi calendar).
+    /// </summary>
+    internal record ValidationRules(double? Min, double? Max, string? Regex, bool? NoFutureDates = null, bool? MinExclusive = null);
 }

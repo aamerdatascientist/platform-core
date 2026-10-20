@@ -1,7 +1,9 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Platform.Application.Common.Interfaces;
+using Platform.Application.Identity.Commands.ChangeOwnPassword;
 using Platform.Application.Identity.Commands.Login;
 using Platform.Application.Identity.Commands.Logout;
 using Platform.Application.Identity.Commands.RefreshToken;
@@ -34,6 +36,7 @@ public class AuthController : ControllerBase
     public record LoginRequest(string Email, string Password);
 
     [HttpPost("login")]
+    [EnableRateLimiting(RateLimitPolicies.SignIn)]
     public async Task<ActionResult<TokenPair>> Login(LoginRequest request, CancellationToken cancellationToken)
     {
         var tokens = await _sender.Send(new LoginCommand(request.Email, request.Password), cancellationToken);
@@ -47,6 +50,16 @@ public class AuthController : ControllerBase
         var user = await _sender.Send(new GetCurrentUserQuery(), cancellationToken);
         return Ok(user);
     }
+
+    public record ChangePasswordRequest(string CurrentPassword, string NewPassword);
+
+    /// <summary>The signed-in user changes their own password. Returns a fresh token pair
+    /// for this device; every other session of theirs is signed out.</summary>
+    [HttpPost("change-password")]
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicies.SignIn)]
+    public async Task<ActionResult<TokenPair>> ChangePassword(ChangePasswordRequest request, CancellationToken cancellationToken) =>
+        Ok(await _sender.Send(new ChangeOwnPasswordCommand(request.CurrentPassword, request.NewPassword), cancellationToken));
 
     public record RefreshTokenRequest(string RefreshToken);
 

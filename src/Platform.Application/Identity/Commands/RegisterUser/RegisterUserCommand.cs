@@ -15,8 +15,7 @@ public class RegisterUserCommandValidator : AbstractValidator<RegisterUserComman
     {
         RuleFor(x => x.Email).NotEmpty().EmailAddress().MaximumLength(256);
         RuleFor(x => x.DisplayName).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.Password).NotEmpty().MinimumLength(10)
-            .WithMessage("Password must be at least 10 characters.");
+        RuleFor(x => x.Password).ValidPassword();
         RuleFor(x => x.DefaultRoleId).NotEmpty();
     }
 }

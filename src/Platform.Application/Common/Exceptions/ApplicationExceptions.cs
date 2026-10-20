@@ -43,3 +43,14 @@ public class ForbiddenAccessException : Exception
     public ForbiddenAccessException(string? reason = null)
         : base(reason ?? "You do not have permission to perform this action.") { }
 }
+
+/// <summary>
+/// The caller isn't who they claim to be (a wrong email or password) - a 401, as opposed to
+/// <see cref="ForbiddenAccessException"/> (403: known caller, not allowed). Sign-in used to
+/// answer a wrong password with 403, which reads as "your account is blocked".
+/// </summary>
+public class UnauthorizedException : Exception
+{
+    public UnauthorizedException(string? reason = null)
+        : base(reason ?? "Authentication failed.") { }
+}
