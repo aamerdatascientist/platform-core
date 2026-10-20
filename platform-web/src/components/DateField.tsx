@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { isRtl } from '../i18n';
 
 /**
  * Date entry for form fields, replacing the browser's own <input type="date">.
@@ -50,7 +49,6 @@ interface DateFieldProps {
 export function DateField({ id, value, onChange, required, className }: DateFieldProps) {
   const { t, i18n } = useTranslation();
   const locale = i18n.language.startsWith('ar') ? 'ar-u-nu-latn' : i18n.language;
-  const rtl = isRtl(i18n.language);
   const [open, setOpen] = useState(false);
   const selected = parseIso(value);
   const now = new Date();
@@ -153,9 +151,12 @@ export function DateField({ id, value, onChange, required, className }: DateFiel
       {open && (
         <div role="dialog" aria-label={t('formRenderer.pickDate')} className="mt-2 max-w-sm rounded border border-border bg-panel p-3 shadow-recessed">
           <div className="mb-3 flex items-center gap-2">
-            {/* "Previous month" points the way the page reads backwards: left in English, right in Arabic. */}
+            {/* Previous always points left and next always points right, in both languages -
+                in Arabic the previous button simply sits on the right, so the two arrows face
+                each other. Agreed with Aamer 2026-10-20. Drawn as SVG because text arrows
+                (‹ ›) are mirrored by the browser inside right-to-left text. */}
             <button type="button" className={navClass} onClick={() => shiftMonth(-1)} aria-label={t('formRenderer.previousMonth')}>
-              {rtl ? '›' : '‹'}
+              <Chevron direction="left" />
             </button>
             <select
               aria-label={t('formRenderer.month')}
@@ -182,7 +183,7 @@ export function DateField({ id, value, onChange, required, className }: DateFiel
               ))}
             </select>
             <button type="button" className={navClass} onClick={() => shiftMonth(1)} aria-label={t('formRenderer.nextMonth')}>
-              {rtl ? '‹' : '›'}
+              <Chevron direction="right" />
             </button>
           </div>
 
@@ -220,5 +221,13 @@ export function DateField({ id, value, onChange, required, className }: DateFiel
         </div>
       )}
     </div>
+  );
+}
+
+function Chevron({ direction }: { direction: 'left' | 'right' }) {
+  return (
+    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d={direction === 'left' ? 'M15 18l-6-6 6-6' : 'M9 6l6 6-6 6'} />
+    </svg>
   );
 }
