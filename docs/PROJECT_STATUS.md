@@ -3,7 +3,7 @@
 Update this file at the end of every session - what changed, what's next. Keep CLAUDE.md
 itself stable; this is where the narrative goes.
 
-## Current state - 2026-10-21 (read this first)
+## Current state - 2026-10-23 (read this first)
 
 **Asas is live at https://asasksa.co and in use by the client.** Frontend on Azure Static Web
 Apps, API on Azure App Service, data in Railway Postgres. A push to `main` deploys both
@@ -78,8 +78,24 @@ a page loaded during that window may need one reload.
   present, 401 on a wrong password, security headers, existing sign-ins carried over,
   Settings page and its arrows.
 
+### Staging environment (2026-10-23) - half done, see `docs/STAGING.md`
+
+A second copy of the app for testing before production. **Done:** Azure Web App
+`asas-api-staging` (on production's B1 plan, Always On, no App Insights), Static Web App
+`asas-web-staging` (Free) at `https://thankful-water-079284100.6.azurestaticapps.net`, staging
+deploy workflows (push to `staging`), the frontend's `.env.staging` and CSP pointing at the
+staging API, non-secret API settings (environment, CORS, `Files__ContainerName`), and a
+separate `attachments-staging` blob container. Attachment container name is now the
+`Files:ContainerName` setting (default `attachments`, production unchanged).
+**Owner still to do:** create the staging Postgres database and fill it (copy of a production
+dump recommended), set the three secret settings (Postgres, Blob, a new JWT secret), add the
+two `*_STAGING` GitHub secrets, then create and push the `staging` branch and test it.
+Also: Azure reports .NET 8 support on App Service ends 10 Nov 2026 - plan .NET 10, try it on
+staging first.
+
 ### Open items - in priority order
 
+0. **Finish staging** (list just above).
 1. **Rotate the Railway Postgres password and the Blob Storage account key** (see "Before going
    live" at the bottom). The app is now in real use, so this is overdue.
 2. **Run `scripts/go-live/find-not-null-columns.sql`** in Railway's query editor (read-only)

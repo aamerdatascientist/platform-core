@@ -8,7 +8,7 @@ namespace Platform.Infrastructure.Files;
 
 public class BlobStorageService : IBlobStorageService
 {
-    private const string ContainerName = "attachments";
+    private const string DefaultContainerName = "attachments";
 
     private readonly BlobContainerClient _container;
     private readonly string _accountName;
@@ -19,8 +19,14 @@ public class BlobStorageService : IBlobStorageService
         var connectionString = configuration.GetConnectionString("BlobStorage")
             ?? throw new InvalidOperationException("ConnectionStrings:BlobStorage is not configured.");
 
+        // Staging shares production's storage account, so it names its own container
+        // (Files:ContainerName) to keep its uploads apart. The container must already exist.
+        var containerName = configuration["Files:ContainerName"];
+        if (string.IsNullOrWhiteSpace(containerName))
+            containerName = DefaultContainerName;
+
         var serviceClient = new BlobServiceClient(connectionString);
-        _container = serviceClient.GetBlobContainerClient(ContainerName);
+        _container = serviceClient.GetBlobContainerClient(containerName);
         _accountName = serviceClient.AccountName;
 
         // Parsed straight from the connection string rather than a separate config value -
@@ -45,7 +51,7 @@ public class BlobStorageService : IBlobStorageService
 
         var sasBuilder = new BlobSasBuilder
         {
-            BlobContainerName = ContainerName,
+            BlobContainerName = _container.Name,
             BlobName = blobName,
             Resource = "b",
             ExpiresOn = DateTimeOffset.UtcNow.Add(validFor),
