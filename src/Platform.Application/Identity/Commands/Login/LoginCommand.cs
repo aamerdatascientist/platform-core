@@ -34,20 +34,27 @@ public class LoginCommandHandler : IRequestHandler<LoginCommand, TokenPair>
     {
         var normalizedEmail = request.Email.Trim().ToLowerInvariant();
 
-        var user = await _db.Users
-            .Include(u => u.UserRoles)
-            .SingleOrDefaultAsync(u => u.Email == normalizedEmail && !u.IsDeleted, cancellationToken);
+        // User and role names in one query: every round trip to the database costs ~200 ms
+        // from the API's region, and sign-in used to make a separate one for the roles.
+        var match = await _db.Users
+            .Where(u => u.Email == normalizedEmail && !u.IsDeleted)
+            .Select(u => new
+            {
+                User = u,
+                RoleNames = _db.Roles
+                    .Where(r => u.UserRoles.Any(ur => ur.RoleId == r.Id))
+                    .Select(r => r.Name)
+                    .ToList(),
+            })
+            .SingleOrDefaultAsync(cancellationToken);
+        var user = match?.User;
 
         // Deliberately identical failure for "no such user" and "wrong password" -
         // don't let the API reveal which emails are registered.
         if (user is null || !user.IsActive || !_passwordHasher.Verify(request.Password, user.PasswordHash))
             throw new Common.Exceptions.UnauthorizedException("Invalid email or password.");
 
-        var roleIds = user.UserRoles.Select(ur => ur.RoleId).ToList();
-        var roleNames = await _db.Roles
-            .Where(r => roleIds.Contains(r.Id))
-            .Select(r => r.Name)
-            .ToListAsync(cancellationToken);
+        var roleNames = match!.RoleNames;
 
         var tokenPair = _jwtTokenService.GenerateTokenPair(user.Id, user.Email, roleNames);
 

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 using Platform.Application.Analytics;
 using Platform.Application.Common.Interfaces;
 using Platform.Infrastructure.Files;
@@ -16,7 +17,7 @@ public static class DependencyInjection
     {
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseNpgsql(
-                configuration.GetConnectionString("PostgresConnection"),
+                WithWarmPool(configuration.GetConnectionString("PostgresConnection")),
                 npgsql => npgsql
                     .MigrationsAssembly(typeof(ApplicationDbContext).Assembly.FullName)
                     // General transient-fault retry (network blips, connection resets) -
@@ -36,6 +37,27 @@ public static class DependencyInjection
         services.AddScoped<IExecutiveOverviewRepository, ExecutiveOverviewRepository>();
         services.AddScoped<IBlobStorageService, BlobStorageService>();
 
+        services.AddHostedService<DatabaseWarmupService>();
+
         return services;
+    }
+
+    // The API (Azure East Asia) and the database (Railway US West) are an ocean apart: each
+    // round trip costs ~200 ms, and opening a new connection (TCP + TLS + auth) costs several.
+    // Npgsql closes idle connections after 5 minutes by default, so the first sign-in after a
+    // quiet spell paid seconds just reconnecting. Keep a few connections open and alive
+    // unless the connection string says otherwise.
+    internal static string? WithWarmPool(string? connectionString)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString)) return connectionString;
+
+        var builder = new NpgsqlConnectionStringBuilder(connectionString);
+        var keys = connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries)
+            .Select(p => p.Split('=', 2)[0].Trim().Replace(" ", ""))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        if (!keys.Contains("MinimumPoolSize") && !keys.Contains("MinPoolSize")) builder.MinPoolSize = 3;
+        if (!keys.Contains("KeepAlive")) builder.KeepAlive = 30;
+        return builder.ConnectionString;
     }
 }

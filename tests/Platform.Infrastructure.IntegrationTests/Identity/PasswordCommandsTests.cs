@@ -57,6 +57,34 @@ public class PasswordCommandsTests
         await act.Should().ThrowAsync<UnauthorizedException>();
     }
 
+    private sealed class RecordingJwt : IJwtTokenService
+    {
+        public List<string> Roles { get; } = new();
+        public TokenPair GenerateTokenPair(Guid userId, string email, IEnumerable<string> roles)
+        {
+            Roles.AddRange(roles);
+            return new("access", "refresh", DateTime.UtcNow.AddMinutes(30));
+        }
+        public string HashRefreshToken(string rawRefreshToken) => "h:" + rawRefreshToken;
+    }
+
+    [Fact]
+    public async Task Login_PutsOnlyTheUsersOwnRolesInTheToken_AndStoresTheSession()
+    {
+        var (db, user) = await CreateAsync();
+        var manager = Role.Create("Project manager", null);
+        db.Roles.AddRange(manager, Role.Create("Viewer", null));
+        db.Set<UserRole>().Add(user.AssignRole(manager.Id)!);
+        await db.SaveChangesAsync();
+        var jwt = new RecordingJwt();
+
+        await new LoginCommandHandler(db, new PlainHasher(), jwt)
+            .Handle(new LoginCommand("PM@example.com ", "old-password-1"), CancellationToken.None);
+
+        jwt.Roles.Should().Equal("Project manager");
+        (await db.RefreshTokens.AnyAsync(t => t.UserId == user.Id && t.TokenHash == "h:refresh")).Should().BeTrue();
+    }
+
     [Fact]
     public async Task ChangeOwnPassword_ChecksTheCurrentOne_ThenSignsOutOtherSessions()
     {
