@@ -78,7 +78,7 @@ a page loaded during that window may need one reload.
   present, 401 on a wrong password, security headers, existing sign-ins carried over,
   Settings page and its arrows.
 
-### Staging environment (2026-10-23) - half done, see `docs/STAGING.md`
+### Staging environment (2026-10-23) - live, see `docs/STAGING.md`
 
 A second copy of the app for testing before production. **Done:** Azure Web App
 `asas-api-staging` (on production's B1 plan, Always On, no App Insights), Static Web App
@@ -88,17 +88,16 @@ staging API, non-secret API settings (environment, CORS, `Files__ContainerName`)
 separate `attachments-staging` blob container. Attachment container name is now the
 `Files:ContainerName` setting (default `attachments`, production unchanged).
 Railway service `Postgres-staging` (project `abundant-flow`, public
-`altaria.proxy.rlwy.net:48044`) created and empty. `scripts/staging/restore-staging-db.ps1`
-fills it from a production dump (refuses any other host); `new-jwt-secret.ps1` makes the JWT
-secret. **Owner still to do** (secrets - Claude doesn't enter them): run the restore script,
-set the three secret settings (Postgres, Blob, JWT), add the two `*_STAGING` GitHub secrets.
-Then push `chore/staging-environment` to `staging` for the first deploy and test it.
+`altaria.proxy.rlwy.net:48044`), filled from the 2026-10-21 production dump by
+`scripts/staging/restore-staging-db.ps1` (refuses any other host). All secrets set by the
+owner; first deploy green; API, database and CORS checked. PR #32 carries the staging work
+to `main` (not merged yet - merging deploys production).
 Also: Azure reports .NET 8 support on App Service ends 10 Nov 2026 - plan .NET 10, try it on
 staging first.
 
 ### Open items - in priority order
 
-0. **Finish staging** (list just above).
+0. **Merge PR #32** once staging has been tried signed in (form submit + attachment).
 1. **Rotate the Railway Postgres password and the Blob Storage account key** (see "Before going
    live" at the bottom). The app is now in real use, so this is overdue.
 2. **Run `scripts/go-live/find-not-null-columns.sql`** in Railway's query editor (read-only)

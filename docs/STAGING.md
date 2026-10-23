@@ -98,6 +98,14 @@ in script paths and keep `$` out of `!` one-liners (put the logic in a script in
 
 ## First deploy
 
+**Done 2026-10-23.** Database restored from `asas-backup-2026-10-21.dump` (5 users, 7 forms,
+8 migrations - matching the code; 108 copied sign-in sessions removed). `staging` pushed from
+`chore/staging-environment`; both workflows green (runs 39953710263, 39953710261). Checked:
+the API answers a wrong sign-in with 401 (so it reaches the staging database), CORS allows the
+staging site and refuses `asasksa.co`, the site serves a bundle pointing at the staging API,
+and its CSP names both APIs. The first request after a deploy returned Azure's welcome page /
+404 for about a minute while the app started - normal, not a fault.
+
 GitHub runs a push's workflows from the pushed branch itself, so `staging` can be created
 straight from the branch holding the staging workflows - it doesn't need to reach `main`
 first. Push it (`git push origin chore/staging-environment:staging`) once the secrets above
