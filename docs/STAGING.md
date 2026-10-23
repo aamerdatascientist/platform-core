@@ -11,7 +11,7 @@ Everything that is not a secret is recorded here; secrets live only in Azure and
 | API URL | `https://nexus-platform-api-b6cvdedgfdgkgee7.eastasia-01.azurewebsites.net` | `https://asas-api-staging-ancbhsa7grf5emfh.eastasia-01.azurewebsites.net` |
 | App Service plan | `ASP-aamershahtest-8f8b` (Basic B1, East Asia) | **the same plan** - shared, no extra plan cost |
 | Site (Static Web App, Free) | `nexus-platform-web` - `https://asasksa.co` | `asas-web-staging` - `https://thankful-water-079284100.6.azurestaticapps.net` |
-| Database | Railway Postgres | **a separate Postgres database** (see "Still to do") |
+| Database (Railway project `abundant-flow`) | service `Postgres`, public `metro.proxy.rlwy.net:36575` | service `Postgres-staging`, public `altaria.proxy.rlwy.net:48044` (created 2026-10-23) |
 | File attachments | storage account `platformcoreattach2026`, container `attachments` | same account, container `attachments-staging` |
 | Deployed from | push to `main` | push to `staging` |
 | Workflows | `deploy-api.yml`, `azure-static-web-apps-black-field-04a8cb300.yml` | `deploy-api-staging.yml`, `deploy-web-staging.yml` |
@@ -54,32 +54,51 @@ Set on `asas-api-staging` > Environment variables:
 Use a different `Jwt__Secret` from production's, so a sign-in token from one environment is
 never accepted by the other.
 
-## Still to do (owner)
+## Filling the staging database
 
-1. **Create the staging database.** Recommended: a second Postgres service in the same
-   Railway project. Copy its connection string into `ConnectionStrings__PostgresConnection`
-   on `asas-api-staging` (Npgsql format, like production's).
-2. **Fill it.** The API does not migrate on startup, so the schema has to be put there by
-   hand. Two options:
-   - **Copy production (recommended).** Restore a recent production dump into the staging
-     database (`pg_restore --no-owner --dbname "<staging url>" <dump>`). Staging then has the
-     real forms, users and data to test against, and no admin bootstrap is needed. Note that
-     it holds real client data, so treat its access the same way.
-   - **Start empty.** From the repo root on your machine:
-     `dotnet ef database update --project src/Platform.Infrastructure --startup-project src/Platform.Api --connection "<staging connection string>"`,
-     then insert the first Administrator by hand (there is still no bootstrap mechanism -
-     see CLAUDE.md "Known gaps"). The `Report_*` views and `Data_*` tables only appear once
-     forms are created and published on staging.
-3. **Set the three secret settings** in the table above, then Apply.
-4. **Add two GitHub secrets** (repo > Settings > Secrets and variables > Actions):
-   - `AZURE_WEBAPP_PUBLISH_PROFILE_STAGING`: `asas-api-staging` > Overview > *Download
-     publish profile*, paste the whole file's contents.
-   - `AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING`: `asas-web-staging` > Overview > *Manage
-     deployment token*, copy the token.
-5. **Create the `staging` branch** from `main` once the staging workflow files are on `main`,
-   and push it. That runs both staging workflows.
-6. **Check it**: open the staging site, sign in, open a form, submit a test record, attach
-   a file (it should land in `attachments-staging`, not `attachments`).
+The API does not migrate on startup, so the schema has to be put there by hand. Staging is
+filled with **a copy of a production dump**: real forms, users and data to test against, and
+no first-admin bootstrap needed. It holds real client data, so treat access to it the same
+way as production. Users sign in on staging with their production passwords as of the dump.
+
+`scripts/staging/restore-staging-db.ps1` does it (PostgreSQL 18 client tools, installed at
+`C:\Program Files\PostgreSQL\18\bin` on the owner's machine):
+
+1. Railway > `abundant-flow` > `Postgres-staging` > Variables > copy `DATABASE_PUBLIC_URL`.
+2. `powershell -ExecutionPolicy Bypass -File scripts\staging\restore-staging-db.ps1`
+   (newest `asas-backup-*.dump` in the repo root by default; `-DumpPath` for another).
+
+It reads the URL from the clipboard so the password is never on a command line, **refuses
+any URL that isn't `altaria.proxy.rlwy.net:48044`** (so it cannot touch production), replaces
+whatever staging held, deletes the copied sign-in sessions (`RefreshTokens`), prints user /
+form / migration counts, and leaves the API's Npgsql connection string on the clipboard.
+Re-run it any time to refresh staging from a newer dump.
+
+Files attached in production point at blobs in the `attachments` container; staging reads
+`attachments-staging`, so attachments copied from production won't open on staging. New
+uploads on staging work normally.
+
+To start empty instead: `dotnet ef database update --project src/Platform.Infrastructure
+--startup-project src/Platform.Api --connection "<staging connection string>"`, then insert
+the first Administrator by hand (no bootstrap mechanism yet - see CLAUDE.md "Known gaps").
+
+## Secrets - set by the owner, never by Claude
+
+| Where | Name | How |
+| --- | --- | --- |
+| `asas-api-staging` env vars | `ConnectionStrings__PostgresConnection` | on the clipboard after the restore script |
+| `asas-api-staging` env vars | `ConnectionStrings__BlobStorage` | copy production's value (`nexus-platform-api` > Environment variables > Show value) |
+| `asas-api-staging` env vars | `Jwt__Secret` | `powershell -ExecutionPolicy Bypass -File scripts\staging\new-jwt-secret.ps1` puts a new one on the clipboard |
+| GitHub Actions secret | `AZURE_WEBAPP_PUBLISH_PROFILE_STAGING` | `asas-api-staging` > Overview > *Download publish profile*, then `Get-Content <file> -Raw \| gh secret set AZURE_WEBAPP_PUBLISH_PROFILE_STAGING`, then delete the file |
+| GitHub Actions secret | `AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING` | `asas-web-staging` > Overview > *Manage deployment token* > copy, then `Get-Clipboard -Raw \| gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING` |
+
+## First deploy
+
+GitHub runs a push's workflows from the pushed branch itself, so `staging` can be created
+straight from the branch holding the staging workflows - it doesn't need to reach `main`
+first. Push it (`git push origin chore/staging-environment:staging`) once the secrets above
+exist, then check: open the staging site, sign in, open a form, submit a test record, attach
+a file (it should land in `attachments-staging`, not `attachments`).
 
 ## Day-to-day use
 

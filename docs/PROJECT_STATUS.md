@@ -87,9 +87,12 @@ deploy workflows (push to `staging`), the frontend's `.env.staging` and CSP poin
 staging API, non-secret API settings (environment, CORS, `Files__ContainerName`), and a
 separate `attachments-staging` blob container. Attachment container name is now the
 `Files:ContainerName` setting (default `attachments`, production unchanged).
-**Owner still to do:** create the staging Postgres database and fill it (copy of a production
-dump recommended), set the three secret settings (Postgres, Blob, a new JWT secret), add the
-two `*_STAGING` GitHub secrets, then create and push the `staging` branch and test it.
+Railway service `Postgres-staging` (project `abundant-flow`, public
+`altaria.proxy.rlwy.net:48044`) created and empty. `scripts/staging/restore-staging-db.ps1`
+fills it from a production dump (refuses any other host); `new-jwt-secret.ps1` makes the JWT
+secret. **Owner still to do** (secrets - Claude doesn't enter them): run the restore script,
+set the three secret settings (Postgres, Blob, JWT), add the two `*_STAGING` GitHub secrets.
+Then push `chore/staging-environment` to `staging` for the first deploy and test it.
 Also: Azure reports .NET 8 support on App Service ends 10 Nov 2026 - plan .NET 10, try it on
 staging first.
 
