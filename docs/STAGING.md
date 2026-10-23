@@ -134,6 +134,11 @@ a file (it should land in `attachments-staging`, not `attachments`).
   (`git push origin <branch>:staging --force-with-lease` if staging should become exactly
   that branch). Both staging workflows run; production is not touched.
 - When it is good, merge to `main` as before - that is still the production deploy.
+- Right after a deploy, give the API a minute. On 2026-10-24 staging answered a few requests
+  with an empty 500 while the new files were being swapped in (the log showed
+  `BadImageFormatException` while writing a stack trace); the app restarted itself and was
+  fine. On startup it logs `Database warm-up done in N ms` - requests before that line pay the
+  cold start (~25 s on the shared B1 plan).
 - Runtime note: Azure shows .NET 8 as reaching end of support on 10 Nov 2026 on App Service.
   Both apps run .NET 8; plan the move to .NET 10 (LTS), and try it on staging first.
 
