@@ -3,7 +3,7 @@
 Update this file at the end of every session - what changed, what's next. Keep CLAUDE.md
 itself stable; this is where the narrative goes.
 
-## Current state - 2026-10-23 (read this first)
+## Current state - 2026-10-24 (read this first)
 
 **Asas is live at https://asasksa.co and in use by the client.** Frontend on Azure Static Web
 Apps, API on Azure App Service, data in Railway Postgres. A push to `main` deploys both
@@ -95,9 +95,43 @@ to `main` (not merged yet - merging deploys production).
 Also: Azure reports .NET 8 support on App Service ends 10 Nov 2026 - plan .NET 10, try it on
 staging first.
 
+### Slow sign-in - investigated 2026-10-24
+
+**Cause: the API and the database are on opposite sides of the Pacific.** The API runs in
+Azure East Asia (Hong Kong); both Railway databases run in Railway's **US West (California)**
+region (Postgres > Settings > Regions). Measured from the browser on staging: a request that
+skips the database takes ~160 ms; `/api/auth/me` (two tiny queries) ~600 ms - so **each
+database round trip costs ~200-220 ms**, nearly all of it network, not Postgres. On top of that:
+
+- **Cold app start**: the first request after a restart or deploy waited for EF Core to build
+  its model, Npgsql to load types and a connection to open - the owner's real staging sign-in on
+  2026-10-23 took **37.9 s**, and the startup warm-up below measured **24.9 s** for the same work.
+- **Idle connections dropped**: Npgsql closed pooled connections after 5 idle minutes, so the
+  first request after a quiet spell reconnected across the ocean (TCP + TLS + auth): **4.9 s**.
+- Password check (BCrypt, work factor 12): ~0.2 s locally, a little more on B1. Kept - that
+  cost is the security.
+
+**Fixed in code (commit e906d8f):** `DependencyInjection.WithWarmPool` keeps 3 connections
+open (`Minimum Pool Size=3`) with a 30 s keepalive, unless the connection string sets its own;
+`DatabaseWarmupService` runs one query at startup so the first visitor doesn't pay the cold
+start; sign-in fetches the user and role names in one query instead of two. On staging
+after the change: first request after 7 idle minutes **1.8 s** (was 4.9 s), warm requests
+unchanged at ~0.6 s.
+
+**The real fix is to put the API and the database in the same region** - each round trip
+would drop from ~200 ms to a few ms (same region) or ~35 ms (Hong Kong to Singapore). Either
+move the Railway databases to Railway's Southeast Asia (Singapore) region, or move both to
+one place. Needs a planned window (moving a database with a volume means downtime) - try it
+on `Postgres-staging` first. `scripts/db/query-timing.ps1` (read-only; reads the Railway URL
+from the clipboard) shows Postgres's own query times and the round trip from the machine
+running it.
+
 ### Open items - in priority order
 
 0. **Merge PR #32** - staging tried signed in 2026-10-23 (forms, submit, attachment upload after the Blob whitespace fix).
+   Also carries the sign-in speed fixes above.
+0b. **Move the database next to the API** (or the reverse) - see "Slow sign-in" above. Biggest
+   remaining speed win by far.
 1. **Rotate the Railway Postgres password and the Blob Storage account key** (see "Before going
    live" at the bottom). The app is now in real use, so this is overdue.
 2. **Run `scripts/go-live/find-not-null-columns.sql`** in Railway's query editor (read-only)

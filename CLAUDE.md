@@ -378,6 +378,12 @@ database.
   default is `$null` and which is going to flow into `ConvertTo-Json` - leave it untyped
   (just `$Param = $null`). Checked the rest of `scripts/*.ps1` for the same pattern (`grep
   '\[string\]\$\w+ = \$null'`) - only this one script had it, now fixed.
+- **The API (Azure East Asia, Hong Kong) and the databases (Railway US West, California) are
+  ~200 ms apart per round trip** (measured 2026-10-24). Every extra query in a request costs
+  that much, so fold queries together where it's easy (see `LoginCommand`). Don't remove
+  `WithWarmPool` (keeps 3 pooled connections alive) or `DatabaseWarmupService` (pays the
+  ~25 s cold start at boot) - without them the first sign-in after idle or a restart took 5-38 s.
+  Details: `docs/PROJECT_STATUS.md` "Slow sign-in".
 - **Azure App Service (Linux) needs "Always On" enabled explicitly**, in Configuration ->
   General settings, or the worker process unloads after ~20 min with no requests and the
   next one pays a real cold-start cost. Unrelated to database auto-pausing - Postgres/
