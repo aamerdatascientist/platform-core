@@ -82,7 +82,7 @@ a page loaded during that window may need one reload.
 
 A second copy of the app for testing before production. **Done:** Azure Web App
 `asas-api-staging` (on production's B1 plan, Always On, no App Insights), Static Web App
-`asas-web-staging` (Free) at `https://thankful-water-079284100.6.azurestaticapps.net`, staging
+`asas-web-staging` (Free) at **https://staging.asasksa.co**, staging
 deploy workflows (push to `staging`), the frontend's `.env.staging` and CSP pointing at the
 staging API, non-secret API settings (environment, CORS, `Files__ContainerName`), and a
 separate `attachments-staging` blob container. Attachment container name is now the

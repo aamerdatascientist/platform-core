@@ -244,8 +244,9 @@ builder / users & roles - is on `/settings` (`routes/Settings.tsx`); `/account` 
 ## Staging environment - added 2026-10-23
 
 Full details and the remaining setup steps: `docs/STAGING.md`. A push to the `staging` branch
-deploys the API to `asas-api-staging` and the site to `asas-web-staging`
-(`deploy-api-staging.yml`, `deploy-web-staging.yml`); `main` is still the production deploy.
+deploys the API to `asas-api-staging` and the site to `asas-web-staging` at
+`https://staging.asasksa.co` (`deploy-api-staging.yml`, `deploy-web-staging.yml`); `main` is
+still the production deploy.
 The staging site is built with `--mode staging`, so it reads `platform-web/.env.staging`.
 Both API origins are in the one CSP `connect-src` - **a third environment, or a changed API
 URL, needs adding there too**. Staging shares production's App Service plan and storage

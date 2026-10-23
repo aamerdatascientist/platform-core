@@ -10,7 +10,7 @@ Everything that is not a secret is recorded here; secrets live only in Azure and
 | API (App Service, Linux, .NET 8) | `nexus-platform-api` | `asas-api-staging` |
 | API URL | `https://nexus-platform-api-b6cvdedgfdgkgee7.eastasia-01.azurewebsites.net` | `https://asas-api-staging-ancbhsa7grf5emfh.eastasia-01.azurewebsites.net` |
 | App Service plan | `ASP-aamershahtest-8f8b` (Basic B1, East Asia) | **the same plan** - shared, no extra plan cost |
-| Site (Static Web App, Free) | `nexus-platform-web` - `https://asasksa.co` | `asas-web-staging` - `https://thankful-water-079284100.6.azurestaticapps.net` |
+| Site (Static Web App, Free) | `nexus-platform-web` - `https://asasksa.co` | `asas-web-staging` - **`https://staging.asasksa.co`** (also `https://thankful-water-079284100.6.azurestaticapps.net`) |
 | Database (Railway project `abundant-flow`) | service `Postgres`, public `metro.proxy.rlwy.net:36575` | service `Postgres-staging`, public `altaria.proxy.rlwy.net:48044` (created 2026-10-23) |
 | File attachments | storage account `platformcoreattach2026`, container `attachments` | same account, container `attachments-staging` |
 | Deployed from | push to `main` | push to `staging` |
@@ -45,6 +45,7 @@ Set on `asas-api-staging` > Environment variables:
 | --- | --- | --- |
 | `ASPNETCORE_ENVIRONMENT` | `Production` | set 2026-10-23 |
 | `Cors__AllowedOrigins__0` | `https://thankful-water-079284100.6.azurestaticapps.net` | set 2026-10-23 |
+| `Cors__AllowedOrigins__1` | `https://staging.asasksa.co` | set 2026-10-23 |
 | `Files__ContainerName` | `attachments-staging` | set 2026-10-23 |
 | `ConnectionStrings__PostgresConnection` | the **staging** database's connection string | **owner to set** |
 | `ConnectionStrings__BlobStorage` | same value as production's | **owner to set** |
@@ -135,3 +136,14 @@ a file (it should land in `attachments-staging`, not `attachments`).
 - When it is good, merge to `main` as before - that is still the production deploy.
 - Runtime note: Azure shows .NET 8 as reaching end of support on 10 Nov 2026 on App Service.
   Both apps run .NET 8; plan the move to .NET 10 (LTS), and try it on staging first.
+
+## Custom domain: staging.asasksa.co
+
+Added 2026-10-23 through `asas-web-staging` > Custom domains > *Custom domain on Azure DNS*
+(zone `asasksa.co`, same subscription and resource group). Azure created the CNAME
+`staging` -> `thankful-water-079284100.6.azurestaticapps.net` itself and issued a free
+certificate (GeoTrust, renews automatically; first one runs to 2027-04-24). Both the custom
+domain and the generated `azurestaticapps.net` address stay valid; the CSP needs no change
+because it lists API origins, not site origins. The API allows both site addresses
+(`Cors__AllowedOrigins__0` and `__1`). Sign-ins are kept per address, so moving from the old
+address to `staging.asasksa.co` means signing in once more.
