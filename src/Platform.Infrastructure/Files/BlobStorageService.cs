@@ -25,7 +25,24 @@ public class BlobStorageService : IBlobStorageService
         if (string.IsNullOrWhiteSpace(containerName))
             containerName = DefaultContainerName;
 
-        var serviceClient = new BlobServiceClient(connectionString);
+        // A valid connection string never contains whitespace, but a value pasted into the
+        // Azure portal can pick up an invisible line break or space, which the Azure SDK
+        // rejects with an unhelpful FormatException on every upload.
+        connectionString = string.Concat(connectionString.Where(c => !char.IsWhiteSpace(c)));
+
+        BlobServiceClient serviceClient;
+        try
+        {
+            serviceClient = new BlobServiceClient(connectionString);
+        }
+        catch (FormatException ex)
+        {
+            // Names only, never values - the connection string carries the account key.
+            var parts = connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries)
+                .Select(p => p.IndexOf('=') > 0 ? p[..p.IndexOf('=')] : $"<part without '=', {p.Length} chars>");
+            throw new InvalidOperationException(
+                $"ConnectionStrings:BlobStorage is not a valid connection string. Parts found: {string.Join(", ", parts)}.", ex);
+        }
         _container = serviceClient.GetBlobContainerClient(containerName);
         _accountName = serviceClient.AccountName;
 
