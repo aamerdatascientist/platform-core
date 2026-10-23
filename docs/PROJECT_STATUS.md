@@ -97,7 +97,7 @@ staging first.
 
 ### Open items - in priority order
 
-0. **Merge PR #32** once staging has been tried signed in (form submit + attachment).
+0. **Merge PR #32** - staging tried signed in 2026-10-23 (forms, submit, attachment upload after the Blob whitespace fix).
 1. **Rotate the Railway Postgres password and the Blob Storage account key** (see "Before going
    live" at the bottom). The app is now in real use, so this is overdue.
 2. **Run `scripts/go-live/find-not-null-columns.sql`** in Railway's query editor (read-only)

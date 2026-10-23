@@ -106,6 +106,21 @@ staging site and refuses `asasksa.co`, the site serves a bundle pointing at the 
 and its CSP names both APIs. The first request after a deploy returned Azure's welcome page /
 404 for about a minute while the app started - normal, not a fault.
 
+Signed-in check by the owner the same day: forms, records and submitting all fine, but **file
+uploads failed with a 500**. The container log showed `System.FormatException: Settings must
+be of the form "name=value"` from `BlobServiceClient` - the pasted
+`ConnectionStrings__BlobStorage` value carried an invisible line break (reproduced locally
+with a fake key: a `;` followed by a newline gives exactly that error). Fixed in code:
+`BlobStorageService` now strips whitespace from the connection string (a valid one has none)
+and, if parsing still fails, names the parts it found - never their values. After that
+deploy a test image uploaded, landed in `attachments-staging/daily-progress-report/...`, and
+was removed again.
+
+App Service logging (File System, 7 days) is **on for staging** so errors can be read:
+`https://asas-api-staging-ancbhsa7grf5emfh.scm.eastasia-01.azurewebsites.net/api/logs/docker`
+lists the log files; the `*_default_docker.log` one has the app's own output. Production has
+the same option under App Service logs if it's ever needed there.
+
 GitHub runs a push's workflows from the pushed branch itself, so `staging` can be created
 straight from the branch holding the staging workflows - it doesn't need to reach `main`
 first. Push it (`git push origin chore/staging-environment:staging`) once the secrets above
