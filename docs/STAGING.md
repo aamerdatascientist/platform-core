@@ -89,8 +89,12 @@ the first Administrator by hand (no bootstrap mechanism yet - see CLAUDE.md "Kno
 | `asas-api-staging` env vars | `ConnectionStrings__PostgresConnection` | on the clipboard after the restore script |
 | `asas-api-staging` env vars | `ConnectionStrings__BlobStorage` | copy production's value (`nexus-platform-api` > Environment variables > Show value) |
 | `asas-api-staging` env vars | `Jwt__Secret` | `powershell -ExecutionPolicy Bypass -File scripts\staging\new-jwt-secret.ps1` puts a new one on the clipboard |
-| GitHub Actions secret | `AZURE_WEBAPP_PUBLISH_PROFILE_STAGING` | `asas-api-staging` > Overview > *Download publish profile*, then `Get-Content <file> -Raw \| gh secret set AZURE_WEBAPP_PUBLISH_PROFILE_STAGING`, then delete the file |
-| GitHub Actions secret | `AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING` | `asas-web-staging` > Overview > *Manage deployment token* > copy, then `Get-Clipboard -Raw \| gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING` |
+| GitHub Actions secret | `AZURE_WEBAPP_PUBLISH_PROFILE_STAGING` | `asas-api-staging` > Overview > ... > *Download publish profile*, then `powershell -ExecutionPolicy Bypass -File scripts/staging/set-publish-profile-secret.ps1` (sets the secret, deletes the file) |
+| GitHub Actions secret | `AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING` | `asas-web-staging` > Overview > ... > *Manage deployment token* > copy, then `powershell -Command "Get-Clipboard -Raw \| gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN_STAGING"` |
+
+All six were set on 2026-10-23. Commands typed into Claude Code with `!` run in bash, which
+eats backslashes and expands `$HOME`/`$?` before PowerShell sees them - use forward slashes
+in script paths and keep `$` out of `!` one-liners (put the logic in a script instead).
 
 ## First deploy
 
