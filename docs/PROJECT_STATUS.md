@@ -99,7 +99,7 @@ staging first.
 
 **Cause: the API and the database are on opposite sides of the Pacific.** The API runs in
 Azure East Asia (Hong Kong); the production database runs in Railway's **US West (California)** region (staging moved to Singapore 2026-10-24)
-region (Postgres > Settings > Regions). Measured from the browser on staging: a request that
+(Postgres > Settings > Regions). Measured from the browser on staging: a request that
 skips the database takes ~160 ms; `/api/auth/me` (two tiny queries) ~600 ms - so **each
 database round trip costs ~200-220 ms**, nearly all of it network, not Postgres. On top of that:
 
