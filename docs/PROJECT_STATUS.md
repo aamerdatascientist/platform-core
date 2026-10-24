@@ -118,6 +118,11 @@ start; sign-in fetches the user and role names in one query instead of two. On s
 after the change: first request after 7 idle minutes **1.8 s** (was 4.9 s), warm requests
 unchanged at ~0.6 s.
 
+**Production, deployed 2026-10-24 ~02:50 Saudi time** (owner pushed `chore/staging-environment`
+to `main`, both workflows green): the API answered sign-in with an empty 500 for ~1-2 minutes
+while the new files were swapped in (same as staging), then recovered on its own. After 7 idle
+minutes the first request took **1.5 s (was 2.8 s)**; warm requests ~0.6 s, as before.
+
 **The real fix is to put the API and the database in the same region** - each round trip
 would drop from ~200 ms to a few ms (same region) or ~35 ms (Hong Kong to Singapore). Either
 move the Railway databases to Railway's Southeast Asia (Singapore) region, or move both to
@@ -128,8 +133,7 @@ running it.
 
 ### Open items - in priority order
 
-0. **Merge PR #32** - staging tried signed in 2026-10-23 (forms, submit, attachment upload after the Blob whitespace fix).
-   Also carries the sign-in speed fixes above.
+0. ~~Merge PR #32~~ - **done 2026-10-24** (pushed to `main`; staging work and sign-in speed fixes live).
 0b. **Move the database next to the API** (or the reverse) - see "Slow sign-in" above. Biggest
    remaining speed win by far.
 1. **Rotate the Railway Postgres password and the Blob Storage account key** (see "Before going
