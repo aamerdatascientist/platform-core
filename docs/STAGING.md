@@ -11,7 +11,7 @@ Everything that is not a secret is recorded here; secrets live only in Azure and
 | API URL | `https://nexus-platform-api-b6cvdedgfdgkgee7.eastasia-01.azurewebsites.net` | `https://asas-api-staging-ancbhsa7grf5emfh.eastasia-01.azurewebsites.net` |
 | App Service plan | `ASP-aamershahtest-8f8b` (Basic B1, East Asia) | **the same plan** - shared, no extra plan cost |
 | Site (Static Web App, Free) | `nexus-platform-web` - `https://asasksa.co` | `asas-web-staging` - **`https://staging.asasksa.co`** (also `https://thankful-water-079284100.6.azurestaticapps.net`) |
-| Database (Railway project `abundant-flow`) | service `Postgres`, public `metro.proxy.rlwy.net:36575` | service `Postgres-staging`, public `altaria.proxy.rlwy.net:48044` (created 2026-10-23) |
+| Database (Railway project `abundant-flow`) | service `Postgres`, public `metro.proxy.rlwy.net:36575`, region US West (California) | service `Postgres-staging`, public `altaria.proxy.rlwy.net:48044` (created 2026-10-23), region **Southeast Asia (Singapore)** since 2026-10-24 |
 | File attachments | storage account `platformcoreattach2026`, container `attachments` | same account, container `attachments-staging` |
 | Deployed from | push to `main` | push to `staging` |
 | Workflows | `deploy-api.yml`, `azure-static-web-apps-black-field-04a8cb300.yml` | `deploy-api-staging.yml`, `deploy-web-staging.yml` |
@@ -141,6 +141,28 @@ a file (it should land in `attachments-staging`, not `attachments`).
   cold start (~25 s on the shared B1 plan).
 - Runtime note: Azure shows .NET 8 as reaching end of support on 10 Nov 2026 on App Service.
   Both apps run .NET 8; plan the move to .NET 10 (LTS), and try it on staging first.
+
+## Database region moved to Singapore (2026-10-24)
+
+`Postgres-staging` > Settings > Regions & Replicas: US West (California) -> Southeast Asia
+(Singapore), then Deploy. Railway copied the volume (178.78 MB) and restarted the database:
+**about 4 minutes of downtime**. The public address (`altaria.proxy.rlwy.net:48044`) and the
+credentials stayed the same, so nothing in Azure needed changing; the API's first request
+afterwards took 4.7 s while it replaced its dead pooled connections, then everything was normal.
+
+Measured from the browser (Saudi Arabia) against the staging API:
+
+| | California | Singapore |
+| --- | --- | --- |
+| Request that skips the database | ~160 ms | ~170 ms |
+| `/api/auth/me` (2 queries) | ~600 ms | **~260 ms** |
+| `/api/forms` | ~590 ms | **~265 ms** |
+| A form's definition | ~600 ms | **~290 ms** |
+| Failed sign-in, server time (1 query) | ~0.40 s | **~0.20 s** |
+| One database round trip from the API | ~220 ms | **~45 ms** |
+
+Production can be moved the same way (same ~4 minutes down, same address) - do it outside
+working hours.
 
 ## Custom domain: staging.asasksa.co
 

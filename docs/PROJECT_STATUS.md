@@ -98,7 +98,7 @@ staging first.
 ### Slow sign-in - investigated 2026-10-24
 
 **Cause: the API and the database are on opposite sides of the Pacific.** The API runs in
-Azure East Asia (Hong Kong); both Railway databases run in Railway's **US West (California)**
+Azure East Asia (Hong Kong); the production database runs in Railway's **US West (California)** region (staging moved to Singapore 2026-10-24)
 region (Postgres > Settings > Regions). Measured from the browser on staging: a request that
 skips the database takes ~160 ms; `/api/auth/me` (two tiny queries) ~600 ms - so **each
 database round trip costs ~200-220 ms**, nearly all of it network, not Postgres. On top of that:
@@ -134,8 +134,11 @@ running it.
 ### Open items - in priority order
 
 0. ~~Merge PR #32~~ - **done 2026-10-24** (pushed to `main`; staging work and sign-in speed fixes live).
-0b. **Move the database next to the API** (or the reverse) - see "Slow sign-in" above. Biggest
-   remaining speed win by far.
+0b. **Move the production database to Singapore** - tried on staging 2026-10-24: ~4 minutes
+   down, same address and credentials, and requests went from ~600 ms to ~260 ms (database
+   round trip ~220 ms -> ~45 ms). See `docs/STAGING.md` "Database region moved to Singapore".
+   Production: `Postgres` > Settings > Regions & Replicas > Southeast Asia > Deploy, outside
+   working hours, owner's go-ahead.
 1. **Rotate the Railway Postgres password and the Blob Storage account key** (see "Before going
    live" at the bottom). The app is now in real use, so this is overdue.
 2. **Run `scripts/go-live/find-not-null-columns.sql`** in Railway's query editor (read-only)

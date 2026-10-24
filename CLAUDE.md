@@ -378,7 +378,7 @@ database.
   default is `$null` and which is going to flow into `ConvertTo-Json` - leave it untyped
   (just `$Param = $null`). Checked the rest of `scripts/*.ps1` for the same pattern (`grep
   '\[string\]\$\w+ = \$null'`) - only this one script had it, now fixed.
-- **The API (Azure East Asia, Hong Kong) and the databases (Railway US West, California) are
+- **The API (Azure East Asia, Hong Kong) and the production database (Railway US West, California; staging moved to Singapore 2026-10-24, ~45 ms) are
   ~200 ms apart per round trip** (measured 2026-10-24). Every extra query in a request costs
   that much, so fold queries together where it's easy (see `LoginCommand`). Don't remove
   `WithWarmPool` (keeps 3 pooled connections alive) or `DatabaseWarmupService` (pays the
