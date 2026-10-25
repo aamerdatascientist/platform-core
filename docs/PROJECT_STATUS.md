@@ -39,6 +39,25 @@ itself stable; this is where the narrative goes.
   (~25-60 s on B1). Measured on staging after a clean restart, once that line appeared: first
   sign-in attempt **0.76 s** (was 1.9-4.6 s), first forms list **1.7 s** (was 8.3 s), both including
   the browser's new connection. A failed sign-in is no longer logged as an unhandled error.
+- **Submissions with a photo (~2 s+): the photo upload, not the submit.** Production, 14 days (mostly
+  before the database move): submit median 0.85 s, upload median 2.2 s; inside an upload the Azure
+  storage write was only 0.08-0.45 s, the rest receiving the file and database round trips. Staging,
+  warm: submit 0.3-0.7 s; a 2 KB upload 0.5-0.7 s; a 2 MB upload 1.9-2.4 s. **Fixes (live 02:05):**
+  the browser shrinks images to 1920 px JPEG 0.82 before upload (`forms/shrinkImage.ts`; checked on
+  staging: 6.86 MB -> 542 KB in ~0.2 s; PDFs, files under 300 KB and anything the browser can't
+  decode go unchanged); `BlobStorageService` is a singleton so uploads reuse one connection to
+  storage; the warm-up also runs submit and upload (a form id / field code that cannot exist, so
+  nothing is saved).
+- **Considered and dropped: showing the success tick before the photo finishes uploading.** Phones
+  (iOS especially) stop a page's uploads once it's backgrounded or locked, site connections drop, and
+  the server can still reject a file the browser accepted, so records would silently lose their
+  required photo while the tick said "done". Doing it safely needs an offline queue (storage on the
+  phone, retries, a pending badge, a "photo missing" flag) for ~1 s of gain. If photo submissions
+  still feel slow after the shrinking, the better next step is uploading the photo as soon as it is
+  picked (while the rest of the form is filled in) and linking it on submit.
+- **Production after the 02:02 deploy** (started 02:04:28, warm-up done 02:05:02): first hits on
+  every form's definition 0.4-0.7 s and records 0.5-0.6 s (were 4-11 s), session renewal on page
+  load 1.4 s. Staging's test records (PERF-TEST) and their 13 files were deleted afterwards.
 - Watch-out: a deploy keeps the old container answering for ~1.5 min after the workflow finishes,
   so "the API answers again" is not "the new code is running". Check the log stream (Azure > the
   app > Log stream > Copy) for `Application started` / `Request warm-up done` before measuring.
