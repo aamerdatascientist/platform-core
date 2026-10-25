@@ -24,9 +24,24 @@ itself stable; this is where the narrative goes.
   field, soft delete, 401 on a wrong password, security headers. Warm timings matched production on
   .NET 8 (`/api/auth/me` median 441 vs 369 ms, `/api/forms` 325 vs 339 ms; within tonight's
   network jitter).
-- **Production is still on .NET 8.** To finish: set `nexus-platform-api` > Configuration > Stack
-  settings > Version to .NET 10 (LTS), then fast-forward `main` to `chore/dotnet-10` straight after.
-  The API is down between the two steps and during the restart.
+- **Production on .NET 10** (~01:10): stack switched in Azure, then `main` fast-forwarded. Two
+  `POST /auth/refresh` 500s at 01:13 were the usual mid-deploy file swap (`BadImageFormatException`,
+  `TypeLoadException`), none after. Warm requests ~240 ms as before.
+- **Slow sign-in, the remaining cause: cold paths after every restart.** Owner signed out and back in
+  on production at ~01:17: `POST /api/auth/login` took **6.3 s** in the browser, 5.94 s on the server
+  (App Insights); everything after it was ~0.4 s. Warm sign-in attempts take ~0.3 s. It was the first
+  sign-in since the 01:13 restart, so EF compiled the queries and BCrypt/JWT/the HTTP pipeline loaded
+  on that request. Tokens last 30 days, so real sign-ins are mostly the first one after some restart.
+  **Fix:** `DatabaseWarmupService` now also runs sign-in and refresh with credentials that cannot
+  exist, one BCrypt check and one token issue, the read-only first-screen queries in-process as an
+  administrator (current user, forms list, each form's definition and first records page), and one
+  sign-in attempt through the app's own HTTP pipeline. It logs `Request warm-up done in N ms`
+  (~25-60 s on B1). Measured on staging after a clean restart, once that line appeared: first
+  sign-in attempt **0.76 s** (was 1.9-4.6 s), first forms list **1.7 s** (was 8.3 s), both including
+  the browser's new connection. A failed sign-in is no longer logged as an unhandled error.
+- Watch-out: a deploy keeps the old container answering for ~1.5 min after the workflow finishes,
+  so "the API answers again" is not "the new code is running". Check the log stream (Azure > the
+  app > Log stream > Copy) for `Application started` / `Request warm-up done` before measuring.
 
 **Asas is live at https://asasksa.co and in use by the client.** Frontend on Azure Static Web
 Apps, API on Azure App Service, data in Railway Postgres. A push to `main` deploys both
@@ -158,8 +173,7 @@ running it.
 
 0. ~~Merge PR #32~~ - **done 2026-10-24** (pushed to `main`; staging work and sign-in speed fixes live).
 0b. ~~Move the production database to Singapore~~ - **done 2026-10-26** (see top of file).
-0c. **Production to .NET 10** before 10 Nov 2026 - staging done and checked; production needs
-   the stack switch plus the push to `main` (see top of file), with the owner's go-ahead.
+0c. ~~Production to .NET 10~~ - **done 2026-10-26**.
 1. **Rotate the Railway Postgres password and the Blob Storage account key** (see "Before going
    live" at the bottom). The app is now in real use, so this is overdue.
 2. **Run `scripts/go-live/find-not-null-columns.sql`** in Railway's query editor (read-only)
