@@ -58,6 +58,41 @@ itself stable; this is where the narrative goes.
 - **Production after the 02:02 deploy** (started 02:04:28, warm-up done 02:05:02): first hits on
   every form's definition 0.4-0.7 s and records 0.5-0.6 s (were 4-11 s), session renewal on page
   load 1.4 s. Staging's test records (PERF-TEST) and their 13 files were deleted afterwards.
+- **Status pages and plain-language errors (staging only so far, branch `chore/dotnet-10`):**
+  `components/StatusPage.tsx` - 401 "session ended" (shown once when the server refuses to renew
+  the sign-in, never on a chosen sign-out; `tokenStore.endSession`), 403 (admin pages, restricted
+  forms; was a silent redirect home), 404 (unknown addresses, missing forms; was a blank page),
+  5xx and offline. `api/errorMessage.ts` maps common statuses to EN/AR text (`errors.*` in the
+  locale files); other 400s keep the server's text in English and a translated line in Arabic.
+  Uploads check type and 20 MB first. **Fixed with it:** a failed token renewal signed people out
+  on any error, including the 500s during a deploy's file swap; now only a 401/403 refusal does.
+- **A-Z test, 2026-10-26 (~02:20-02:40).** Staging got the full run (writes, cleaned up after);
+  production read-only. Staging QA account (Project manager role):
+  `scripts/staging/qa-accounts.local.env` (git-ignored; staging only).
+  - Passed: all daily-report rules (required, conditional, no future dates, ranges, whole
+    numbers, 400-char limit, booleans), stock rules, record edit/delete/filter/paging, Project
+    manager permissions (15 checks: only the daily report, no records/dashboard/users/rules, can
+    submit), the photo flow in the real form (6.86 MB -> 557 KB), Arabic digits, status pages in
+    both languages, dashboard, settings, builder, users, security headers, sign-in rate limit
+    (429 with its code), no console errors. Staging and production form setups are identical
+    (every field's type, rules, conditions, options compared).
+  - **Fixed:** a number sent as text ("1e3", "12.5") passed validation and then crashed the
+    insert with a 500; `Normalize` now passes parsed numbers and only plain digits count.
+  - **Gaps found, not fixed (need a decision):** a Lookup accepts any well-formed id - one that
+    doesn't exist, and a zone/floor/footing from another project; project codes and zone codes
+    can be duplicated (seen as two "AZ-Z1" in the dropdown); no "expected completion after start"
+    rule; stock outflow can exceed what came in; the records list has no page-size cap; the
+    required site photo is only enforced by the page (the record is saved first, the photo after).
+  - **Production has no form data at all** (0 rows in all seven forms). Not from tonight: the
+    00:52 backup taken before the region move already had these seven tables empty while
+    everything else matched 21 Oct - the agreed `clear-all-form-data.sql` was run in between.
+    Until projects (and their zones/floors/footings) are entered, nobody can submit a daily
+    report: Project is required and its list is empty. Stock outflow's dropdowns stay empty until
+    stock inflow has entries.
+  - Not covered: phone width (Chrome was maximized, so the window could not be resized), and a
+    real successful sign-in on staging (needs the owner's password).
+  - First real upload after a container start took 3.4 s (the storage connection opens then);
+    later ones ~0.5-0.7 s.
 - Watch-out: a deploy keeps the old container answering for ~1.5 min after the workflow finishes,
   so "the API answers again" is not "the new code is running". Check the log stream (Azure > the
   app > Log stream > Copy) for `Application started` / `Request warm-up done` before measuring.
