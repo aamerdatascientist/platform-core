@@ -12,6 +12,7 @@ import type {
   WorkflowStatusDto,
 } from '../types';
 import { getTokens, setTokens } from '../auth/tokenStore';
+import { shrinkImageForUpload } from '../forms/shrinkImage';
 
 // Set VITE_API_BASE_URL in a .env.local file once you know where the API is actually
 // reachable (localhost while developing, or wherever it ends up deployed).
@@ -401,9 +402,10 @@ export const api = {
     // would mean threading a "skip the JSON header" flag through the shared helper for a
     // single caller - not worth the added complexity for one endpoint.
     upload: async (token: string, formId: string, recordId: string, fieldCode: string, file: File): Promise<FileMetadataDto> => {
+      const toSend = await shrinkImageForUpload(file);
       const formData = new FormData();
       formData.append('fieldCode', fieldCode);
-      formData.append('file', file);
+      formData.append('file', toSend);
 
       const doUpload = (accessToken: string) =>
         fetch(`${BASE_URL}/api/forms/${formId}/records/${recordId}/attachments`, {

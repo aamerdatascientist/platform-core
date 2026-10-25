@@ -11,6 +11,8 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Platform.Application.Common.Exceptions;
 using Platform.Application.Common.Interfaces;
+using Platform.Application.Files.Commands.UploadFile;
+using Platform.Application.Forms.Commands.SubmitFormData;
 using Platform.Application.Forms.Queries.GetFormDefinition;
 using Platform.Application.Forms.Queries.GetFormSubmissions;
 using Platform.Application.Forms.Queries.GetFormsList;
@@ -130,6 +132,22 @@ public class DatabaseWarmupService : BackgroundService
                 await sender.Send(new GetFormDefinitionQuery(form.Id), cancellationToken);
                 await sender.Send(new GetFormSubmissionsQuery(form.Id), cancellationToken);
             }
+
+            // Submitting and uploading, stopped before anything is saved: a form that can't
+            // exist, and a field code that can't exist (checked before the file is touched).
+            try { await sender.Send(new SubmitFormDataCommand(Guid.NewGuid(), new Dictionary<string, object?>(), admin.Id), cancellationToken); }
+            catch (NotFoundException) { }
+            if (forms.Count > 0)
+            {
+                try
+                {
+                    await sender.Send(new UploadFileCommand(
+                        forms[0].Id, Guid.NewGuid(), "__warm-up__", Stream.Null, "warm-up.jpg", "image/jpeg", 0, admin.Id),
+                        cancellationToken);
+                }
+                catch (ValidationException) { }
+            }
+            scope.ServiceProvider.GetRequiredService<IBlobStorageService>();
         }
         finally
         {

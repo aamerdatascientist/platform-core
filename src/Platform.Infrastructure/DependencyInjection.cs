@@ -35,7 +35,9 @@ public static class DependencyInjection
         services.AddScoped<IDynamicSchemaService, DynamicSchemaService>();
         services.AddScoped<IDynamicDataRepository, DynamicDataRepository>();
         services.AddScoped<IExecutiveOverviewRepository, ExecutiveOverviewRepository>();
-        services.AddScoped<IBlobStorageService, BlobStorageService>();
+        // One Azure client for the app (it's thread-safe), so uploads reuse its connection to
+        // storage instead of each opening a new one.
+        services.AddSingleton<IBlobStorageService, BlobStorageService>();
 
         services.AddHostedService<DatabaseWarmupService>();
 
