@@ -34,18 +34,27 @@ public static class SubmissionValueValidator
     public static IReadOnlyDictionary<string, object?> Normalize(
         IEnumerable<FieldDefinition> activeFields, IReadOnlyDictionary<string, object?> values)
     {
-        var textCodes = activeFields
-            .Where(f => f.FieldType is FieldType.ShortText or FieldType.LongText or FieldType.Dropdown)
-            .Select(f => f.Code)
-            .ToHashSet(StringComparer.Ordinal);
+        var typeByCode = activeFields.ToDictionary(f => f.Code, f => f.FieldType, StringComparer.Ordinal);
 
         var result = new Dictionary<string, object?>(values.Count, StringComparer.Ordinal);
         foreach (var (code, raw) in values)
         {
-            if (textCodes.Contains(code) && TryGetString(raw, out var text))
+            typeByCode.TryGetValue(code, out var type);
+            if (type is FieldType.ShortText or FieldType.LongText or FieldType.Dropdown && TryGetString(raw, out var text))
             {
                 var trimmed = text.Trim();
                 result[code] = trimmed.Length == 0 ? null : trimmed;
+            }
+            // A number sent as text ("12.5") passes Validate, but the repository reads the raw
+            // JSON as a number and threw - a 500 for any API caller that quotes its numbers.
+            // Handing it the parsed value instead keeps both on the same reading.
+            else if (type is FieldType.Number && TryGetDecimal(raw, out var whole))
+            {
+                result[code] = decimal.ToInt32(whole);
+            }
+            else if (type is FieldType.Decimal && TryGetDecimal(raw, out var number))
+            {
+                result[code] = number;
             }
             else
             {
@@ -231,6 +240,10 @@ public static class SubmissionValueValidator
         }
     }
 
+    private const NumberStyles PlainNumber =
+        NumberStyles.AllowLeadingWhite | NumberStyles.AllowTrailingWhite |
+        NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint;
+
     private static bool TryGetDecimal(object? raw, out decimal value)
     {
         switch (raw)
@@ -242,8 +255,10 @@ public static class SubmissionValueValidator
             case JsonElement { ValueKind: JsonValueKind.Number } je when je.TryGetDecimal(out var d2):
                 value = d2;
                 return true;
+            // Plain digits, an optional sign and decimal point only: NumberStyles.Any also took
+            // "$5", "(5)" as -5, "1,000" and "1e3", none of which a person means as a quantity.
             case JsonElement { ValueKind: JsonValueKind.String } je
-                when decimal.TryParse(je.GetString(), NumberStyles.Any, CultureInfo.InvariantCulture, out var d3):
+                when decimal.TryParse(je.GetString(), PlainNumber, CultureInfo.InvariantCulture, out var d3):
                 value = d3;
                 return true;
             default:

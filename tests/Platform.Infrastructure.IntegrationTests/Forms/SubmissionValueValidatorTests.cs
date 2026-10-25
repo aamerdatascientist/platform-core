@@ -44,7 +44,35 @@ public class SubmissionValueValidatorTests
 
         normalized["notes"].Should().BeNull();
         normalized["name"].Should().Be("Tower A");
-        normalized["crew"].Should().BeOfType<JsonElement>("non-text values pass through untouched");
+        normalized["crew"].Should().Be(5);
+    }
+
+    [Fact]
+    public void Normalize_TurnsNumbersSentAsText_IntoNumbers()
+    {
+        var v = NewVersion();
+        v.AddField("crew", "Crew", FieldType.Number, false, null, null, null);
+        v.AddField("qty", "Quantity", FieldType.Decimal, false, null, null, null);
+        var values = Values(new { crew = " 7 ", qty = "12.5" });
+
+        SubmissionValueValidator.Validate(v.Fields, values).Should().BeEmpty();
+        var normalized = SubmissionValueValidator.Normalize(v.Fields, values);
+
+        normalized["crew"].Should().Be(7);
+        normalized["qty"].Should().Be(12.5m);
+    }
+
+    [Theory]
+    [InlineData("1e3")]
+    [InlineData("$5")]
+    [InlineData("(5)")]
+    [InlineData("1,000")]
+    public void NumbersSentAsText_MustBePlainDigits(string text)
+    {
+        var v = NewVersion();
+        v.AddField("qty", "Quantity", FieldType.Decimal, true, null, null, null);
+
+        SubmissionValueValidator.Validate(v.Fields, Values(new { qty = text })).Should().ContainKey("qty");
     }
 
     [Fact]
