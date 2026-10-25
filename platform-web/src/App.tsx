@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import { getTokens, subscribe } from './auth/tokenStore';
+import { clearSessionEnded, getTokens, sessionEnded, subscribe } from './auth/tokenStore';
+import { StatusPage } from './components/StatusPage';
 import { isDashboardPath } from './dashboardLink';
 import { BuilderHome } from './routes/BuilderHome';
 import { ExecutiveOverview } from './routes/ExecutiveOverview';
@@ -20,8 +21,16 @@ import { RequireAdmin } from './components/RequireAdmin';
  */
 export default function App() {
   const [accessToken, setAccessToken] = useState<string | null>(() => getTokens()?.accessToken ?? null);
+  const [showSessionEnded, setShowSessionEnded] = useState(sessionEnded);
 
-  useEffect(() => subscribe((tokens) => setAccessToken(tokens?.accessToken ?? null)), []);
+  useEffect(
+    () =>
+      subscribe((tokens) => {
+        setAccessToken(tokens?.accessToken ?? null);
+        setShowSessionEnded(sessionEnded());
+      }),
+    [],
+  );
 
   const location = useLocation();
 
@@ -29,6 +38,17 @@ export default function App() {
   // share key - no sign-in either. It is checked before the sign-in gate for that reason.
   if (isDashboardPath(location.pathname)) return <ExecutiveOverview token={accessToken} />;
 
+  if (!accessToken && showSessionEnded) {
+    return (
+      <StatusPage
+        kind="sessionEnded"
+        onSignIn={() => {
+          clearSessionEnded();
+          setShowSessionEnded(false);
+        }}
+      />
+    );
+  }
   if (!accessToken) return <SignIn />;
 
   return (
@@ -43,6 +63,7 @@ export default function App() {
           <Route path="builder/:formId" element={<FormBuilder token={accessToken} />} />
           <Route path="admin/users" element={<UserManagement token={accessToken} />} />
         </Route>
+        <Route path="*" element={<StatusPage kind="notFound" />} />
       </Route>
     </Routes>
   );

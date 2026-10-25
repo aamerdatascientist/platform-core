@@ -59,12 +59,44 @@ export function getTokens(): StoredTokens | null {
 
 export function setTokens(tokens: StoredTokens | null): void {
   try {
-    if (tokens) storage()?.setItem(STORAGE_KEY, JSON.stringify(tokens));
-    else storage()?.removeItem(STORAGE_KEY);
+    if (tokens) {
+      storage()?.setItem(STORAGE_KEY, JSON.stringify(tokens));
+      storage()?.removeItem(SESSION_ENDED_KEY);
+    } else storage()?.removeItem(STORAGE_KEY);
   } catch {
     // storage full or blocked - listeners below still update this tab
   }
   listeners.forEach((listener) => listener(tokens));
+}
+
+// Set when the server refused to renew the sign-in (it expired, or a password change ended
+// it) - unlike signing out, the person didn't choose this, so the app explains it once
+// (StatusPage 'sessionEnded') before showing the sign-in form again.
+const SESSION_ENDED_KEY = 'platform_session_ended';
+
+export function endSession(): void {
+  try {
+    storage()?.setItem(SESSION_ENDED_KEY, '1');
+  } catch {
+    // blocked storage: the sign-in form simply appears without the explanation
+  }
+  setTokens(null);
+}
+
+export function sessionEnded(): boolean {
+  try {
+    return storage()?.getItem(SESSION_ENDED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+export function clearSessionEnded(): void {
+  try {
+    storage()?.removeItem(SESSION_ENDED_KEY);
+  } catch {
+    // nothing to clear
+  }
 }
 
 /** Returns an unsubscribe function - call it from a useEffect cleanup. */

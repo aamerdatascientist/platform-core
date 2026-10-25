@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import { api } from '../api/client';
+import { StatusPage } from './StatusPage';
 
 interface RequireAdminProps {
   token: string;
@@ -32,6 +33,7 @@ export function RequireAdmin({ token }: RequireAdminProps) {
   }, [token]);
 
   if (isAdmin === null) return null;
-  if (!isAdmin) return <Navigate to="/" replace />;
+  // Said plainly rather than a silent bounce to the home page, which read as a broken link.
+  if (!isAdmin) return <StatusPage kind="forbidden" />;
   return <Outlet />;
 }

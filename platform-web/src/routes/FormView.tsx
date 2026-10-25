@@ -2,9 +2,11 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { api } from '../api/client';
+import { statusKindOf, type StatusKind } from '../api/errorMessage';
 import { AttachmentsPanel } from '../components/AttachmentsPanel';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { FormRenderer } from '../components/FormRenderer';
+import { StatusPage } from '../components/StatusPage';
 import { SubmissionsTable } from '../components/SubmissionsTable';
 import { WorkflowPanel } from '../components/WorkflowPanel';
 import { useErrorMessage } from '../hooks/useErrorMessage';
@@ -38,6 +40,9 @@ export function FormView({ token }: FormViewProps) {
   const [recordNotice, setRecordNotice] = useState<string | null>(null);
   const [recordError, setRecordError] = useErrorMessage();
   const [error, setError] = useErrorMessage();
+  // The form itself couldn't be opened (no access, deleted, server down, offline): the whole
+  // page is replaced by an explanation instead of a line of red text.
+  const [loadFailure, setLoadFailure] = useState<StatusKind | null>(null);
 
   // The first active Lookup field on a form is, by this platform's own convention (see
   // every daily-report form seeded via scripts/seed-*-forms.ps1), the record's scoping
@@ -71,12 +76,15 @@ export function FormView({ token }: FormViewProps) {
     setScopeValue('');
     setScopeChoices([]);
     setError(null);
+    setLoadFailure(null);
     api.forms
       .get(token, formId)
       .then(setFormDefinition)
       .catch((err) => {
         setFormDefinition(null);
-        setError({ err, fallbackKey: 'formView.loadError' });
+        const kind = statusKindOf(err);
+        if (kind && kind !== 'sessionEnded') setLoadFailure(kind);
+        else setError({ err, fallbackKey: 'formView.loadError' });
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formId, token]);
@@ -161,6 +169,7 @@ export function FormView({ token }: FormViewProps) {
     }
   }
 
+  if (loadFailure) return <StatusPage kind={loadFailure} />;
   if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!formDefinition || isAdmin === null)
     return (

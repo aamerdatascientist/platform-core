@@ -11,7 +11,7 @@ import type {
   UserSummaryDto,
   WorkflowStatusDto,
 } from '../types';
-import { getTokens, setTokens } from '../auth/tokenStore';
+import { endSession, getTokens, setTokens } from '../auth/tokenStore';
 import { shrinkImageForUpload } from '../forms/shrinkImage';
 
 // Set VITE_API_BASE_URL in a .env.local file once you know where the API is actually
@@ -32,6 +32,16 @@ export class ApiError extends Error {
     super(message);
     this.name = 'ApiError';
   }
+}
+
+const UPLOAD_TYPES = new Set(['image/jpeg', 'image/png', 'image/heic', 'image/webp', 'application/pdf']);
+const UPLOAD_MAX_BYTES = 20 * 1024 * 1024;
+
+// The access token expired and renewing it failed for a reason other than the server
+// refusing it (it was restarting, say): the person is still signed in, so this reads as
+// "busy, try again", not as a sign-in problem.
+function serverBusyError(): ApiError {
+  return new ApiError('The server could not renew the sign-in right now.', 503);
 }
 
 // Single-flight guard: if five components all get a 401 in the same moment (e.g. right
@@ -58,9 +68,10 @@ async function refreshAccessToken(): Promise<string | null> {
           // everyone out.
           const latest = getTokens();
           if (latest && latest.refreshToken !== stored.refreshToken) return latest.accessToken;
-          // The refresh token itself is invalid/expired/revoked - no recovering from
-          // this client-side. Clear everything so the app falls back to the sign-in screen.
-          setTokens(null);
+          // Only the server refusing the refresh token (expired or revoked: 401/403) ends the
+          // session. Any other failure - a 5xx while the API restarts during a deploy - keeps
+          // the sign-in, so the next request can renew it; this used to sign people out.
+          if (response.status === 401 || response.status === 403) endSession();
           return null;
         }
         const newTokens = (await response.json()) as TokenPair;
@@ -92,6 +103,8 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
     const newAccessToken = await refreshAccessToken();
     if (newAccessToken) {
       response = await doFetch(newAccessToken);
+    } else if (getTokens()) {
+      throw serverBusyError();
     }
   }
 
@@ -402,7 +415,13 @@ export const api = {
     // would mean threading a "skip the JSON header" flag through the shared helper for a
     // single caller - not worth the added complexity for one endpoint.
     upload: async (token: string, formId: string, recordId: string, fieldCode: string, file: File): Promise<FileMetadataDto> => {
+      // The server's own limits (UploadFileCommandValidator), checked first so the person gets
+      // a clear, translated reason instead of a rejected upload.
+      if (!UPLOAD_TYPES.has(file.type.toLowerCase()))
+        throw new ApiError('Only JPEG, PNG, HEIC, WEBP images and PDF files are accepted.', 400, undefined, 'upload.fileType');
       const toSend = await shrinkImageForUpload(file);
+      if (toSend.size > UPLOAD_MAX_BYTES)
+        throw new ApiError('File must be under 20MB.', 400, undefined, 'upload.tooLarge');
       const formData = new FormData();
       formData.append('fieldCode', fieldCode);
       formData.append('file', toSend);
@@ -418,6 +437,7 @@ export const api = {
       if (response.status === 401) {
         const newToken = await refreshAccessToken();
         if (newToken) response = await doUpload(newToken);
+        else if (getTokens()) throw serverBusyError();
       }
       if (!response.ok) {
         const problem = await response.json().catch(() => null);

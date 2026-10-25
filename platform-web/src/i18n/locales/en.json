@@ -206,6 +206,10 @@
     },
     "auth": {
       "tooManyAttempts": "Too many attempts. Wait a few minutes and try again."
+    },
+    "upload": {
+      "fileType": "Only photos (JPEG, PNG, WEBP, HEIC) and PDF files can be attached.",
+      "tooLarge": "This file is too large. Files must be under 20 MB."
     }
   },
   "userManagement": {
@@ -502,5 +506,43 @@
     "formBuilder": "Form builder",
     "formBuilderHint": "Create forms and change their fields and rules",
     "usersHint": "Accounts, roles and password resets"
+  },
+  "errors": {
+    "offline": "Can't reach the server. Check your internet connection and try again.",
+    "badInput": "Some of what you entered wasn't accepted. Check the fields and try again.",
+    "status": {
+      "401": "Your session has ended. Sign in again to continue.",
+      "403": "You don't have permission to do this. Ask an administrator if you need access.",
+      "404": "This item no longer exists. It may have been deleted. Refresh the page and try again.",
+      "413": "This file is too large to upload.",
+      "429": "Too many attempts. Wait a few minutes and try again.",
+      "500": "Something went wrong on our side. Wait a minute and try again. If it keeps happening, tell your administrator."
+    },
+    "page": {
+      "code": "Error {{code}}",
+      "signInAgain": "Sign in again",
+      "tryAgain": "Try again",
+      "goHome": "Go to the home page",
+      "sessionEnded": {
+        "title": "Your session has ended",
+        "body": "You were signed out because the app wasn't used for a long time, or your password was changed. Sign in again to continue. Anything you already submitted is saved."
+      },
+      "forbidden": {
+        "title": "You don't have access to this page",
+        "body": "Your account isn't allowed to open this. If you need it for your work, ask an administrator to give you access."
+      },
+      "notFound": {
+        "title": "Page not found",
+        "body": "There's nothing at this address. The link may be wrong, or the form may have been removed. Pick a form from the menu."
+      },
+      "serverError": {
+        "title": "Something went wrong on our side",
+        "body": "The system may be restarting after an update. Wait a minute, then try again. If it keeps happening, tell your administrator."
+      },
+      "offline": {
+        "title": "No connection",
+        "body": "We can't reach the server. Check your internet connection, then try again."
+      }
+    }
   }
 }
