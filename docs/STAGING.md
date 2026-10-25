@@ -7,11 +7,11 @@ Everything that is not a secret is recorded here; secrets live only in Azure and
 
 | Piece | Production | Staging |
 | --- | --- | --- |
-| API (App Service, Linux, .NET 8) | `nexus-platform-api` | `asas-api-staging` |
+| API (App Service, Linux, .NET 10 on staging since 2026-10-26) | `nexus-platform-api` | `asas-api-staging` |
 | API URL | `https://nexus-platform-api-b6cvdedgfdgkgee7.eastasia-01.azurewebsites.net` | `https://asas-api-staging-ancbhsa7grf5emfh.eastasia-01.azurewebsites.net` |
 | App Service plan | `ASP-aamershahtest-8f8b` (Basic B1, East Asia) | **the same plan** - shared, no extra plan cost |
 | Site (Static Web App, Free) | `nexus-platform-web` - `https://asasksa.co` | `asas-web-staging` - **`https://staging.asasksa.co`** (also `https://thankful-water-079284100.6.azurestaticapps.net`) |
-| Database (Railway project `abundant-flow`) | service `Postgres`, public `metro.proxy.rlwy.net:36575`, region US West (California) | service `Postgres-staging`, public `altaria.proxy.rlwy.net:48044` (created 2026-10-23), region **Southeast Asia (Singapore)** since 2026-10-24 |
+| Database (Railway project `abundant-flow`) | service `Postgres`, public `metro.proxy.rlwy.net:36575`, region **Southeast Asia (Singapore)** since 2026-10-26 | service `Postgres-staging`, public `altaria.proxy.rlwy.net:48044` (created 2026-10-23), region **Southeast Asia (Singapore)** since 2026-10-24 |
 | File attachments | storage account `platformcoreattach2026`, container `attachments` | same account, container `attachments-staging` |
 | Deployed from | push to `main` | push to `staging` |
 | Workflows | `deploy-api.yml`, `azure-static-web-apps-black-field-04a8cb300.yml` | `deploy-api-staging.yml`, `deploy-web-staging.yml` |
@@ -139,8 +139,11 @@ a file (it should land in `attachments-staging`, not `attachments`).
   `BadImageFormatException` while writing a stack trace); the app restarted itself and was
   fine. On startup it logs `Database warm-up done in N ms` - requests before that line pay the
   cold start (~25 s on the shared B1 plan).
-- Runtime note: Azure shows .NET 8 as reaching end of support on 10 Nov 2026 on App Service.
-  Both apps run .NET 8; plan the move to .NET 10 (LTS), and try it on staging first.
+- Runtime: Azure ends .NET 8 support on App Service on 10 Nov 2026. The code moved to .NET 10
+  (LTS) on 2026-10-26. A runtime change needs two steps, in this order: set the app's
+  Configuration > Stack settings > Version to .NET 10 (LTS), then deploy the .NET 10 build. The
+  app is down between the two, because a framework-dependent build only runs on its own major
+  runtime. Staging was switched and tested first (see `docs/PROJECT_STATUS.md`).
 
 ## Database region moved to Singapore (2026-10-24)
 

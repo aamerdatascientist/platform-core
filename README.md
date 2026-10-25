@@ -1,6 +1,6 @@
 # platform-core — Asas
 
-Enterprise low-code platform. **ASP.NET Core 8 + EF Core** backend (Clean Architecture,
+Enterprise low-code platform. **ASP.NET Core 10 + EF Core** backend (Clean Architecture,
 CQRS via MediatR), **React 18 + TypeScript** frontend, **Postgres** (Railway-hosted) as
 the datastore. First customer is a Saudi construction company; the platform itself is
 built to be industry-agnostic. Live at **https://asasksa.co**.
@@ -110,7 +110,7 @@ this repo is a leftover from when the database was SQL Server; it's dead, not us
 anything, and safe to ignore (or delete — see CLAUDE.md's "Low-priority cleanup
 candidates"). Don't stand up a local database for this project.
 
-1. **SDK**: pinned to .NET 8.0.100 via `global.json`.
+1. **SDK**: pinned to .NET 10.0.100 (latest feature band) via `global.json`.
 
 2. **Set secrets** (don't rely on `appsettings.Development.json` placeholders for
    anything beyond a first smoke test — and note `ASPNETCORE_ENVIRONMENT` must be

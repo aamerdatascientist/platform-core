@@ -3,7 +3,30 @@
 Update this file at the end of every session - what changed, what's next. Keep CLAUDE.md
 itself stable; this is where the narrative goes.
 
-## Current state - 2026-10-24 (read this first)
+## Current state - 2026-10-26 (read this first)
+
+### 2026-10-26 (night, ~00:50 Saudi time)
+
+- **Production database moved to Singapore.** Backed up first (`asas-backup-2026-10-26-0052.dump`,
+  pg_dump through `scripts/db/backup-db.ps1` with the API's connection string; Railway's
+  `DATABASE_PUBLIC_URL` still holds a password the database refuses). Then `Postgres` > Settings >
+  Regions & Replicas > Southeast Asia > Deploy at 00:53:49. It was back online before 00:55:30, so
+  under 2 minutes down. The address and credentials were unchanged, so nothing in Azure changed.
+  Measured right after from the browser: `/api/auth/me` and `/api/forms` **~240 ms (were ~600 ms)**.
+- **.NET 10** (branch `chore/dotnet-10`): `net10.0` everywhere, EF Core / ASP.NET 10.0.14, Npgsql
+  EF 10.0.3, CI on `10.x`, `global.json` 10.0.100. Removed the unused EF SqlServer package (it
+  pulled in a vulnerable `System.Security.Cryptography.Pkcs`) and `Options.ConfigurationExtensions`
+  (part of the ASP.NET shared framework). No pending EF model changes. Tests: 101/101 unit and
+  handler tests pass. The 18 Postgres tests need Docker, which this machine can't run.
+- **Staging runs .NET 10.** `asas-api-staging` stack set to .NET 10 (LTS), then the branch was
+  deployed to `staging`. Checked in the browser: token refresh, all 7 forms and their records,
+  dashboard, submit, read back (Saudi time to UTC correct, decimals exact), edit with a conditional
+  field, soft delete, 401 on a wrong password, security headers. Warm timings matched production on
+  .NET 8 (`/api/auth/me` median 441 vs 369 ms, `/api/forms` 325 vs 339 ms; within tonight's
+  network jitter).
+- **Production is still on .NET 8.** To finish: set `nexus-platform-api` > Configuration > Stack
+  settings > Version to .NET 10 (LTS), then fast-forward `main` to `chore/dotnet-10` straight after.
+  The API is down between the two steps and during the restart.
 
 **Asas is live at https://asasksa.co and in use by the client.** Frontend on Azure Static Web
 Apps, API on Azure App Service, data in Railway Postgres. A push to `main` deploys both
@@ -134,11 +157,9 @@ running it.
 ### Open items - in priority order
 
 0. ~~Merge PR #32~~ - **done 2026-10-24** (pushed to `main`; staging work and sign-in speed fixes live).
-0b. **Move the production database to Singapore** - tried on staging 2026-10-24: ~4 minutes
-   down, same address and credentials, and requests went from ~600 ms to ~260 ms (database
-   round trip ~220 ms -> ~45 ms). See `docs/STAGING.md` "Database region moved to Singapore".
-   Production: `Postgres` > Settings > Regions & Replicas > Southeast Asia > Deploy, outside
-   working hours, owner's go-ahead.
+0b. ~~Move the production database to Singapore~~ - **done 2026-10-26** (see top of file).
+0c. **Production to .NET 10** before 10 Nov 2026 - staging done and checked; production needs
+   the stack switch plus the push to `main` (see top of file), with the owner's go-ahead.
 1. **Rotate the Railway Postgres password and the Blob Storage account key** (see "Before going
    live" at the bottom). The app is now in real use, so this is overdue.
 2. **Run `scripts/go-live/find-not-null-columns.sql`** in Railway's query editor (read-only)

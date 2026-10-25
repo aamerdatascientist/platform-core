@@ -1,6 +1,6 @@
 # platform-core
 
-Enterprise low-code platform. ASP.NET Core 8 + EF Core backend (Clean Architecture),
+Enterprise low-code platform. ASP.NET Core 10 + EF Core backend (Clean Architecture),
 React/TS frontend. First customer is a construction company; the platform itself is meant
 to be industry-agnostic. Full rationale: see chat history / architecture doc if available,
 or ask before re-deriving decisions below from scratch.
@@ -289,8 +289,8 @@ database.
   doesn't work on **Aamer's** machine (corporate-locked virtualization). Don't suggest Docker
   as a local dev database again.
 - **A fresh cloud sandbox has no .NET SDK installed**: `sudo -n apt-get install -y
-  dotnet-sdk-8.0` (Ubuntu's own repo, reachable through the proxy) fixes that in about a
-  minute. **NuGet depends on the account's network allowlist.** Until 2026-10-21 `api.nuget.org`
+  dotnet-sdk-10.0` (Ubuntu's own repo, reachable through the proxy; the project is on .NET 10
+  since 2026-10-26) fixes that in about a minute. **NuGet depends on the account's network allowlist.** Until 2026-10-21 `api.nuget.org`
   was refused (403 from the agent proxy), so no `dotnet restore/build/test` was possible and
   work was verified with stub-compiled harnesses instead. Aamer then allowed it under
   claude.ai **Settings > Capabilities** (network egress, extra allowed domains), and
@@ -378,9 +378,10 @@ database.
   default is `$null` and which is going to flow into `ConvertTo-Json` - leave it untyped
   (just `$Param = $null`). Checked the rest of `scripts/*.ps1` for the same pattern (`grep
   '\[string\]\$\w+ = \$null'`) - only this one script had it, now fixed.
-- **The API (Azure East Asia, Hong Kong) and the production database (Railway US West, California; staging moved to Singapore 2026-10-24, ~45 ms) are
-  ~200 ms apart per round trip** (measured 2026-10-24). Every extra query in a request costs
-  that much, so fold queries together where it's easy (see `LoginCommand`). Don't remove
+- **The API runs in Azure East Asia (Hong Kong); both databases run in Railway Southeast Asia
+  (Singapore)** (staging moved 2026-10-24, production 2026-10-26), ~45 ms per round trip. Before
+  that, production's database was in US West at ~200 ms per round trip. Every extra query in a
+  request still costs a round trip, so fold queries together where it's easy (see `LoginCommand`). Don't remove
   `WithWarmPool` (keeps 3 pooled connections alive) or `DatabaseWarmupService` (pays the
   ~25 s cold start at boot) - without them the first sign-in after idle or a restart took 5-38 s.
   Details: `docs/PROJECT_STATUS.md` "Slow sign-in".
