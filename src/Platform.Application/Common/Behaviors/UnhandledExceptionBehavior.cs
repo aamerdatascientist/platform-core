@@ -19,7 +19,8 @@ public class UnhandledExceptionBehavior<TRequest, TResponse> : IPipelineBehavior
             return await next();
         }
         catch (Exception ex) when (ex is not Exceptions.ValidationException
-            and not Exceptions.NotFoundException and not Exceptions.ForbiddenAccessException)
+            and not Exceptions.NotFoundException and not Exceptions.ForbiddenAccessException
+            and not Exceptions.UnauthorizedException)
         {
             _logger.LogError(ex, "Unhandled exception for request {RequestName}", typeof(TRequest).Name);
             throw;
