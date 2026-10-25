@@ -1,6 +1,9 @@
 using System.IdentityModel.Tokens.Jwt;
+using System.Net.Http.Json;
 using System.Security.Claims;
 using MediatR;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -34,11 +37,17 @@ public class DatabaseWarmupService : BackgroundService
     private const string WarmupEmail = "warmup@warmup.invalid";
 
     private readonly IServiceScopeFactory _scopeFactory;
+    private readonly IHostApplicationLifetime _lifetime;
+    private readonly IServer _server;
     private readonly ILogger<DatabaseWarmupService> _logger;
 
-    public DatabaseWarmupService(IServiceScopeFactory scopeFactory, ILogger<DatabaseWarmupService> logger)
+    public DatabaseWarmupService(
+        IServiceScopeFactory scopeFactory, IHostApplicationLifetime lifetime, IServer server,
+        ILogger<DatabaseWarmupService> logger)
     {
         _scopeFactory = scopeFactory;
+        _lifetime = lifetime;
+        _server = server;
         _logger = logger;
     }
 
@@ -56,6 +65,7 @@ public class DatabaseWarmupService : BackgroundService
 
             await WarmSignInAsync(stoppingToken);
             await WarmSignedInQueriesAsync(stoppingToken);
+            await WarmHttpSignInAsync(stoppingToken);
             _logger.LogInformation("Request warm-up done in {Ms} ms.", ElapsedMs(started));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -125,6 +135,30 @@ public class DatabaseWarmupService : BackgroundService
         {
             accessor.HttpContext = null;
         }
+    }
+
+    // One sign-in attempt through the app's own HTTP pipeline (JSON binding, rate limiter,
+    // exception-to-401 mapping), which the in-process calls above never touch. Measured on
+    // staging: without it the first sign-in attempt after a restart still took ~1.9 s.
+    private async Task WarmHttpSignInAsync(CancellationToken cancellationToken)
+    {
+        var listening = new TaskCompletionSource();
+        using (_lifetime.ApplicationStarted.Register(() => listening.TrySetResult()))
+            await listening.Task.WaitAsync(cancellationToken);
+
+        var address = _server.Features.Get<IServerAddressesFeature>()?.Addresses
+            .FirstOrDefault(a => a.StartsWith("http://", StringComparison.OrdinalIgnoreCase));
+        if (address is null) return;
+        var uri = new UriBuilder(address.Replace("://+", "://localhost").Replace("://*", "://localhost"));
+        if (uri.Host is "0.0.0.0" or "[::]") uri.Host = "localhost";
+
+        using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+        {
+            BaseAddress = uri.Uri,
+            Timeout = TimeSpan.FromSeconds(30),
+        };
+        using var response = await http.PostAsJsonAsync(
+            "/api/auth/login", new { email = WarmupEmail, password = "warm-up" }, cancellationToken);
     }
 
     private static int ElapsedMs(DateTime started) => (int)(DateTime.UtcNow - started).TotalMilliseconds;
