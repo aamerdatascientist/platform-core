@@ -70,11 +70,11 @@ public class DatabaseWarmupService : BackgroundService
         var sender = scope.ServiceProvider.GetRequiredService<ISender>();
 
         // Same handlers, validators and queries as a real sign-in/refresh; both end in the
-        // ordinary "invalid credentials" answer.
+        // ordinary rejection (401 for sign-in, 403 for an unknown refresh token).
         try { await sender.Send(new LoginCommand(WarmupEmail, "warm-up"), cancellationToken); }
         catch (UnauthorizedException) { }
         try { await sender.Send(new RefreshTokenCommand(Guid.NewGuid().ToString("N")), cancellationToken); }
-        catch (UnauthorizedException) { }
+        catch (ForbiddenAccessException) { }
 
         // The parts an unknown address skips: the password check and issuing tokens.
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
