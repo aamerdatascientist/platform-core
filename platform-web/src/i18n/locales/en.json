@@ -210,6 +210,11 @@
     "upload": {
       "fileType": "Only photos (JPEG, PNG, WEBP, HEIC) and PDF files can be attached.",
       "tooLarge": "This file is too large. Files must be under 20 MB."
+    },
+    "submission": {
+      "choiceMissing": "This choice no longer exists. Reload the page and choose again.",
+      "choiceMismatch": "This choice doesn't belong to what you picked in the field it depends on (for example, a zone of another project). Choose again.",
+      "duplicate": "This value is already used by another record. Enter a different one."
     }
   },
   "userManagement": {
@@ -461,6 +466,9 @@
     "minExclusive": "Must be more than the minimum",
     "pattern": "Pattern (regular expression, optional)",
     "noFutureDates": "Don't allow future dates",
+    "unique": "No duplicates (another record can't have the same value)",
+    "uniqueWithin": "Only among records with the same",
+    "uniqueWithinAll": "all records",
     "rulesError": "Could not save the rules."
   },
   "moduleName": {

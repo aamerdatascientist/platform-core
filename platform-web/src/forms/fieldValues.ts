@@ -14,10 +14,14 @@ export interface FieldRules {
   minExclusive: boolean;
   regex: string | null;
   noFutureDates: boolean;
+  /** No other record may hold the same text - checked by the server only, since it needs the other records. */
+  unique: boolean;
+  /** Unique only among records with the same value in this sibling field (zone codes within one project). */
+  uniqueWithin: string | null;
 }
 
 export function parseRules(json: string | null | undefined): FieldRules {
-  const empty: FieldRules = { min: null, max: null, minExclusive: false, regex: null, noFutureDates: false };
+  const empty: FieldRules = { min: null, max: null, minExclusive: false, regex: null, noFutureDates: false, unique: false, uniqueWithin: null };
   if (!json) return empty;
   try {
     // Property names are matched case-insensitively, like the backend does.
@@ -31,6 +35,8 @@ export function parseRules(json: string | null | undefined): FieldRules {
       minExclusive: raw.minexclusive === true,
       regex: typeof raw.regex === 'string' && raw.regex.length > 0 ? raw.regex : null,
       noFutureDates: raw.nofuturedates === true,
+      unique: raw.unique === true,
+      uniqueWithin: typeof raw.uniquewithin === 'string' && raw.uniquewithin.length > 0 ? raw.uniquewithin : null,
     };
   } catch {
     return empty;

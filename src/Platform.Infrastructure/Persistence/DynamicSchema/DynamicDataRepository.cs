@@ -222,6 +222,40 @@ public class DynamicDataRepository : IDynamicDataRepository
         return values.ToList();
     }
 
+    public async Task<bool> AnyOtherWithTextAsync(
+        string tableName, string columnCode, string text,
+        string? scopeColumnCode, object? scopeValue, Guid? excludeId,
+        CancellationToken cancellationToken = default)
+    {
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
+        SqlTypeMapper.AssertSafePostgresIdentifier(columnCode);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("Text", text.Trim());
+        parameters.Add("ExcludeId", excludeId ?? Guid.Empty);
+
+        var whereClause = $"\"IsDeleted\" = false AND \"Id\" <> @ExcludeId AND lower(btrim(\"{columnCode}\")) = lower(@Text)";
+        if (scopeColumnCode is not null)
+        {
+            SqlTypeMapper.AssertSafePostgresIdentifier(scopeColumnCode);
+            if (scopeValue is null)
+            {
+                whereClause += $" AND \"{scopeColumnCode}\" IS NULL";
+            }
+            else
+            {
+                whereClause += $" AND \"{scopeColumnCode}\" = @ScopeValue";
+                parameters.Add("ScopeValue", scopeValue);
+            }
+        }
+
+        var sql = $"SELECT EXISTS (SELECT 1 FROM \"{tableName}\" WHERE {whereClause});";
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        return await connection.ExecuteScalarAsync<bool>(
+            new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+    }
+
     private static string BuildSelectColumnList(IEnumerable<FieldDefinition> fields)
     {
         var codes = fields.Select(f =>

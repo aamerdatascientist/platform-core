@@ -31,7 +31,9 @@ public record UpdateFieldRulesCommand(
     double? Max,
     bool MinExclusive,
     string? Regex,
-    bool NoFutureDates) : IRequest;
+    bool NoFutureDates,
+    bool Unique = false,
+    string? UniqueWithin = null) : IRequest;
 
 public class UpdateFieldRulesCommandValidator : AbstractValidator<UpdateFieldRulesCommand>
 {
@@ -93,14 +95,29 @@ public class UpdateFieldRulesCommandHandler : IRequestHandler<UpdateFieldRulesCo
             }
         }
 
+        // "Unique" is for ShortText only (codes and names); UniqueWithin has to name another
+        // active field on the same version, since it's matched against the same submission.
+        var unique = field.FieldType == FieldType.ShortText && request.Unique;
+        var uniqueWithin = unique && !string.IsNullOrWhiteSpace(request.UniqueWithin) ? request.UniqueWithin.Trim() : null;
+        if (uniqueWithin is not null &&
+            (string.Equals(uniqueWithin, field.Code, StringComparison.OrdinalIgnoreCase) ||
+             !target.Version.Fields.Any(f => f.IsActive && string.Equals(f.Code, uniqueWithin, StringComparison.OrdinalIgnoreCase))))
+            throw new Common.Exceptions.ValidationException(new[]
+            {
+                new FluentValidation.Results.ValidationFailure(nameof(request.UniqueWithin),
+                    $"'{uniqueWithin}' isn't another field on this form.")
+            });
+
         var rules = new StoredRules(
             isNumeric ? request.Min : null,
             isNumeric ? request.Max : null,
             regex,
             isDate && request.NoFutureDates ? true : null,
-            isNumeric && request.Min is not null && request.MinExclusive ? true : null);
+            isNumeric && request.Min is not null && request.MinExclusive ? true : null,
+            unique ? true : null,
+            uniqueWithin);
         var hasAny = rules.Min is not null || rules.Max is not null || rules.Regex is not null ||
-                     rules.NoFutureDates is not null;
+                     rules.NoFutureDates is not null || rules.Unique is not null;
 
         // DDL first (see the class summary): a nullable column under a still-required field
         // is harmless if the metadata save below then fails.
@@ -112,5 +129,6 @@ public class UpdateFieldRulesCommandHandler : IRequestHandler<UpdateFieldRulesCo
         await _db.SaveChangesAsync(cancellationToken);
     }
 
-    private record StoredRules(double? Min, double? Max, string? Regex, bool? NoFutureDates, bool? MinExclusive);
+    private record StoredRules(
+        double? Min, double? Max, string? Regex, bool? NoFutureDates, bool? MinExclusive, bool? Unique, string? UniqueWithin);
 }

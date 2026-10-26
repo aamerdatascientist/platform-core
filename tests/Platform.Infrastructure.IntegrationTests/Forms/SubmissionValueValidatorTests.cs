@@ -62,6 +62,17 @@ public class SubmissionValueValidatorTests
         normalized["qty"].Should().Be(12.5m);
     }
 
+    [Fact]
+    public void Normalize_TurnsLookupIds_IntoGuids()
+    {
+        var v = NewVersion();
+        v.AddField("project", "Project", FieldType.Lookup, false, null, Guid.NewGuid(), null);
+        var id = Guid.NewGuid();
+
+        SubmissionValueValidator.Normalize(v.Fields, Values(new { project = id.ToString() }))["project"]
+            .Should().Be(id);
+    }
+
     [Theory]
     [InlineData("1e3")]
     [InlineData("$5")]

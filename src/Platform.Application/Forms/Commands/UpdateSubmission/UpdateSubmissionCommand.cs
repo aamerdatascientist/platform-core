@@ -59,9 +59,12 @@ public class UpdateSubmissionCommandHandler : IRequestHandler<UpdateSubmissionCo
             throw new Common.Exceptions.ValidationException(validationErrors.SelectMany(kv =>
                 kv.Value.Select(msg => new FluentValidation.Results.ValidationFailure(kv.Key, msg))));
 
+        var values = SubmissionValueValidator.Normalize(activeFields, request.Values);
+        await SubmissionDataChecks.ThrowIfInvalidAsync(
+            _db, _dynamicDataRepository, formDefinition.TableName, activeFields, values, request.RecordId, cancellationToken);
+
         var updated = await _dynamicDataRepository.UpdateAsync(
-            formDefinition.TableName, activeFields, request.RecordId,
-            SubmissionValueValidator.Normalize(activeFields, request.Values), request.ModifiedByUserId, cancellationToken);
+            formDefinition.TableName, activeFields, request.RecordId, values, request.ModifiedByUserId, cancellationToken);
 
         if (!updated) throw new NotFoundException("Record", request.RecordId);
     }

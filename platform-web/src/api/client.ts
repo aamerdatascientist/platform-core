@@ -218,6 +218,8 @@ export const api = {
         minExclusive: boolean;
         regex: string | null;
         noFutureDates: boolean;
+        unique: boolean;
+        uniqueWithin: string | null;
       },
     ) =>
       request<void>(

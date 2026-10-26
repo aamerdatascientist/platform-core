@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import i18n from '../i18n';
 import { api, ApiError } from '../api/client';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import { DateField, todayIso } from './DateField';
@@ -314,11 +315,13 @@ export function FormRenderer({ token, formDefinition, onSubmitted, editRecord, o
       onSubmitted?.();
     } catch (err) {
       if (err instanceof ApiError && err.errors) {
-        // Backend keys these by field.code exactly (see SubmissionValueValidator) - no
-        // translation needed, just take the first message per field for display.
+        // Backend keys these by field.code exactly (see SubmissionValueValidator). The checks
+        // that read other records (SubmissionDataChecks) also send a code with a translation;
+        // otherwise the first message per field is shown as-is.
+        const translated = err.code && i18n.exists(`apiErrors.${err.code}`) ? `apiErrors.${err.code}` : null;
         const perField: Record<string, FieldError> = {};
         Object.entries(err.errors).forEach(([code, messages]) => {
-          if (messages.length > 0) perField[code] = { text: messages[0] };
+          if (messages.length > 0) perField[code] = translated ? { key: translated } : { text: messages[0] };
         });
         setFieldErrors(perField);
         setError(null);

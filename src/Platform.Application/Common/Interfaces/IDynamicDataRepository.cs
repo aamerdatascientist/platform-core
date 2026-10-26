@@ -84,4 +84,17 @@ public interface IDynamicDataRepository
     /// </summary>
     Task<IReadOnlyList<string>> GetDistinctColumnValuesAsync(
         string tableName, string columnCode, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Whether another non-deleted row already holds <paramref name="text"/> in a text column,
+    /// compared trimmed and case-insensitively ("az-z1 " matches "AZ-Z1"). With
+    /// <paramref name="scopeColumnCode"/> only rows whose value in that column equals
+    /// <paramref name="scopeValue"/> count (e.g. zone codes unique within one project; a null
+    /// scope value matches rows where it is null). <paramref name="excludeId"/> leaves out the
+    /// record being edited. Backs the "unique" field rule (SubmissionDataChecks).
+    /// </summary>
+    Task<bool> AnyOtherWithTextAsync(
+        string tableName, string columnCode, string text,
+        string? scopeColumnCode, object? scopeValue, Guid? excludeId,
+        CancellationToken cancellationToken = default);
 }

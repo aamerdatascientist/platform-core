@@ -68,9 +68,12 @@ public class SubmitFormDataCommandHandler : IRequestHandler<SubmitFormDataComman
             throw new Platform.Application.Common.Exceptions.ValidationException(validationErrors.SelectMany(kv =>
                 kv.Value.Select(msg => new FluentValidation.Results.ValidationFailure(kv.Key, msg))));
 
+        var values = SubmissionValueValidator.Normalize(activeFields, request.Values);
+        await SubmissionDataChecks.ThrowIfInvalidAsync(
+            _db, _dynamicDataRepository, formDefinition.TableName, activeFields, values, null, cancellationToken);
+
         var newRecordId = await _dynamicDataRepository.InsertAsync(
-            formDefinition.TableName, activeFields, SubmissionValueValidator.Normalize(activeFields, request.Values),
-            request.SubmittedByUserId, cancellationToken);
+            formDefinition.TableName, activeFields, values, request.SubmittedByUserId, cancellationToken);
 
         var publishedWorkflow = await _db.WorkflowDefinitions
             .Include(w => w.States)

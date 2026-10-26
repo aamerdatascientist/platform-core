@@ -96,6 +96,8 @@ export function FieldEditorRow({
   const [minExclusiveDraft, setMinExclusiveDraft] = useState(initialRules.minExclusive);
   const [regexDraft, setRegexDraft] = useState(initialRules.regex ?? '');
   const [noFutureDraft, setNoFutureDraft] = useState(initialRules.noFutureDates);
+  const [uniqueDraft, setUniqueDraft] = useState(initialRules.unique);
+  const [uniqueWithinDraft, setUniqueWithinDraft] = useState(initialRules.uniqueWithin ?? '');
   const isNumeric = field.fieldType === 'Number' || field.fieldType === 'Decimal';
   const isText = field.fieldType === 'ShortText' || field.fieldType === 'LongText';
   const toNumber = (text: string) => (text.trim() === '' || Number.isNaN(Number(text)) ? null : Number(text));
@@ -134,6 +136,8 @@ export function FieldEditorRow({
     setMinExclusiveDraft(rules.minExclusive);
     setRegexDraft(rules.regex ?? '');
     setNoFutureDraft(rules.noFutureDates);
+    setUniqueDraft(rules.unique);
+    setUniqueWithinDraft(rules.uniqueWithin ?? '');
   }
 
   async function run(action: () => Promise<void>, fallbackKey: string) {
@@ -368,6 +372,33 @@ export function FieldEditorRow({
               </label>
             )}
 
+            {field.fieldType === 'ShortText' && (
+              <div className="space-y-2">
+                <label className="flex items-center gap-2 text-sm text-ink">
+                  <input type="checkbox" checked={uniqueDraft} disabled={busy} onChange={(e) => setUniqueDraft(e.target.checked)} />
+                  {t('fieldEditor.unique')}
+                </label>
+                {uniqueDraft && filterableFields.length > 0 && (
+                  <label className="block text-sm text-ink">
+                    {t('fieldEditor.uniqueWithin')}
+                    <select
+                      className={`${inputClass} mt-1 max-w-sm`}
+                      value={uniqueWithinDraft}
+                      disabled={busy}
+                      onChange={(e) => setUniqueWithinDraft(e.target.value)}
+                    >
+                      <option value="">{t('fieldEditor.uniqueWithinAll')}</option>
+                      {filterableFields.map((f) => (
+                        <option key={f.id} value={f.code}>
+                          {f.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </div>
+            )}
+
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -382,6 +413,8 @@ export function FieldEditorRow({
                         minExclusive: isNumeric && toNumber(minDraft) !== null && minExclusiveDraft,
                         regex: isText && regexDraft.trim() ? regexDraft.trim() : null,
                         noFutureDates: field.fieldType === 'DateTime' && noFutureDraft,
+                        unique: field.fieldType === 'ShortText' && uniqueDraft,
+                        uniqueWithin: field.fieldType === 'ShortText' && uniqueDraft && uniqueWithinDraft ? uniqueWithinDraft : null,
                       }),
                     'fieldEditor.rulesError',
                   )
