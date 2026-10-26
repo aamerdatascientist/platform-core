@@ -58,7 +58,7 @@ itself stable; this is where the narrative goes.
 - **Production after the 02:02 deploy** (started 02:04:28, warm-up done 02:05:02): first hits on
   every form's definition 0.4-0.7 s and records 0.5-0.6 s (were 4-11 s), session renewal on page
   load 1.4 s. Staging's test records (PERF-TEST) and their 13 files were deleted afterwards.
-- **Status pages and plain-language errors (staging only so far, branch `chore/dotnet-10`):**
+- **Status pages and plain-language errors (on production since 2026-10-26 ~20:25 Saudi time):**
   `components/StatusPage.tsx` - 401 "session ended" (shown once when the server refuses to renew
   the sign-in, never on a chosen sign-out; `tokenStore.endSession`), 403 (admin pages, restricted
   forms; was a silent redirect home), 404 (unknown addresses, missing forms; was a blank page),
@@ -78,9 +78,18 @@ itself stable; this is where the narrative goes.
     (every field's type, rules, conditions, options compared).
   - **Fixed:** a number sent as text ("1e3", "12.5") passed validation and then crashed the
     insert with a 500; `Normalize` now passes parsed numbers and only plain digits count.
-  - **Gaps found, not fixed (need a decision):** a Lookup accepts any well-formed id - one that
-    doesn't exist, and a zone/floor/footing from another project; project codes and zone codes
-    can be duplicated (seen as two "AZ-Z1" in the dropdown); no "expected completion after start"
+  - **Fixed 2026-10-26 evening (gaps 1 and 2; staging, tested):** `Forms/SubmissionDataChecks.cs`
+    runs on every submission and record edit. A Lookup must point at an existing record, and a
+    filtered one (zone/floor/footing) at a record of the project picked on the same submission
+    (`submission.choiceMissing` / `submission.choiceMismatch`). New ShortText rule
+    `unique` + optional `uniqueWithin` (trimmed, case-insensitive; `submission.duplicate`), in the
+    builder's rules panel and in `apply-field-rules.ps1`: project_code unique; zone/floor/footing
+    codes unique within their project. Messages show under the field in EN/AR. Adds ~2 round
+    trips to a submit (daily report ~0.55-0.65 s on warm staging). Not enforced by a database
+    index, so two simultaneous identical submissions could both get in. Rows that were already
+    duplicated before the rule stay, and editing one of them then asks for a different code.
+    Editing an old record whose zone was later deleted is refused until a current zone is picked.
+  - **Gaps still open (need a decision):** no "expected completion after start"
     rule; stock outflow can exceed what came in; the records list has no page-size cap; the
     required site photo is only enforced by the page (the record is saved first, the photo after).
   - **Production has no form data at all** (0 rows in all seven forms). Not from tonight: the
