@@ -342,6 +342,7 @@ export function ExecutiveOverview({ token }: { token: string | null }) {
               max={workersAxis.top}
               ticks={workersAxis.ticks}
               formatTick={(value) => format.number(value)}
+              formatValue={(value) => format.number(Math.round(value))}
               ariaLabel={t('executiveOverview.workersWeek.title')}
               emptyText={t('executiveOverview.noReports')}
             />
