@@ -327,14 +327,15 @@
       "forecast": "Forecast finish",
       "forecastFinished": "Finished",
       "forecastNone": "No pace to forecast from",
-      "forecastLate": "{{n}} days after target ({{date}})",
-      "forecastEarly": "{{n}} days before target ({{date}})",
-      "forecastOnTime": "On target ({{date}})",
+      "forecastLate": "{{n}} days late",
+      "forecastEarly": "{{n}} days early",
+      "forecastOnTime": "On target",
       "forecastNoTarget": "No target date",
       "lateDays": "Days late",
       "lateDaysDetail": "Working days that missed the plan",
       "lateShare": "Lateness",
-      "lateShareDetail": "{{late}} of {{worked}} worked days"
+      "lateShareDetail": "{{late}} of {{worked}} worked days",
+      "forecastTarget": "Target: {{date}}"
     },
     "projects": {
       "title": "Projects",

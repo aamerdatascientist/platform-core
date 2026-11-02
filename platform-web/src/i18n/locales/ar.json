@@ -327,14 +327,15 @@
       "forecast": "الانتهاء المتوقع",
       "forecastFinished": "انتهت",
       "forecastNone": "لا توجد وتيرة للتوقع",
-      "forecastLate": "بعد الموعد المستهدف بـ{{n}} يوماً ({{date}})",
-      "forecastEarly": "قبل الموعد المستهدف بـ{{n}} يوماً ({{date}})",
-      "forecastOnTime": "في الموعد المستهدف ({{date}})",
+      "forecastLate": "متأخر {{n}} يوماً",
+      "forecastEarly": "مبكر {{n}} يوماً",
+      "forecastOnTime": "في الموعد",
       "forecastNoTarget": "لا يوجد موعد مستهدف",
       "lateDays": "أيام التأخير",
       "lateDaysDetail": "أيام عمل لم تتحقق فيها الخطة",
       "lateShare": "نسبة التأخير",
-      "lateShareDetail": "{{late}} من {{worked}} يوم عمل"
+      "lateShareDetail": "{{late}} من {{worked}} يوم عمل",
+      "forecastTarget": "الموعد المستهدف: {{date}}"
     },
     "projects": {
       "title": "المشاريع",
