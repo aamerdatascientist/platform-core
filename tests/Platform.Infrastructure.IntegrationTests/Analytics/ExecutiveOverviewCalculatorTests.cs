@@ -34,11 +34,12 @@ public class ExecutiveOverviewCalculatorTests
         IReadOnlyCollection<OverviewReportRow> reports,
         IReadOnlyCollection<OverviewStockRow>? stock = null,
         OverviewUnitCounts? units = null,
-        Guid? selected = null)
+        Guid? selected = null,
+        string? phase = null)
     {
         var counts = projects.ToDictionary(p => p.Id, _ => units ?? new OverviewUnitCounts(Zones: 2, Footings: 0, Floors: 0));
         return ExecutiveOverviewCalculator.Calculate(
-            projects, counts, reports, stock ?? Array.Empty<OverviewStockRow>(), AsOf, selected);
+            projects, counts, reports, stock ?? Array.Empty<OverviewStockRow>(), AsOf, selected, phase);
     }
 
     // --- work complete ---------------------------------------------------------------------
@@ -420,6 +421,102 @@ public class ExecutiveOverviewCalculatorTests
             stock, selected: ProjectB);
 
         result.StockByMaterial.Select(m => m.Material).Should().Equal("rebar");
+    }
+
+    // --- lateness and forecast -------------------------------------------------------------
+
+    [Fact]
+    public void DaysLate_CountsDaysWhereNothingInScopeMetItsPlan_AndFollowsTheStage()
+    {
+        var reports = new[]
+        {
+            // Day 1: both fronts missed -> late. Day 2: one front on plan -> not late.
+            Report(ProjectA, AsOf.AddDays(-2), "excavation", Zone1, planMet: false),
+            Report(ProjectA, AsOf.AddDays(-2), "paperwork", "design_approval", planMet: false),
+            Report(ProjectA, AsOf.AddDays(-1), "excavation", Zone1, planMet: false),
+            Report(ProjectA, AsOf.AddDays(-1), "paperwork", "design_approval", planMet: true),
+            Report(ProjectA, AsOf, "paperwork", "design_approval", planMet: true),
+        };
+
+        var all = Calculate(new[] { Project(ProjectA, "A") }, reports).Tiles;
+        all.LateDays.Should().Be(1);
+        all.WorkedDays.Should().Be(3);
+        all.LateShare.Should().BeApproximately(1d / 3d, 1e-9);
+        all.LateShareTone.Should().Be("bad");
+        all.LateDaysTone.Should().Be("good");
+
+        var excavation = Calculate(new[] { Project(ProjectA, "A") }, reports, phase: "excavation").Tiles;
+        excavation.LateDays.Should().Be(2);
+        excavation.WorkedDays.Should().Be(2);
+        excavation.StageEarnedDays.Should().Be(0);
+        excavation.StagePlannedDays.Should().Be(36);
+    }
+
+    [Fact]
+    public void Forecast_DividesTheWorkLeftByTheRecentPace_AndSkipsFridays()
+    {
+        // Paperwork only: 5 met + 5 missed days in the last 30 -> pace 50%; 26 - 5 = 21 days
+        // left -> 42 working days.
+        var reports = Enumerable.Range(1, 10)
+            .Select(i => Report(ProjectA, AsOf.AddDays(-i), "paperwork", "design_approval", planMet: i % 2 == 0))
+            .ToList();
+        var start = AsOf.AddDays(-10);
+
+        var tiles = Calculate(new[] { Project(ProjectA, "A", start: start) }, reports, phase: "paperwork").Tiles;
+
+        tiles.ForecastFinish.Should().Be(ExecutiveOverviewCalculator.AddWorkingDays(AsOf, 42));
+        tiles.ForecastFinished.Should().BeFalse();
+        // Planned end: 26 days + 10% = 29 working days from the start date, counting it.
+        tiles.ForecastTarget.Should().Be(ExecutiveOverviewCalculator.AddWorkingDays(start.AddDays(-1), 29));
+        tiles.ForecastDaysLate.Should().Be(tiles.ForecastFinish!.Value.DayNumber - tiles.ForecastTarget!.Value.DayNumber);
+        tiles.ForecastTone.Should().Be(tiles.ForecastDaysLate <= 30 ? "warn" : "bad");
+    }
+
+    [Fact]
+    public void Forecast_ForAFinishedStage_IsItsLastReport_AndTheWholeProjectIsJudgedOnItsExpectedDate()
+    {
+        var reports = new List<OverviewReportRow>();
+        var day = AsOf.AddDays(-60);
+        foreach (var (milestone, days) in OverviewProgressPlan.MilestoneDays)
+            for (var i = 0; i < days; i++, day = day.AddDays(1))
+                reports.Add(Report(ProjectA, day, "paperwork", milestone, planMet: true));
+        var paperworkDone = day.AddDays(-1);
+        reports.Add(Report(ProjectA, AsOf, "excavation", Zone1, planMet: true));
+
+        var units = new OverviewUnitCounts(Zones: 1, Footings: 0, Floors: 0);
+        var project = Project(ProjectA, "A", start: AsOf.AddDays(-60), expected: AsOf.AddDays(10));
+
+        var paperwork = Calculate(new[] { project }, reports, units: units, phase: "paperwork").Tiles;
+        paperwork.ForecastFinished.Should().BeTrue();
+        paperwork.ForecastFinish.Should().Be(paperworkDone);
+
+        // Whole project: 17 excavation days left at 100% pace, against the expected date.
+        var whole = Calculate(new[] { project }, reports, units: units).Tiles;
+        var finish = ExecutiveOverviewCalculator.AddWorkingDays(AsOf, 17);
+        whole.ForecastFinish.Should().Be(finish);
+        whole.ForecastTarget.Should().Be(AsOf.AddDays(10));
+        whole.ForecastDaysLate.Should().Be(finish.DayNumber - AsOf.AddDays(10).DayNumber);
+    }
+
+    [Theory]
+    [InlineData(0, "good")]
+    [InlineData(30, "warn")]
+    [InlineData(31, "bad")]
+    public void ForecastTone_TurnsAmberThenRed(int daysLate, string tone) =>
+        OverviewKpiThresholds.ForecastTone(daysLate).Should().Be(tone);
+
+    [Theory]
+    [InlineData(5, "good")]
+    [InlineData(15, "warn")]
+    [InlineData(16, "bad")]
+    public void LateDaysTone_TurnsAmberThenRed(int lateDays, string tone) =>
+        OverviewKpiThresholds.LateDaysTone(lateDays).Should().Be(tone);
+
+    [Fact]
+    public void AddWorkingDays_SkipsFriday()
+    {
+        // Thursday 15 Oct 2026 + 1 working day = Saturday 17 Oct.
+        ExecutiveOverviewCalculator.AddWorkingDays(new DateOnly(2026, 10, 15), 1).Should().Be(new DateOnly(2026, 10, 17));
     }
 
     // --- nothing at all --------------------------------------------------------------------

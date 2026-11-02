@@ -19,7 +19,7 @@ import { Logo } from '../components/Logo';
 import { ModeToggle } from '../components/ModeToggle';
 import { buildDashboardUrl, readDashboardLink } from '../dashboardLink';
 import { getMode, onModeChanged, setMode } from '../theme/mode';
-import type { ExecutiveOverviewDto } from '../types';
+import type { ExecutiveOverviewDto, OverviewPhase } from '../types';
 
 /**
  * The page is drawn once, on a fixed 16:9 "stage" of this size, and the whole stage is then
@@ -34,6 +34,9 @@ const STAGE_HEIGHT = 990;
 const REFRESH_MS = 5 * 60 * 1000;
 
 const DELAY_CAUSES_SHOWN = 4;
+
+/** The stage filter's choices, in the order the work happens (OverviewProgressPlan.Phases). */
+const PHASES: OverviewPhase[] = ['paperwork', 'excavation', 'foundation', 'structural', 'mep'];
 
 function useStageScale() {
   const [scale, setScale] = useState(1);
@@ -98,6 +101,7 @@ export function ExecutiveOverview({ token }: { token: string | null }) {
   const [link] = useState(() => readDashboardLink(window.location.hash));
   const [data, setData] = useState<ExecutiveOverviewDto | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedPhase, setSelectedPhase] = useState<OverviewPhase | null>(null);
   const [failure, setFailure] = useState<'invalid' | 'forbidden' | 'error' | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
   const [mode, setCurrentMode] = useState(getMode());
@@ -138,8 +142,8 @@ export function ExecutiveOverview({ token }: { token: string | null }) {
     if (!link.shareKey && !token) return;
     const requestId = ++latestRequest.current;
     const load = link.shareKey
-      ? api.analytics.publicExecutiveOverview(link.shareKey, selectedId)
-      : api.analytics.executiveOverview(token!, selectedId);
+      ? api.analytics.publicExecutiveOverview(link.shareKey, selectedId, selectedPhase)
+      : api.analytics.executiveOverview(token!, selectedId, selectedPhase);
     load
       .then((result) => {
         if (requestId !== latestRequest.current) return;
@@ -154,7 +158,7 @@ export function ExecutiveOverview({ token }: { token: string | null }) {
         else if (!link.shareKey && err instanceof ApiError && err.status === 403) setFailure('forbidden');
         else setFailure('error');
       });
-  }, [link.shareKey, token, selectedId, refreshTick]);
+  }, [link.shareKey, token, selectedId, selectedPhase, refreshTick]);
 
   if (!link.shareKey && !token) {
     return <Message title={t('executiveOverview.share.needLinkTitle')} body={t('executiveOverview.share.needLinkBody')} />;
@@ -294,6 +298,22 @@ export function ExecutiveOverview({ token }: { token: string | null }) {
                 ))}
               </select>
             </label>
+            <label className="flex items-center gap-2 text-xs text-ink-soft">
+              {t('executiveOverview.filter.stageLabel')}
+              <select
+                id="executive-overview-stage"
+                className="w-48 rounded border border-border bg-panel px-2 py-1.5 text-sm text-ink"
+                value={selectedPhase ?? ''}
+                onChange={(event) => setSelectedPhase((event.target.value || null) as OverviewPhase | null)}
+              >
+                <option value="">{t('executiveOverview.filter.stageAll')}</option>
+                {PHASES.map((phase) => (
+                  <option key={phase} value={phase}>
+                    {t(`executiveOverview.phase.${phase}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
             {link.shareKey && (
               <button type="button" className={HEADER_BUTTON_CLASS} onClick={copyLink}>
                 {copied ? t('executiveOverview.share.copied') : t('executiveOverview.share.copyLink')}
@@ -309,7 +329,7 @@ export function ExecutiveOverview({ token }: { token: string | null }) {
           </div>
         </header>
 
-        <OverviewTiles data={data} selected={selected} />
+        <OverviewTiles data={data} selected={selected} phase={selectedPhase} />
 
         <div className="grid min-h-0 grid-cols-12 gap-3.5">
           <div className="col-span-8 min-h-0">

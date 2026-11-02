@@ -1,6 +1,12 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { ExecutiveOverviewDto, OverviewProjectDto, OverviewStockMaterialDto } from '../types';
+import type {
+  ExecutiveOverviewDto,
+  OverviewKpiTone,
+  OverviewPhase,
+  OverviewProjectDto,
+  OverviewStockMaterialDto,
+} from '../types';
 import { StatusLed } from './StatusLed';
 
 // Every panel here is laid out for the dashboard's fixed 16:9 stage (see
@@ -22,12 +28,15 @@ export function useOverviewFormat() {
   const percentFormat = new Intl.NumberFormat(locale, { style: 'percent', maximumFractionDigits: 0 });
   const numberFormat = new Intl.NumberFormat(locale, { maximumFractionDigits: 1 });
   const dayFormat = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  const dateFormat = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
 
   return {
     percent: (share: number) => percentFormat.format(share),
     number: (value: number) => numberFormat.format(value),
     /** "2026-10-10" -> "10 Oct". Parsed and printed as UTC so the calendar date never shifts. */
     day: (isoDate: string) => dayFormat.format(new Date(`${isoDate}T00:00:00Z`)),
+    /** "2027-01-06" -> "6 Jan 2027", for dates that can fall in another year. */
+    date: (isoDate: string) => dateFormat.format(new Date(`${isoDate}T00:00:00Z`)),
     /** Whole percentage points, always with a sign. */
     points: (value: number) => `${value > 0 ? '+' : value < 0 ? '−' : ''}${numberFormat.format(Math.abs(value))}`,
   };
@@ -50,17 +59,52 @@ export function Panel({ title, caption, children }: { title: string; caption?: s
 
 // ------------------------------------------------------------------------------------ tiles
 
-function Tile({ label, value, detail }: { label: string; value: ReactNode; detail: ReactNode }) {
+/** KPI colours: the value and a bar on the tile's leading edge. Thresholds come from the server. */
+const TONE_VALUE_CLASS: Record<OverviewKpiTone, string> = { good: 'text-success', warn: 'text-accent2', bad: 'text-danger' };
+const TONE_EDGE_CLASS: Record<OverviewKpiTone, string> = {
+  good: 'border-s-4 border-s-success',
+  warn: 'border-s-4 border-s-accent2',
+  bad: 'border-s-4 border-s-danger',
+};
+
+function Tile({
+  label,
+  value,
+  detail,
+  tone,
+  compact,
+}: {
+  label: string;
+  value: ReactNode;
+  detail: ReactNode;
+  tone?: OverviewKpiTone | null;
+  /** Smaller figure, for values as long as a full date. */
+  compact?: boolean;
+}) {
   return (
-    <div className="flex min-w-0 flex-col justify-center rounded border border-border bg-panel px-4 shadow-recessed">
+    <div
+      className={`flex min-w-0 flex-col justify-center rounded border border-border bg-panel px-4 shadow-recessed ${tone ? TONE_EDGE_CLASS[tone] : ''}`}
+    >
       <div className="truncate font-display text-label font-semibold uppercase tracking-[0.07em] text-ink-soft">{label}</div>
-      <div className="mt-0.5 truncate font-display text-3xl font-bold text-ink">{value}</div>
+      <div
+        className={`mt-0.5 truncate font-display font-bold ${compact ? 'text-2xl' : 'text-3xl'} ${tone ? TONE_VALUE_CLASS[tone] : 'text-ink'}`}
+      >
+        {value}
+      </div>
       <div className="truncate text-xs text-ink-soft">{detail}</div>
     </div>
   );
 }
 
-export function OverviewTiles({ data, selected }: { data: ExecutiveOverviewDto; selected: OverviewProjectDto | null }) {
+export function OverviewTiles({
+  data,
+  selected,
+  phase,
+}: {
+  data: ExecutiveOverviewDto;
+  selected: OverviewProjectDto | null;
+  phase: OverviewPhase | null;
+}) {
   const { t } = useTranslation();
   const format = useOverviewFormat();
   const tiles = data.tiles;
@@ -71,9 +115,34 @@ export function OverviewTiles({ data, selected }: { data: ExecutiveOverviewDto; 
       ? Math.round(tiles.planMetLast14Days * 100) - Math.round(tiles.planMetPrevious14Days * 100)
       : null;
 
+  const forecastDetail =
+    tiles.forecastFinish === null
+      ? t('executiveOverview.tiles.forecastNone')
+      : tiles.forecastTarget === null || tiles.forecastDaysLate === null
+        ? t('executiveOverview.tiles.forecastNoTarget')
+        : tiles.forecastDaysLate > 0
+          ? t('executiveOverview.tiles.forecastLate', { n: tiles.forecastDaysLate, date: format.date(tiles.forecastTarget) })
+          : tiles.forecastDaysLate < 0
+            ? t('executiveOverview.tiles.forecastEarly', { n: -tiles.forecastDaysLate, date: format.date(tiles.forecastTarget) })
+            : t('executiveOverview.tiles.forecastOnTime', { date: format.date(tiles.forecastTarget) });
+  const stageName = phase ? t(`executiveOverview.phase.${phase}`) : null;
+
   return (
-    <div className="grid h-full grid-cols-5 gap-3.5">
-      {selected ? (
+    <div className="grid h-full grid-cols-8 gap-3.5">
+      {phase ? (
+        <>
+          <Tile
+            label={t('executiveOverview.filter.stageLabel')}
+            value={stageName}
+            detail={selected ? <span dir="auto">{selected.code} · {selected.name}</span> : t('executiveOverview.filter.all')}
+          />
+          <Tile
+            label={t('executiveOverview.tiles.workComplete')}
+            value={format.percent(tiles.stageWorkComplete ?? 0)}
+            detail={t('executiveOverview.tiles.stageWork', { earned: tiles.stageEarnedDays, planned: tiles.stagePlannedDays })}
+          />
+        </>
+      ) : selected ? (
         <>
           <Tile
             label={t('executiveOverview.tiles.status')}
@@ -146,6 +215,25 @@ export function OverviewTiles({ data, selected }: { data: ExecutiveOverviewDto; 
             ? t('executiveOverview.tiles.noReports30')
             : t('executiveOverview.tiles.delaysDetail', { delayed: tiles.delayedReportsLast30Days, total: tiles.reportsLast30Days })
         }
+      />
+      <Tile
+        label={stageName ? `${t('executiveOverview.tiles.forecast')} · ${stageName}` : t('executiveOverview.tiles.forecast')}
+        value={tiles.forecastFinish === null ? dash : format.date(tiles.forecastFinish)}
+        detail={tiles.forecastFinished ? `${t('executiveOverview.tiles.forecastFinished')} · ${forecastDetail}` : forecastDetail}
+        tone={tiles.forecastTone}
+        compact
+      />
+      <Tile
+        label={t('executiveOverview.tiles.lateDays')}
+        value={tiles.workedDays === 0 ? dash : format.number(tiles.lateDays)}
+        detail={t('executiveOverview.tiles.lateDaysDetail')}
+        tone={tiles.lateDaysTone}
+      />
+      <Tile
+        label={t('executiveOverview.tiles.lateShare')}
+        value={tiles.lateShare === null ? dash : format.percent(tiles.lateShare)}
+        detail={t('executiveOverview.tiles.lateShareDetail', { late: tiles.lateDays, worked: tiles.workedDays })}
+        tone={tiles.lateShareTone}
       />
     </div>
   );

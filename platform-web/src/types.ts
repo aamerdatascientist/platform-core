@@ -173,6 +173,9 @@ export interface DropdownOption {
 export type OverviewPhase = 'paperwork' | 'excavation' | 'foundation' | 'structural' | 'mep';
 export type OverviewScheduleStatus = 'ahead' | 'behind' | 'on_track' | 'finished' | 'unknown';
 
+/** Thresholds live on the server (OverviewKpiThresholds) - the page only colours by them. */
+export type OverviewKpiTone = 'good' | 'warn' | 'bad';
+
 export interface OverviewTilesDto {
   projectCount: number;
   activeCount: number;
@@ -188,6 +191,23 @@ export interface OverviewTilesDto {
   delayedShareLast30Days: number | null;
   delayedReportsLast30Days: number;
   reportsLast30Days: number;
+  /** With a stage selected: that stage's days earned over planned; null without one. */
+  stageWorkComplete: number | null;
+  stageEarnedDays: number;
+  stagePlannedDays: number;
+  /** Working days on which nothing in scope met its plan, out of the days worked. */
+  lateDays: number;
+  workedDays: number;
+  lateShare: number | null;
+  lateDaysTone: OverviewKpiTone | null;
+  lateShareTone: OverviewKpiTone | null;
+  /** At the last 30 days' pace; for a finished stage, its last report. */
+  forecastFinish: string | null;
+  /** Expected completion (whole project) or the stage's planned end (+10% slack). */
+  forecastTarget: string | null;
+  forecastDaysLate: number | null;
+  forecastFinished: boolean;
+  forecastTone: OverviewKpiTone | null;
 }
 
 export interface OverviewProjectDto {
@@ -257,6 +277,7 @@ export interface ExecutiveOverviewDto {
   asOf: string;
   dataFrom: string | null;
   selectedProjectId: string | null;
+  selectedPhase: OverviewPhase | null;
   projectsWithoutReports: number;
   tiles: OverviewTilesDto;
   projects: OverviewProjectDto[];
