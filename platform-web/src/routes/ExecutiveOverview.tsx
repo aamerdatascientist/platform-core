@@ -274,7 +274,7 @@ export function ExecutiveOverview({ token }: { token: string | null }) {
               <h1 className="truncate font-display text-xl font-semibold uppercase tracking-[0.07em] text-ink">
                 {t('executiveOverview.title')}
               </h1>
-              <p className="truncate text-xs text-ink-soft">
+              <p className="truncate text-xs text-ink-soft" dir="auto">
                 {data.dataFrom
                   ? t('executiveOverview.subtitle', { asOf: format.day(data.asOf), from: reportsSince })
                   : t('executiveOverview.subtitleEmpty')}
