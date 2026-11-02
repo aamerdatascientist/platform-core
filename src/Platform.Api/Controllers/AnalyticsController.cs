@@ -37,8 +37,8 @@ public class AnalyticsController : ControllerBase
     /// </summary>
     [HttpGet("executive-overview")]
     public async Task<ActionResult<ExecutiveOverviewDto>> GetExecutiveOverview(
-        [FromQuery] Guid? projectId, CancellationToken cancellationToken) =>
-        Ok(await _sender.Send(new GetExecutiveOverviewQuery(projectId), cancellationToken));
+        [FromQuery] Guid? projectId, [FromQuery] string? phase, CancellationToken cancellationToken) =>
+        Ok(await _sender.Send(new GetExecutiveOverviewQuery(projectId, phase), cancellationToken));
 
     public record DashboardShareKeyResponse(string? Key);
 

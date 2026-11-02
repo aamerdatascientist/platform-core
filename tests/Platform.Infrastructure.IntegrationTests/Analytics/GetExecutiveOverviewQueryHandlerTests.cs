@@ -118,8 +118,8 @@ public class GetExecutiveOverviewQueryHandlerTests
         project.LastReportDate.Should().Be(today, "a date stored as 21:00 UTC the evening before is that Saudi-local day");
         project.DaysSinceLastReport.Should().Be(0);
         project.TimeElapsed.Should().BeApproximately(0.25, 1e-9);
-        // 1 met day on a 2-day zone; 2 zones x 2 days + 10 paperwork days planned.
-        project.WorkComplete.Should().BeApproximately(1d / 14d, 1e-9);
+        // 1 met day on an 18-day zone; 2 zones x 18 days + 26 paperwork days planned.
+        project.WorkComplete.Should().BeApproximately(1d / 62d, 1e-9);
 
         result.Tiles.WorkersOnSite.Should().Be(12);
         result.DelayCauses.Single().Label.Should().Be("Late delivery");

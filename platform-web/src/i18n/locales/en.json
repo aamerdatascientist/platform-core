@@ -273,7 +273,9 @@
     "noReportsThisWeek": "No reports",
     "filter": {
       "label": "Project",
-      "all": "All projects"
+      "all": "All projects",
+      "stageLabel": "Stage",
+      "stageAll": "All stages"
     },
     "projectStatus": {
       "planning": "Planning",
@@ -320,7 +322,19 @@
       "noReports": "No reports",
       "delays": "Reports with a delay · 30 days",
       "delaysDetail": "{{delayed}} of {{total}} reports",
-      "noReports30": "No reports in the last 30 days"
+      "noReports30": "No reports in the last 30 days",
+      "stageWork": "{{earned}} of {{planned}} planned days",
+      "forecast": "Forecast finish",
+      "forecastFinished": "Finished",
+      "forecastNone": "No pace to forecast from",
+      "forecastLate": "{{n}} days after target ({{date}})",
+      "forecastEarly": "{{n}} days before target ({{date}})",
+      "forecastOnTime": "On target ({{date}})",
+      "forecastNoTarget": "No target date",
+      "lateDays": "Days late",
+      "lateDaysDetail": "Working days that missed the plan",
+      "lateShare": "Lateness",
+      "lateShareDetail": "{{late}} of {{worked}} worked days"
     },
     "projects": {
       "title": "Projects",

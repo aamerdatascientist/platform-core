@@ -31,6 +31,7 @@ public class PublicDashboardController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<ExecutiveOverviewDto>> Get(
         [FromQuery] Guid? projectId,
+        [FromQuery] string? phase,
         [FromHeader(Name = DashboardShareKey.HeaderName)] string? key,
         CancellationToken cancellationToken)
     {
@@ -38,6 +39,6 @@ public class PublicDashboardController : ControllerBase
 
         // Shared screens poll this; nothing along the way should hand back a stale copy.
         Response.Headers.CacheControl = "no-store";
-        return Ok(await _sender.Send(new GetExecutiveOverviewQuery(projectId), cancellationToken));
+        return Ok(await _sender.Send(new GetExecutiveOverviewQuery(projectId, phase), cancellationToken));
     }
 }

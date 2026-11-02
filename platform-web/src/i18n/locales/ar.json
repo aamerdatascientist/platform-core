@@ -273,7 +273,9 @@
     "noReportsThisWeek": "لا توجد تقارير",
     "filter": {
       "label": "المشروع",
-      "all": "كل المشاريع"
+      "all": "كل المشاريع",
+      "stageLabel": "المرحلة",
+      "stageAll": "كل المراحل"
     },
     "projectStatus": {
       "planning": "التخطيط",
@@ -320,7 +322,19 @@
       "noReports": "لا توجد تقارير",
       "delays": "تقارير فيها تأخير · 30 يوماً",
       "delaysDetail": "{{delayed}} من {{total}} تقريراً",
-      "noReports30": "لا توجد تقارير في آخر 30 يوماً"
+      "noReports30": "لا توجد تقارير في آخر 30 يوماً",
+      "stageWork": "{{earned}} من {{planned}} يوماً مخططاً",
+      "forecast": "الانتهاء المتوقع",
+      "forecastFinished": "انتهت",
+      "forecastNone": "لا توجد وتيرة للتوقع",
+      "forecastLate": "بعد الموعد المستهدف بـ{{n}} يوماً ({{date}})",
+      "forecastEarly": "قبل الموعد المستهدف بـ{{n}} يوماً ({{date}})",
+      "forecastOnTime": "في الموعد المستهدف ({{date}})",
+      "forecastNoTarget": "لا يوجد موعد مستهدف",
+      "lateDays": "أيام التأخير",
+      "lateDaysDetail": "أيام عمل لم تتحقق فيها الخطة",
+      "lateShare": "نسبة التأخير",
+      "lateShareDetail": "{{late}} من {{worked}} يوم عمل"
     },
     "projects": {
       "title": "المشاريع",

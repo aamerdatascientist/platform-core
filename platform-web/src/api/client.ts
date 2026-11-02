@@ -123,6 +123,15 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
   return (await response.json()) as T;
 }
 
+/** "?projectId=...&phase=..." for the dashboard, or "" when neither is set. */
+function overviewQuery(projectId?: string | null, phase?: string | null) {
+  const params = new URLSearchParams();
+  if (projectId) params.set('projectId', projectId);
+  if (phase) params.set('phase', phase);
+  const query = params.toString();
+  return query ? `?${query}` : '';
+}
+
 export const api = {
   auth: {
     login: (email: string, password: string) =>
@@ -365,10 +374,10 @@ export const api = {
   },
 
   analytics: {
-    /** The whole Executive Overview in one call; projectId narrows everything but the project list. */
-    executiveOverview: (token: string, projectId?: string | null) =>
+    /** The whole Executive Overview in one call; projectId and phase narrow everything but the project list. */
+    executiveOverview: (token: string, projectId?: string | null, phase?: string | null) =>
       request<ExecutiveOverviewDto>(
-        `/api/analytics/executive-overview${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`,
+        `/api/analytics/executive-overview${overviewQuery(projectId, phase)}`,
         {},
         token,
       ),
@@ -378,9 +387,9 @@ export const api = {
      * key travels in a header, never in the address sent to the server. No token is passed,
      * so a failure here never triggers a token refresh or touches the signed-in session.
      */
-    publicExecutiveOverview: (shareKey: string, projectId?: string | null) =>
+    publicExecutiveOverview: (shareKey: string, projectId?: string | null, phase?: string | null) =>
       request<ExecutiveOverviewDto>(
-        `/api/public/executive-overview${projectId ? `?projectId=${encodeURIComponent(projectId)}` : ''}`,
+        `/api/public/executive-overview${overviewQuery(projectId, phase)}`,
         { headers: { 'X-Dashboard-Key': shareKey } },
       ),
 

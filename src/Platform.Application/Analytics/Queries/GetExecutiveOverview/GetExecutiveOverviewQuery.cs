@@ -13,11 +13,13 @@ namespace Platform.Application.Analytics.Queries.GetExecutiveOverview;
 ///
 /// <paramref name="ProjectId"/> narrows everything except the project table itself (which
 /// always lists every reporting project, since it is also what the user picks from).
+/// <paramref name="Phase"/> narrows the same way, to one stage's reports; an unknown value is
+/// ignored rather than rejected, so an old link never breaks the page.
 ///
 /// Replaces the five older per-panel analytics queries, which read forms that were deleted in
 /// the 2026-10-04 projects-centric rebuild and so returned nothing.
 /// </summary>
-public record GetExecutiveOverviewQuery(Guid? ProjectId = null) : IRequest<ExecutiveOverviewDto>;
+public record GetExecutiveOverviewQuery(Guid? ProjectId = null, string? Phase = null) : IRequest<ExecutiveOverviewDto>;
 
 public class GetExecutiveOverviewQueryHandler : IRequestHandler<GetExecutiveOverviewQuery, ExecutiveOverviewDto>
 {
@@ -116,7 +118,8 @@ public class GetExecutiveOverviewQueryHandler : IRequestHandler<GetExecutiveOver
         }
 
         var today = DateOnly.FromDateTime(DateTime.UtcNow + SaudiArabiaOffset);
-        return ExecutiveOverviewCalculator.Calculate(projects, unitCounts, reports, stock, today, request.ProjectId);
+        var phaseFilter = OverviewProgressPlan.Phases.Contains(request.Phase) ? request.Phase : null;
+        return ExecutiveOverviewCalculator.Calculate(projects, unitCounts, reports, stock, today, request.ProjectId, phaseFilter);
     }
 
     /// <summary>

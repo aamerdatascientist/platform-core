@@ -35,6 +35,7 @@ public record ExecutiveOverviewDto(
     DateOnly AsOf,
     DateOnly? DataFrom,
     Guid? SelectedProjectId,
+    string? SelectedPhase,
     int ProjectsWithoutReports,
     OverviewTilesDto Tiles,
     IReadOnlyList<OverviewProjectDto> Projects,
@@ -53,13 +54,22 @@ public record ExecutiveOverviewDto(
 /// Portfolio counts always describe every reporting project; the remaining figures describe
 /// the current scope (all projects, or the selected one). Shares are 0..1; null means "no
 /// reports in that window", which the page shows as a dash rather than 0%.
+///
+/// With a stage selected, <paramref name="StageWorkComplete"/> is that stage's days earned over
+/// days planned (null without a stage). The lateness and forecast figures, and their tones
+/// ("good" / "warn" / "bad", see <see cref="OverviewKpiThresholds"/>), are explained on
+/// <see cref="ExecutiveOverviewCalculator.BuildLateness"/> and <see cref="ExecutiveOverviewCalculator.Forecast"/>.
 /// </summary>
 public record OverviewTilesDto(
     int ProjectCount, int ActiveCount, int OnHoldCount, int CompletedCount,
     double WorkComplete, int ActiveBehindCount,
     double? PlanMetLast14Days, double? PlanMetPrevious14Days, int ReportsLast14Days,
     int? WorkersOnSite, DateOnly? WorkersOnSiteDate,
-    double? DelayedShareLast30Days, int DelayedReportsLast30Days, int ReportsLast30Days);
+    double? DelayedShareLast30Days, int DelayedReportsLast30Days, int ReportsLast30Days,
+    double? StageWorkComplete, int StageEarnedDays, int StagePlannedDays,
+    int LateDays, int WorkedDays, double? LateShare, string? LateDaysTone, string? LateShareTone,
+    DateOnly? ForecastFinish, DateOnly? ForecastTarget, int? ForecastDaysLate, bool ForecastFinished,
+    string? ForecastTone);
 
 public record OverviewProjectDto(
     Guid Id, string Code, string Name, string? City, string? Manager, string? Status,
@@ -140,6 +150,54 @@ public static class OverviewProgressPlan
         Mep => MepTradeDays * MepTradesPerFloor * units.Floors,
         _ => 0,
     };
+
+    /// <summary>
+    /// Slack added on top of the planned working days when a stage's planned end date is
+    /// worked out (owner, 2026-11-03: "+10% on these days for relaxation"). The same figure
+    /// set project 119's expected completion date.
+    /// </summary>
+    public const double Slack = 0.10;
+}
+
+/// <summary>
+/// Where the three lateness KPIs turn amber and red. One place, so the page and the
+/// numbers can never disagree about what counts as "bad".
+/// </summary>
+public static class OverviewKpiThresholds
+{
+    public const string Good = "good";
+    public const string Warn = "warn";
+    public const string Bad = "bad";
+
+    /// <summary>Forecast finish: on or before its target is good, up to this many calendar days late is amber.</summary>
+    public const int ForecastWarnDays = 30;
+
+    /// <summary>Days late: up to 5 working days is good, up to 15 (under a floor's cycle) amber.</summary>
+    public const int LateDaysGood = 5;
+    public const int LateDaysWarn = 15;
+
+    /// <summary>Share of worked days that missed their plan: under 10% good, up to 25% amber.</summary>
+    public const double LateShareGood = 0.10;
+    public const double LateShareWarn = 0.25;
+
+    public static string? ForecastTone(int? daysLate) => daysLate switch
+    {
+        null => null,
+        <= 0 => Good,
+        <= ForecastWarnDays => Warn,
+        _ => Bad,
+    };
+
+    public static string LateDaysTone(int lateDays) =>
+        lateDays <= LateDaysGood ? Good : lateDays <= LateDaysWarn ? Warn : Bad;
+
+    public static string? LateShareTone(double? share) => share switch
+    {
+        null => null,
+        < LateShareGood => Good,
+        <= LateShareWarn => Warn,
+        _ => Bad,
+    };
 }
 
 /// <summary>
@@ -174,7 +232,8 @@ public static class ExecutiveOverviewCalculator
         IReadOnlyCollection<OverviewReportRow> reports,
         IReadOnlyCollection<OverviewStockRow> stock,
         DateOnly asOf,
-        Guid? selectedProjectId)
+        Guid? selectedProjectId,
+        string? selectedPhase = null)
     {
         var reportsByProject = reports.GroupBy(r => r.ProjectId).ToDictionary(g => g.Key, g => g.ToList());
 
@@ -188,9 +247,14 @@ public static class ExecutiveOverviewCalculator
 
         var reportingIds = reporting.Select(p => p.Id).ToHashSet();
         var allReports = reports.Where(r => reportingIds.Contains(r.ProjectId)).ToList();
-        var scopeReports = selectedProjectId is { } selected
-            ? allReports.Where(r => r.ProjectId == selected).ToList()
-            : allReports;
+        var scopeSummaries = selectedProjectId is { } selected
+            ? summaries.Where(s => s.Dto.Id == selected).ToList()
+            : summaries;
+        // A selected stage narrows every report-based figure; the project table stays whole.
+        var scopeReports = allReports
+            .Where(r => selectedProjectId is not { } id || r.ProjectId == id)
+            .Where(r => selectedPhase is null || r.Phase == selectedPhase)
+            .ToList();
         var scopeStock = selectedProjectId is { } selectedForStock
             ? stock.Where(s => s.ProjectId == selectedForStock).ToList()
             : stock.ToList();
@@ -205,8 +269,9 @@ public static class ExecutiveOverviewCalculator
             AsOf: asOf,
             DataFrom: allReports.Count == 0 ? null : allReports.Min(r => r.Date),
             SelectedProjectId: selectedProjectId,
+            SelectedPhase: selectedPhase,
             ProjectsWithoutReports: projects.Count - reporting.Count,
-            Tiles: BuildTiles(summaries, scopeReports, asOf),
+            Tiles: BuildTiles(summaries, scopeSummaries, scopeReports, reportsByProject, selectedPhase, asOf),
             Projects: summaries.Select(s => s.Dto).ToList(),
             PlanMetByWeek: weeks.Select(w => PlanMetForWeek(w, scopeReports)).ToList(),
             WorkersByWeek: weeks.Select(w => WorkersForWeek(w, scopeReports)).ToList(),
@@ -235,7 +300,9 @@ public static class ExecutiveOverviewCalculator
 
     // ----------------------------------------------------------------------------- projects
 
-    private sealed record ProjectSummary(OverviewProjectDto Dto, int EarnedDays, int PlannedDays);
+    private sealed record ProjectSummary(
+        OverviewProjectDto Dto, OverviewProjectRow Project, int EarnedDays, int PlannedDays,
+        IReadOnlyDictionary<string, int> EarnedByPhase, IReadOnlyDictionary<string, int> PlannedByPhase);
 
     private static ProjectSummary SummariseProject(
         OverviewProjectRow project, OverviewUnitCounts units, IReadOnlyList<OverviewReportRow> reports, DateOnly asOf)
@@ -249,6 +316,8 @@ public static class ExecutiveOverviewCalculator
             .ToDictionary(g => g.Key, g => g.Sum(x => x.Earned));
 
         var phases = new List<OverviewPhaseDto>();
+        var earnedCapped = new Dictionary<string, int>();
+        var plannedByPhase = new Dictionary<string, int>();
         int earnedTotal = 0, plannedTotal = 0;
         foreach (var phase in OverviewProgressPlan.Phases)
         {
@@ -256,6 +325,8 @@ public static class ExecutiveOverviewCalculator
             // A report can name a unit that has since been removed from the master data;
             // never let that push a phase past 100%.
             var earned = Math.Min(earnedByPhase.GetValueOrDefault(phase), planned);
+            earnedCapped[phase] = earned;
+            plannedByPhase[phase] = planned;
             earnedTotal += earned;
             plannedTotal += planned;
             phases.Add(new OverviewPhaseDto(phase, planned == 0 ? 0 : (double)earned / planned));
@@ -278,7 +349,7 @@ public static class ExecutiveOverviewCalculator
             LastReportDate: lastReportDate,
             DaysSinceLastReport: Math.Max(0, asOf.DayNumber - lastReportDate.DayNumber));
 
-        return new ProjectSummary(dto, earnedTotal, plannedTotal);
+        return new ProjectSummary(dto, project, earnedTotal, plannedTotal, earnedCapped, plannedByPhase);
     }
 
     /// <summary>
@@ -315,7 +386,12 @@ public static class ExecutiveOverviewCalculator
     // -------------------------------------------------------------------------------- tiles
 
     private static OverviewTilesDto BuildTiles(
-        IReadOnlyList<ProjectSummary> summaries, IReadOnlyList<OverviewReportRow> scopeReports, DateOnly asOf)
+        IReadOnlyList<ProjectSummary> summaries,
+        IReadOnlyList<ProjectSummary> scopeSummaries,
+        IReadOnlyList<OverviewReportRow> scopeReports,
+        IReadOnlyDictionary<Guid, List<OverviewReportRow>> reportsByProject,
+        string? selectedPhase,
+        DateOnly asOf)
     {
         int CountStatus(string status) =>
             summaries.Count(s => string.Equals(s.Dto.Status, status, StringComparison.OrdinalIgnoreCase));
@@ -326,6 +402,19 @@ public static class ExecutiveOverviewCalculator
         var last30 = InWindow(scopeReports, asOf, 0, 30);
 
         DateOnly? latestDay = scopeReports.Count == 0 ? null : scopeReports.Max(r => r.Date);
+
+        var stageEarned = selectedPhase is null ? 0 : scopeSummaries.Sum(s => s.EarnedByPhase.GetValueOrDefault(selectedPhase));
+        var stagePlanned = selectedPhase is null ? 0 : scopeSummaries.Sum(s => s.PlannedByPhase.GetValueOrDefault(selectedPhase));
+        var (lateDays, workedDays) = BuildLateness(scopeReports);
+        double? lateShare = workedDays == 0 ? null : (double)lateDays / workedDays;
+
+        // Several projects: the latest forecast finish, judged by the worst slip among them.
+        var forecasts = scopeSummaries
+            .Select(s => Forecast(s.Project, s.EarnedByPhase, s.PlannedByPhase, reportsByProject[s.Dto.Id], selectedPhase, asOf))
+            .OfType<ProjectForecast>()
+            .ToList();
+        var forecastDaysLate = forecasts.Select(f => f.DaysLate).OfType<int>().DefaultIfEmpty().Max();
+        int? worstSlip = forecasts.Any(f => f.DaysLate is not null) ? forecastDaysLate : null;
 
         return new OverviewTilesDto(
             ProjectCount: summaries.Count,
@@ -342,7 +431,126 @@ public static class ExecutiveOverviewCalculator
             WorkersOnSiteDate: latestDay,
             DelayedShareLast30Days: Share(last30, r => r.HadDelay),
             DelayedReportsLast30Days: last30.Count(r => r.HadDelay),
-            ReportsLast30Days: last30.Count);
+            ReportsLast30Days: last30.Count,
+            StageWorkComplete: selectedPhase is null ? null : stagePlanned == 0 ? 0 : (double)stageEarned / stagePlanned,
+            StageEarnedDays: stageEarned,
+            StagePlannedDays: stagePlanned,
+            LateDays: lateDays,
+            WorkedDays: workedDays,
+            LateShare: lateShare,
+            LateDaysTone: workedDays == 0 ? null : OverviewKpiThresholds.LateDaysTone(lateDays),
+            LateShareTone: OverviewKpiThresholds.LateShareTone(lateShare),
+            ForecastFinish: forecasts.Count == 0 ? null : forecasts.Max(f => f.Finish),
+            ForecastTarget: forecasts.Count == 0 ? null : forecasts.Select(f => f.Target).Max(),
+            ForecastDaysLate: worstSlip,
+            ForecastFinished: forecasts.Count > 0 && forecasts.All(f => f.Finished),
+            ForecastTone: OverviewKpiThresholds.ForecastTone(worstSlip));
+    }
+
+    // ----------------------------------------------------------------------------- lateness
+
+    /// <summary>
+    /// Days late = working days on which the work in scope missed its plan: a project's report
+    /// date counts as late when none of that day's reports in scope met its plan (two fronts
+    /// on one day, one on plan, is not a lost day). Worked days = that project's report dates
+    /// in scope. Both add up across projects, one per project per date.
+    /// </summary>
+    public static (int LateDays, int WorkedDays) BuildLateness(IEnumerable<OverviewReportRow> scopeReports)
+    {
+        var days = scopeReports.GroupBy(r => (r.ProjectId, r.Date)).ToList();
+        return (days.Count(d => !d.Any(r => r.PlanMet)), days.Count);
+    }
+
+    // ----------------------------------------------------------------------------- forecast
+
+    public sealed record ProjectForecast(DateOnly Finish, DateOnly? Target, int? DaysLate, bool Finished);
+
+    /// <summary>Plan-met share over this many days sets the pace a forecast assumes.</summary>
+    public const int ForecastPaceDays = 30;
+
+    /// <summary>
+    /// When the selected stage (or, with none, the whole project) will finish at the current pace.
+    ///
+    /// The stages run one after another - paperwork, excavation, foundation, structure - and
+    /// electrical/plumbing on the top floor follows the last floor's structure (MEP on the
+    /// other floors runs alongside, so it adds nothing). The work left is the planned days not
+    /// yet earned up to the end of that chain; it is divided by the plan-met share of the last
+    /// 30 days (each missed day earns nothing) and counted forward in working days, skipping
+    /// Fridays. A finished stage reports the date of its last report instead.
+    ///
+    /// The target is the project's expected completion date for the whole project, and the
+    /// planned end of the stage (start date + planned working days + 10% slack) for a stage.
+    /// Null when the pace is zero - no forecast can be made then, rather than an infinite one.
+    /// </summary>
+    public static ProjectForecast? Forecast(
+        OverviewProjectRow project,
+        IReadOnlyDictionary<string, int> earnedByPhase,
+        IReadOnlyDictionary<string, int> plannedByPhase,
+        IReadOnlyList<OverviewReportRow> reports,
+        string? phase,
+        DateOnly asOf)
+    {
+        if (reports.Count == 0) return null;
+
+        var chain = OverviewProgressPlan.Phases.Where(p => p != OverviewProgressPlan.Mep).ToList();
+        var withTail = phase is null or OverviewProgressPlan.Mep;
+        var through = withTail ? chain : chain.Take(chain.IndexOf(phase!) + 1).ToList();
+
+        var remaining = through.Sum(p => plannedByPhase.GetValueOrDefault(p) - earnedByPhase.GetValueOrDefault(p));
+        var plannedThrough = through.Sum(p => plannedByPhase.GetValueOrDefault(p));
+        if (withTail && plannedByPhase.GetValueOrDefault(OverviewProgressPlan.Structural) > 0)
+        {
+            plannedThrough += OverviewProgressPlan.MepTradeDays;
+            var structureLeft = plannedByPhase[OverviewProgressPlan.Structural] - earnedByPhase.GetValueOrDefault(OverviewProgressPlan.Structural);
+            if (structureLeft > 0)
+            {
+                remaining += OverviewProgressPlan.MepTradeDays;
+            }
+            else
+            {
+                // Structure done: what is left is the top floor's MEP not yet seen on plan.
+                var structureDone = reports.Where(r => r.Phase == OverviewProgressPlan.Structural).Select(r => r.Date).DefaultIfEmpty(DateOnly.MinValue).Max();
+                var mepDaysSince = reports.Where(r => r.Phase == OverviewProgressPlan.Mep && r.PlanMet && r.Date > structureDone).Select(r => r.Date).Distinct().Count();
+                remaining += Math.Max(0, OverviewProgressPlan.MepTradeDays - mepDaysSince);
+            }
+        }
+
+        DateOnly? target = phase is null
+            ? project.ExpectedCompletion
+            : project.StartDate is { } start && plannedThrough > 0
+                ? AddWorkingDays(start.AddDays(-1), (int)Math.Ceiling(plannedThrough * (1 + OverviewProgressPlan.Slack) - 1e-9))
+                : null;
+
+        DateOnly finish;
+        var finished = remaining <= 0;
+        if (finished)
+        {
+            var stagePhases = withTail ? OverviewProgressPlan.Phases : through;
+            var inStage = reports.Where(r => stagePhases.Contains(r.Phase)).ToList();
+            if (inStage.Count == 0) return null;
+            finish = inStage.Max(r => r.Date);
+        }
+        else
+        {
+            var recent = InWindow(reports, asOf, 0, ForecastPaceDays);
+            var pace = Share(recent, r => r.PlanMet) ?? Share(reports, r => r.PlanMet) ?? 0;
+            if (pace <= 0) return null;
+            finish = AddWorkingDays(asOf, (int)Math.Ceiling(remaining / pace - 1e-9));
+        }
+
+        return new ProjectForecast(finish, target, target is { } t ? finish.DayNumber - t.DayNumber : null, finished);
+    }
+
+    /// <summary>The date <paramref name="days"/> working days after <paramref name="from"/>; Friday is the day off.</summary>
+    public static DateOnly AddWorkingDays(DateOnly from, int days)
+    {
+        var date = from;
+        while (days > 0)
+        {
+            date = date.AddDays(1);
+            if (date.DayOfWeek != DayOfWeek.Friday) days--;
+        }
+        return date;
     }
 
     /// <summary>Reports dated from <paramref name="fromDaysAgo"/> (inclusive) to <paramref name="toDaysAgo"/> (exclusive) days before asOf.</summary>
