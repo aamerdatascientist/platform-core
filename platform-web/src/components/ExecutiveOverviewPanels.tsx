@@ -73,6 +73,7 @@ function Tile({
   detail,
   tone,
   compact,
+  title,
 }: {
   label: string;
   value: ReactNode;
@@ -80,9 +81,12 @@ function Tile({
   tone?: OverviewKpiTone | null;
   /** Smaller figure, for values as long as a full date. */
   compact?: boolean;
+  /** Hover text, for detail that doesn't fit on the tile. */
+  title?: string;
 }) {
   return (
     <div
+      title={title}
       className={`flex min-w-0 flex-col justify-center rounded border border-border bg-panel px-4 shadow-recessed ${tone ? TONE_EDGE_CLASS[tone] : ''}`}
     >
       <div className="truncate font-display text-label font-semibold uppercase tracking-[0.07em] text-ink-soft">{label}</div>
@@ -121,10 +125,13 @@ export function OverviewTiles({
       : tiles.forecastTarget === null || tiles.forecastDaysLate === null
         ? t('executiveOverview.tiles.forecastNoTarget')
         : tiles.forecastDaysLate > 0
-          ? t('executiveOverview.tiles.forecastLate', { n: tiles.forecastDaysLate, date: format.date(tiles.forecastTarget) })
+          ? t('executiveOverview.tiles.forecastLate', { n: tiles.forecastDaysLate })
           : tiles.forecastDaysLate < 0
-            ? t('executiveOverview.tiles.forecastEarly', { n: -tiles.forecastDaysLate, date: format.date(tiles.forecastTarget) })
-            : t('executiveOverview.tiles.forecastOnTime', { date: format.date(tiles.forecastTarget) });
+            ? t('executiveOverview.tiles.forecastEarly', { n: -tiles.forecastDaysLate })
+            : t('executiveOverview.tiles.forecastOnTime');
+  // The target date doesn't fit on the tile next to the slip, so it is the tile's hover text.
+  const forecastTitle =
+    tiles.forecastTarget === null ? undefined : t('executiveOverview.tiles.forecastTarget', { date: format.date(tiles.forecastTarget) });
   const stageName = phase ? t(`executiveOverview.phase.${phase}`) : null;
 
   return (
@@ -221,6 +228,7 @@ export function OverviewTiles({
         value={tiles.forecastFinish === null ? dash : format.date(tiles.forecastFinish)}
         detail={tiles.forecastFinished ? `${t('executiveOverview.tiles.forecastFinished')} · ${forecastDetail}` : forecastDetail}
         tone={tiles.forecastTone}
+        title={forecastTitle}
         compact
       />
       <Tile
