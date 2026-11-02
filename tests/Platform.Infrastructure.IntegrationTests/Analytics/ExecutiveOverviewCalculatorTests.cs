@@ -46,7 +46,7 @@ public class ExecutiveOverviewCalculatorTests
     [Fact]
     public void WorkComplete_EarnsOneDayPerPlanMetReport_AndNothingForAMissedDay()
     {
-        // 2 zones x 2 planned days + 10 paperwork days = 14 planned. Zone 1: one met day and
+        // 2 zones x 18 planned days + 26 paperwork days = 62 planned. Zone 1: one met day and
         // one missed day -> 1 day earned.
         var result = Calculate(
             new[] { Project(ProjectA, "A") },
@@ -57,16 +57,16 @@ public class ExecutiveOverviewCalculatorTests
             });
 
         var project = result.Projects.Single();
-        project.WorkComplete.Should().BeApproximately(1d / 14d, 1e-9);
-        project.Phases.Single(p => p.Phase == "excavation").Complete.Should().BeApproximately(0.25, 1e-9);
+        project.WorkComplete.Should().BeApproximately(1d / 62d, 1e-9);
+        project.Phases.Single(p => p.Phase == "excavation").Complete.Should().BeApproximately(1d / 36d, 1e-9);
         project.PlanMet.Should().BeApproximately(0.5, 1e-9);
     }
 
     [Fact]
     public void WorkComplete_CapsAUnitAtItsPlannedDays()
     {
-        // Five met days on one zone still only earn that zone's 2 planned days.
-        var reports = Enumerable.Range(0, 5)
+        // Twenty met days on one zone still only earn that zone's 18 planned days.
+        var reports = Enumerable.Range(0, 20)
             .Select(i => Report(ProjectA, AsOf.AddDays(-i), "excavation", Zone1, planMet: true))
             .ToList();
 
@@ -78,16 +78,13 @@ public class ExecutiveOverviewCalculatorTests
     [Fact]
     public void WorkComplete_NeverExceedsOneHundredPercent_WhenReportsNameMoreUnitsThanAreRegistered()
     {
-        // Only one zone is registered, but met days were reported against two.
+        // Only one zone is registered (18 planned days), but 10 met days were reported against
+        // each of two zones.
         var result = Calculate(
             new[] { Project(ProjectA, "A") },
-            new[]
-            {
-                Report(ProjectA, AsOf.AddDays(-3), "excavation", Zone1, true),
-                Report(ProjectA, AsOf.AddDays(-2), "excavation", Zone1, true),
-                Report(ProjectA, AsOf.AddDays(-1), "excavation", Zone2, true),
-                Report(ProjectA, AsOf, "excavation", Zone2, true),
-            },
+            Enumerable.Range(0, 20)
+                .Select(i => Report(ProjectA, AsOf.AddDays(-i), "excavation", i % 2 == 0 ? Zone1 : Zone2, true))
+                .ToList(),
             units: new OverviewUnitCounts(Zones: 1, Footings: 0, Floors: 0));
 
         result.Projects.Single().Phases.Single(p => p.Phase == "excavation").Complete.Should().Be(1d);
@@ -100,16 +97,18 @@ public class ExecutiveOverviewCalculatorTests
             new[] { Project(ProjectA, "A") },
             new[]
             {
+                Report(ProjectA, AsOf.AddDays(-6), "paperwork", "final_permit", true),
+                Report(ProjectA, AsOf.AddDays(-5), "paperwork", "final_permit", true),
                 Report(ProjectA, AsOf.AddDays(-4), "paperwork", "final_permit", true),
-                Report(ProjectA, AsOf.AddDays(-3), "paperwork", "final_permit", true),     // capped at 1
-                Report(ProjectA, AsOf.AddDays(-2), "paperwork", "design_approval", true),  // 1 of 4
+                Report(ProjectA, AsOf.AddDays(-3), "paperwork", "final_permit", true),     // capped at 3
+                Report(ProjectA, AsOf.AddDays(-2), "paperwork", "design_approval", true),  // 1 of 10
                 Report(ProjectA, AsOf.AddDays(-1), "paperwork", "not_a_milestone", true),  // earns nothing
                 Report(ProjectA, AsOf, "paperwork", null, true),                           // earns nothing
             });
 
         var project = result.Projects.Single();
-        project.Phases.Single(p => p.Phase == "paperwork").Complete.Should().BeApproximately(2d / 10d, 1e-9);
-        project.ReportCount.Should().Be(5, "a report without a usable unit still counts as a report");
+        project.Phases.Single(p => p.Phase == "paperwork").Complete.Should().BeApproximately(4d / 26d, 1e-9);
+        project.ReportCount.Should().Be(7, "a report without a usable unit still counts as a report");
     }
 
     [Fact]

@@ -86,10 +86,13 @@ public record OverviewProblemDto(DateOnly Date, string Phase, string Description
 /// <summary>
 /// Planned working days per unit, used to turn "plan met" days into a work-complete figure.
 ///
-/// PLACEHOLDERS, deliberately in one place: the live forms hold no planned schedule yet, so
-/// every project is measured against the same assumed durations. Real figures belong on the
-/// project's own zones/footings/floors (a "planned days" field) - when that exists, this
-/// class is what gets replaced. Agreed with Aamer 2026-10-10 as acceptable for now.
+/// The client's plan (given 2026-11-02): paperwork ~26 days (design approval 10, permit
+/// application 8, utility approvals 5, final permit 3), excavation ~18, foundation ~28,
+/// structure ~102.5, MEP 5-7 days per trade per floor alongside the structure. Per unit that
+/// is 18 per zone, 14 per footing, 17 per floor and 6 per MEP trade per floor, worked out for
+/// the first project's 1 zone, 2 footings and 6 floors. Every project is still measured
+/// against the same durations - real figures per project belong on its own zones/footings/
+/// floors (a "planned days" field), and when that exists this class is what gets replaced.
 /// </summary>
 public static class OverviewProgressPlan
 {
@@ -104,16 +107,16 @@ public static class OverviewProgressPlan
 
     public static readonly IReadOnlyDictionary<string, int> MilestoneDays = new Dictionary<string, int>
     {
-        ["design_approval"] = 4,
-        ["permit_application"] = 3,
-        ["utility_approvals"] = 2,
-        ["final_permit"] = 1,
+        ["design_approval"] = 10,
+        ["permit_application"] = 8,
+        ["utility_approvals"] = 5,
+        ["final_permit"] = 3,
     };
 
-    public const int ZoneDays = 2;
-    public const int FootingDays = 2;
-    public const int FloorDays = 8;
-    public const int MepTradeDays = 3;
+    public const int ZoneDays = 18;
+    public const int FootingDays = 14;
+    public const int FloorDays = 17;
+    public const int MepTradeDays = 6;
     public const int MepTradesPerFloor = 3;
 
     /// <summary>Planned days for one unit of a phase; 0 for a unit this plan doesn't know.</summary>
