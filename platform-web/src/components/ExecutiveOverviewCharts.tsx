@@ -137,6 +137,37 @@ function Frame({
   );
 }
 
+/**
+ * A rounded path through the points (monotone cubic, as d3's curveMonotoneX): each bend is
+ * smooth, but the curve never rises above or dips below its neighbouring points, so a share
+ * can't be drawn past 0% or 100% between two weeks.
+ */
+function smoothPath(pts: [number, number][]): string {
+  if (pts.length < 2) return pts.map(([px, py]) => `M${px} ${py}`).join('');
+  const sign = (v: number) => (v < 0 ? -1 : 1);
+  const slopes = pts.slice(1).map(([px, py], i) => (py - pts[i][1]) / (px - pts[i][0] || 1));
+  const tangents = pts.map((_, i) => {
+    if (i === 0 || i === pts.length - 1) return NaN;
+    const s0 = slopes[i - 1];
+    const s1 = slopes[i];
+    const h0 = pts[i][0] - pts[i - 1][0];
+    const h1 = pts[i + 1][0] - pts[i][0];
+    const p = (s0 * h1 + s1 * h0) / (h0 + h1);
+    return (sign(s0) + sign(s1)) * Math.min(Math.abs(s0), Math.abs(s1), 0.5 * Math.abs(p)) || 0;
+  });
+  const last = pts.length - 1;
+  tangents[0] = pts.length > 2 ? (3 * slopes[0] - tangents[1]) / 2 : slopes[0];
+  tangents[last] = pts.length > 2 ? (3 * slopes[last - 1] - tangents[last - 1]) / 2 : slopes[0];
+  let d = `M${pts[0][0]} ${pts[0][1]}`;
+  for (let i = 0; i < last; i++) {
+    const [x0, y0] = pts[i];
+    const [x1, y1] = pts[i + 1];
+    const dx = (x1 - x0) / 3;
+    d += ` C${x0 + dx} ${y0 + dx * tangents[i]} ${x1 - dx} ${y1 - dx * tangents[i + 1]} ${x1} ${y1}`;
+  }
+  return d;
+}
+
 /** A single line with a light wash underneath; breaks where a week has no value. */
 export function WeekLineChart({ points, max, ticks, formatTick, endLabel, ariaLabel, emptyText }: WeekChartProps) {
   const chart = useWeekChart(points, max);
@@ -159,7 +190,7 @@ export function WeekLineChart({ points, max, ticks, formatTick, endLabel, ariaLa
   return (
     <Frame chart={chart} points={points} ticks={ticks} formatTick={formatTick} ariaLabel={ariaLabel}>
       {segments.map((segment, segmentIndex) => {
-        const line = segment.map((p, i) => `${i ? 'L' : 'M'}${x(p.index)} ${y(p.value)}`).join(' ');
+        const line = smoothPath(segment.map((p) => [x(p.index), y(p.value)]));
         const first = segment[0];
         const end = segment[segment.length - 1];
         return (
@@ -187,14 +218,32 @@ export function WeekLineChart({ points, max, ticks, formatTick, endLabel, ariaLa
   );
 }
 
-/** One column per week, rounded at the top, growing from the baseline. */
-export function WeekColumnChart({ points, max, ticks, formatTick, ariaLabel, emptyText }: WeekChartProps) {
+/**
+ * One column per week, rounded at the top, growing from the baseline, with its value above
+ * it. When the columns are narrower than their labels, every n-th column is labelled
+ * (always including the latest) so labels never overlap; hovering still shows each week.
+ */
+export function WeekColumnChart({
+  points,
+  max,
+  ticks,
+  formatTick,
+  formatValue = formatTick,
+  ariaLabel,
+  emptyText,
+}: WeekChartProps & { formatValue?: (value: number) => string }) {
   const chart = useWeekChart(points, max);
   if (!points.some((point) => point.value)) return <p className="text-sm text-ink-soft">{emptyText}</p>;
 
   const { x, y, slot } = chart;
   const barWidth = Math.max(2, Math.min(24, slot - 4));
   const radius = Math.min(3, barWidth / 2);
+  const valueText = points.map((point) => (point.value ? formatValue(point.value) : ''));
+  const lastIndex = points.reduce((found, point, index) => (point.value ? index : found), -1);
+  const valueWidth = Math.max(...valueText.map((text) => text.length * 7 + 6));
+  const valueEvery = slot > 0 ? Math.max(1, Math.ceil(valueWidth / slot)) : 1;
+  // Count back from the latest week so it is always one of the labelled columns.
+  const labelled = (index: number) => (lastIndex - index) % valueEvery === 0;
 
   return (
     <Frame chart={chart} points={points} ticks={ticks} formatTick={formatTick} ariaLabel={ariaLabel}>
@@ -206,11 +255,17 @@ export function WeekColumnChart({ points, max, ticks, formatTick, ariaLabel, emp
         const base = y(0);
         const r = Math.min(radius, base - top);
         return (
-          <path
-            key={index}
-            d={`M${left} ${base} V${top + r} Q${left} ${top} ${left + r} ${top} H${right - r} Q${right} ${top} ${right} ${top + r} V${base} Z`}
-            fill="var(--accent)"
-          />
+          <g key={index}>
+            <path
+              d={`M${left} ${base} V${top + r} Q${left} ${top} ${left + r} ${top} H${right - r} Q${right} ${top} ${right} ${top + r} V${base} Z`}
+              fill="var(--accent)"
+            />
+            {labelled(index) && (
+              <text x={x(index)} y={top - 4} textAnchor="middle" fontSize={11} fill="var(--ink)" className="font-mono">
+                {valueText[index]}
+              </text>
+            )}
+          </g>
         );
       })}
     </Frame>
