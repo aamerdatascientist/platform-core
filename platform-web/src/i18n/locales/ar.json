@@ -259,7 +259,7 @@
   },
   "executiveOverview": {
     "title": "النظرة التنفيذية العامة",
-    "subtitle": "حتى {{asOf}} · التقارير اليومية منذ {{from}}",
+    "subtitle": "التقارير اليومية من {{from}} حتى {{asOf}}",
     "subtitleEmpty": "لم يُرسل أي تقرير يومي بعد.",
     "loadError": "تعذر تحميل لوحة المعلومات.",
     "points": "{{points}} نقطة",
