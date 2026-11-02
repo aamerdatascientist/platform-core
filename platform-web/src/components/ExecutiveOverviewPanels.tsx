@@ -48,7 +48,7 @@ export function Panel({ title, caption, children }: { title: string; caption?: s
     <section className="flex h-full min-h-0 min-w-0 flex-col rounded border border-border bg-panel p-3.5 shadow-recessed">
       <h3 className="shrink-0 truncate font-display text-sm font-semibold uppercase tracking-[0.07em] text-ink">{title}</h3>
       {caption && (
-        <p className="shrink-0 truncate text-xs text-ink-soft" title={caption}>
+        <p className="line-clamp-2 shrink-0 text-xs leading-tight text-ink-soft" title={caption}>
           {caption}
         </p>
       )}
@@ -89,13 +89,16 @@ function Tile({
       title={title}
       className={`flex min-w-0 flex-col justify-center rounded border border-border bg-panel px-4 shadow-recessed ${tone ? TONE_EDGE_CLASS[tone] : ''}`}
     >
-      <div className="truncate font-display text-label font-semibold uppercase tracking-[0.07em] text-ink-soft">{label}</div>
+      {/* Label and detail wrap to a second line rather than being cut off; two lines fit the row. */}
+      <div className="line-clamp-2 font-display text-label font-semibold uppercase leading-tight tracking-[0.07em] text-ink-soft">
+        {label}
+      </div>
       <div
         className={`mt-0.5 truncate font-display font-bold ${compact ? 'text-2xl' : 'text-3xl'} ${tone ? TONE_VALUE_CLASS[tone] : 'text-ink'}`}
       >
         {value}
       </div>
-      <div className="truncate text-xs text-ink-soft">{detail}</div>
+      <div className="line-clamp-2 text-xs leading-tight text-ink-soft">{detail}</div>
     </div>
   );
 }
@@ -129,7 +132,7 @@ export function OverviewTiles({
           : tiles.forecastDaysLate < 0
             ? t('executiveOverview.tiles.forecastEarly', { n: -tiles.forecastDaysLate })
             : t('executiveOverview.tiles.forecastOnTime');
-  // The target date doesn't fit on the tile next to the slip, so it is the tile's hover text.
+  // Also the hover text, in case a long translation still runs past two lines.
   const forecastTitle =
     tiles.forecastTarget === null ? undefined : t('executiveOverview.tiles.forecastTarget', { date: format.date(tiles.forecastTarget) });
   const stageName = phase ? t(`executiveOverview.phase.${phase}`) : null;
@@ -226,7 +229,9 @@ export function OverviewTiles({
       <Tile
         label={stageName ? `${t('executiveOverview.tiles.forecast')} · ${stageName}` : t('executiveOverview.tiles.forecast')}
         value={tiles.forecastFinish === null ? dash : format.date(tiles.forecastFinish)}
-        detail={tiles.forecastFinished ? `${t('executiveOverview.tiles.forecastFinished')} · ${forecastDetail}` : forecastDetail}
+        detail={[tiles.forecastFinished ? t('executiveOverview.tiles.forecastFinished') : null, forecastDetail, forecastTitle]
+          .filter(Boolean)
+          .join(' · ')}
         tone={tiles.forecastTone}
         title={forecastTitle}
         compact
