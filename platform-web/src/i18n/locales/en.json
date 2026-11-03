@@ -534,7 +534,8 @@
     "formBuilderHint": "Create forms and change their fields and rules",
     "usersHint": "Accounts, roles and password resets",
     "assignments": "Form assignments",
-    "assignmentsHint": "Assign daily forms and see who filled them"
+    "assignmentsHint": "Assign daily forms and see who filled them",
+    "trackingHint": "Who filled their assigned forms on a given day"
   },
   "errors": {
     "offline": "Can't reach the server. Check your internet connection and try again.",
@@ -624,16 +625,20 @@
       "stop": "Stop",
       "stopping": "Stopping…",
       "stopError": "Could not stop the assignment.",
-      "trackingTitle": "Filled or not, by day",
-      "fromDate": "From",
-      "toDate": "To",
       "allUsers": "All users",
       "allForms": "All forms",
       "allStatuses": "All statuses",
       "noDays": "No assigned days in this period.",
       "loadError": "Could not load assignments.",
       "summary": "{{filled}} filled · {{missed}} not filled · {{pending}} due today",
-      "period": "Period"
+      "period": "Period",
+      "openTracking": "Filled or not, by day"
+    },
+    "tracking": {
+      "title": "Filled or not, by day",
+      "date": "Day",
+      "back": "Form assignments",
+      "notWorkingDay": "Friday is the day off, so nothing is due."
     }
   }
 }
