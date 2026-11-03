@@ -90,6 +90,11 @@ public class FakeDynamicDataRepository : IDynamicDataRepository
         string tableName, string columnCode, CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Not used by the analytics query handler tests.");
 
+    public Task<IReadOnlyList<SubmissionStamp>> GetSubmissionStampsAsync(
+        string tableName, IReadOnlyCollection<Guid> userIds, DateTime fromUtc, DateTime toUtc,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("Not used by the analytics query handler tests.");
+
     public Task<bool> AnyOtherWithTextAsync(
         string tableName, string columnCode, string text,
         string? scopeColumnCode, object? scopeValue, Guid? excludeId,

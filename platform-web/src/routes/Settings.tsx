@@ -130,6 +130,13 @@ export function Settings({ token }: SettingsProps) {
               </span>
               <RowIcon kind="next" rtl={rtl} />
             </Link>
+            <Link to="/admin/assignments" className={rowButtonClass}>
+              <span>
+                <span className="block text-sm font-medium text-ink">{t('settings.assignments')}</span>
+                <span className="block text-xs text-ink-soft">{t('settings.assignmentsHint')}</span>
+              </span>
+              <RowIcon kind="next" rtl={rtl} />
+            </Link>
             <Link to="/admin/users" className={rowButtonClass}>
               <span>
                 <span className="block text-sm font-medium text-ink">{t('userManagement.title')}</span>

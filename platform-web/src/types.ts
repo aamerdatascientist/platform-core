@@ -292,3 +292,44 @@ export interface ExecutiveOverviewDto {
   problemReportCount: number;
   latestProblems: OverviewProblemDto[];
 }
+
+// ------------------------------------------------------------------- daily form assignments
+// Dates ("2026-11-03") are Saudi calendar days; *AtUtc values are UTC instants.
+
+/** filled: submitted that day; missed: the day is over with nothing; pending: today, nothing yet. */
+export type AssignmentDayStatus = 'filled' | 'missed' | 'pending';
+
+export interface AssignmentDayDto {
+  assignmentId: string;
+  userId: string;
+  userName: string;
+  formId: string;
+  formName: string;
+  date: string;
+  assignedAtUtc: string;
+  assignedByName: string | null;
+  status: AssignmentDayStatus;
+  filledAtUtc: string | null;
+  submissionCount: number;
+}
+
+export interface MyAssignmentsDto {
+  today: string;
+  days: AssignmentDayDto[];
+}
+
+export interface FormAssignmentDto {
+  id: string;
+  userId: string;
+  userName: string;
+  formId: string;
+  formName: string;
+  startDate: string;
+  endDate: string | null;
+  note: string | null;
+  assignedAtUtc: string;
+  assignedByName: string | null;
+  isActive: boolean;
+  daysDue: number;
+  daysFilled: number;
+}

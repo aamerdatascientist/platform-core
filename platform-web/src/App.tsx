@@ -8,6 +8,8 @@ import { ExecutiveOverview } from './routes/ExecutiveOverview';
 import { FormBuilder } from './routes/FormBuilder';
 import { FormView } from './routes/FormView';
 import { Layout } from './routes/Layout';
+import { FormAssignments } from './routes/FormAssignments';
+import { MyAssignments } from './routes/MyAssignments';
 import { Settings } from './routes/Settings';
 import { SignIn } from './routes/SignIn';
 import { UserManagement } from './routes/UserManagement';
@@ -56,12 +58,14 @@ export default function App() {
       <Route element={<Layout token={accessToken} />}>
         <Route index element={<Welcome />} />
         <Route path="forms/:formId" element={<FormView token={accessToken} />} />
+        <Route path="assignments" element={<MyAssignments token={accessToken} />} />
         <Route path="settings" element={<Settings token={accessToken} />} />
         <Route path="account" element={<Navigate to="/settings" replace />} />
         <Route element={<RequireAdmin token={accessToken} />}>
           <Route path="builder" element={<BuilderHome token={accessToken} />} />
           <Route path="builder/:formId" element={<FormBuilder token={accessToken} />} />
           <Route path="admin/users" element={<UserManagement token={accessToken} />} />
+          <Route path="admin/assignments" element={<FormAssignments token={accessToken} />} />
         </Route>
         <Route path="*" element={<StatusPage kind="notFound" />} />
       </Route>

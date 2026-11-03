@@ -11,7 +11,8 @@
     "draft": "draft",
     "loadFormsError": "Could not load forms.",
     "changePassword": "Change password",
-    "settings": "Settings"
+    "settings": "Settings",
+    "myAssignments": "My assignments"
   },
   "common": {
     "cancel": "Cancel",
@@ -215,7 +216,10 @@
       "choiceMissing": "This choice no longer exists. Reload the page and choose again.",
       "choiceMismatch": "This choice doesn't belong to what you picked in the field it depends on (for example, a zone of another project). Choose again.",
       "duplicate": "This value is already used by another record. Enter a different one."
-    }
+    },
+    "assignment.formNotPublished": "This form isn't published yet, so it can't be filled.",
+    "assignment.userInactive": "Deactivated users can't be assigned.",
+    "assignment.noFormAccess": "Some of these users can't open this form. Give them access to it first (Form builder > Access)."
   },
   "userManagement": {
     "title": "Users & roles",
@@ -528,7 +532,9 @@
     "dashboardHint": "Opens in a new tab",
     "formBuilder": "Form builder",
     "formBuilderHint": "Create forms and change their fields and rules",
-    "usersHint": "Accounts, roles and password resets"
+    "usersHint": "Accounts, roles and password resets",
+    "assignments": "Form assignments",
+    "assignmentsHint": "Assign daily forms and see who filled them"
   },
   "errors": {
     "offline": "Can't reach the server. Check your internet connection and try again.",
@@ -566,6 +572,68 @@
         "title": "No connection",
         "body": "We can't reach the server. Check your internet connection, then try again."
       }
+    }
+  },
+  "assignments": {
+    "status": {
+      "filled": "Filled",
+      "missed": "Not filled",
+      "pending": "Due today"
+    },
+    "user": "User",
+    "form": "Form",
+    "day": "Day",
+    "assignedAt": "Assigned",
+    "filledAt": "Filled at",
+    "statusLabel": "Status",
+    "assignedBy": "by {{name}}",
+    "times": "{{n}} times",
+    "mine": {
+      "title": "My assignments",
+      "today": "Today",
+      "recent": "Last 2 weeks",
+      "none": "You have no forms assigned.",
+      "noneToday": "Nothing is assigned to you today.",
+      "fill": "Fill now",
+      "fillAgain": "Fill again",
+      "loadError": "Could not load your assignments."
+    },
+    "admin": {
+      "title": "Form assignments",
+      "intro": "Assign a form to users to fill once every working day (Saturday to Thursday). A day counts as filled when the user submits that form on that day.",
+      "newTitle": "Assign a form",
+      "formLabel": "Form",
+      "usersLabel": "Users",
+      "startDate": "Start date",
+      "endDate": "End date (optional)",
+      "noEnd": "No end date",
+      "note": "Note (optional)",
+      "assign": "Assign",
+      "assigning": "Assigning…",
+      "chooseFormAndUsers": "Choose a form and at least one user.",
+      "created": "Assigned {{n}}.",
+      "alreadyAssigned": "Already assigned, skipped: {{names}}",
+      "assignError": "Could not assign the form.",
+      "listTitle": "Assignments",
+      "noAssignments": "No one is assigned a form yet.",
+      "from": "from {{date}}",
+      "until": "{{start}} to {{end}}",
+      "record": "Filled {{filled}} of {{due}} days",
+      "active": "Active",
+      "ended": "Ended",
+      "stop": "Stop",
+      "stopping": "Stopping…",
+      "stopError": "Could not stop the assignment.",
+      "trackingTitle": "Filled or not, by day",
+      "fromDate": "From",
+      "toDate": "To",
+      "allUsers": "All users",
+      "allForms": "All forms",
+      "allStatuses": "All statuses",
+      "noDays": "No assigned days in this period.",
+      "loadError": "Could not load assignments.",
+      "summary": "{{filled}} filled · {{missed}} not filled · {{pending}} due today",
+      "period": "Period"
     }
   }
 }

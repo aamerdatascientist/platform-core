@@ -1,5 +1,8 @@
 import type {
+  AssignmentDayDto,
   CurrentUserDto,
+  FormAssignmentDto,
+  MyAssignmentsDto,
   DynamicRow,
   ExecutiveOverviewDto,
   FileMetadataDto,
@@ -456,6 +459,32 @@ export const api = {
       }
       return response.json();
     },
+  },
+
+  /** Daily form assignments. Everything but `mine` is for administrators. */
+  assignments: {
+    mine: (token: string) => request<MyAssignmentsDto>('/api/form-assignments/mine', {}, token),
+
+    list: (token: string) => request<FormAssignmentDto[]>('/api/form-assignments', {}, token),
+
+    days: (token: string, filter: { from: string; to: string; userId?: string | null; formId?: string | null }) => {
+      const params = new URLSearchParams({ from: filter.from, to: filter.to });
+      if (filter.userId) params.set('userId', filter.userId);
+      if (filter.formId) params.set('formId', filter.formId);
+      return request<AssignmentDayDto[]>(`/api/form-assignments/days?${params}`, {}, token);
+    },
+
+    create: (
+      token: string,
+      input: { formDefinitionId: string; userIds: string[]; startDate: string; endDate: string | null; note: string | null },
+    ) =>
+      request<{ created: number; alreadyAssigned: string[] }>(
+        '/api/form-assignments',
+        { method: 'POST', body: JSON.stringify(input) },
+        token,
+      ),
+
+    stop: (token: string, id: string) => request<void>(`/api/form-assignments/${id}/stop`, { method: 'POST' }, token),
   },
 
   users: {

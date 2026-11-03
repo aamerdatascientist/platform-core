@@ -9,7 +9,7 @@ interface LayoutProps {
 }
 
 /**
- * The app shell: a sidebar with the forms people fill in, and one Settings link for everything
+ * The app shell: a sidebar with the user's daily assignments, the forms people fill in, and one Settings link for everything
  * else (account, password, sign out, language, light/dark, and the admin pages) - see
  * routes/Settings.tsx.
  */
@@ -89,6 +89,17 @@ export function Layout({ token }: LayoutProps) {
           </div>
         </div>
         <div className="rivet-strip mb-4" />
+        <NavLink
+          to="/assignments"
+          className={({ isActive }) =>
+            `mb-4 flex items-center gap-2 rounded px-3 py-2 text-sm transition-colors ${
+              isActive ? 'bg-accent font-medium text-accent-ink' : 'text-sidebar-ink hover:bg-border/40 hover:text-sidebar-ink-strong'
+            }`
+          }
+        >
+          <ChecklistIcon />
+          {t('sidebar.myAssignments')}
+        </NavLink>
         <FormPicker token={token} />
 
         <div className="mt-auto pt-6">
@@ -121,6 +132,15 @@ export function Layout({ token }: LayoutProps) {
         <Outlet />
       </main>
     </div>
+  );
+}
+
+function ChecklistIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M9 6h11M9 12h11M9 18h11" />
+      <path d="M3 6l1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17" />
+    </svg>
   );
 }
 

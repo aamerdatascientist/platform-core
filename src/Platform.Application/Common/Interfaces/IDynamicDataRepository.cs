@@ -14,6 +14,9 @@ public record PagedResult<T>(IReadOnlyList<T> Items, int TotalCount, int Page, i
 /// </summary>
 public record DynamicRowFilter(string FieldCode, object Value);
 
+/// <summary>One submission: who created the row and when (UTC).</summary>
+public record SubmissionStamp(Guid UserId, DateTime CreatedAtUtc);
+
 /// <summary>
 /// CRUD against a dynamically generated table. Every method takes the FormVersion's
 /// active FieldDefinitions explicitly rather than re-deriving them, so the repository
@@ -93,6 +96,15 @@ public interface IDynamicDataRepository
     /// scope value matches rows where it is null). <paramref name="excludeId"/> leaves out the
     /// record being edited. Backs the "unique" field rule (SubmissionDataChecks).
     /// </summary>
+    /// <summary>
+    /// Who submitted a row of this table and when (CreatedByUserId / CreatedAtUtc, UTC), for
+    /// non-deleted rows by <paramref name="userIds"/> created in [fromUtc, toUtc). Backs the
+    /// form assignments' "filled or not" - read from the data itself, never stored twice.
+    /// </summary>
+    Task<IReadOnlyList<SubmissionStamp>> GetSubmissionStampsAsync(
+        string tableName, IReadOnlyCollection<Guid> userIds, DateTime fromUtc, DateTime toUtc,
+        CancellationToken cancellationToken = default);
+
     Task<bool> AnyOtherWithTextAsync(
         string tableName, string columnCode, string text,
         string? scopeColumnCode, object? scopeValue, Guid? excludeId,

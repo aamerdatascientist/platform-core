@@ -24,6 +24,7 @@ public interface IApplicationDbContext
     DbSet<FieldDefinition> FieldDefinitions { get; }
     DbSet<Platform.Domain.Forms.FormDefinitionRole> FormDefinitionRoles { get; }
     DbSet<Platform.Domain.Forms.FormDefinitionUser> FormDefinitionUsers { get; }
+    DbSet<Platform.Domain.Forms.FormAssignment> FormAssignments { get; }
 
     DbSet<Platform.Domain.Workflow.WorkflowDefinition> WorkflowDefinitions { get; }
     DbSet<Platform.Domain.Workflow.WorkflowState> WorkflowStates { get; }

@@ -201,6 +201,32 @@ public class DynamicDataRepository : IDynamicDataRepository
             new CommandDefinition(countSql, cancellationToken: cancellationToken));
     }
 
+    public async Task<IReadOnlyList<SubmissionStamp>> GetSubmissionStampsAsync(
+        string tableName, IReadOnlyCollection<Guid> userIds, DateTime fromUtc, DateTime toUtc,
+        CancellationToken cancellationToken = default)
+    {
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
+        if (userIds.Count == 0) return Array.Empty<SubmissionStamp>();
+
+        var sql = $"""
+            SELECT "CreatedByUserId" AS "UserId", "CreatedAtUtc" FROM "{tableName}"
+            WHERE "IsDeleted" = false AND "CreatedByUserId" = ANY(@UserIds)
+              AND "CreatedAtUtc" >= @FromUtc AND "CreatedAtUtc" < @ToUtc;
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        var rows = await connection.QueryAsync<(Guid UserId, DateTime CreatedAtUtc)>(new CommandDefinition(
+            sql,
+            new
+            {
+                UserIds = userIds.ToArray(),
+                FromUtc = DateTime.SpecifyKind(fromUtc, DateTimeKind.Utc),
+                ToUtc = DateTime.SpecifyKind(toUtc, DateTimeKind.Utc),
+            },
+            cancellationToken: cancellationToken));
+        return rows.Select(r => new SubmissionStamp(r.UserId, DateTime.SpecifyKind(r.CreatedAtUtc, DateTimeKind.Utc))).ToList();
+    }
+
     public async Task<IReadOnlyList<string>> GetDistinctColumnValuesAsync(
         string tableName, string columnCode, CancellationToken cancellationToken = default)
     {
