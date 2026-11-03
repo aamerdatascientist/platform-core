@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import type { RoleDto, UserSummaryDto } from '../types';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { UserPhonePanel } from '../components/UserPhonePanel';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 
 interface UserManagementProps {
@@ -23,6 +24,7 @@ export function UserManagement({ token }: UserManagementProps) {
   const [submittingUser, setSubmittingUser] = useState(false);
 
   const [editingRolesFor, setEditingRolesFor] = useState<string | null>(null);
+  const [phoneFor, setPhoneFor] = useState<string | null>(null);
   const [pendingRoleIds, setPendingRoleIds] = useState<Set<string>>(new Set());
   const [savingRoles, setSavingRoles] = useState(false);
 
@@ -308,6 +310,11 @@ export function UserManagement({ token }: UserManagementProps) {
                   <div>
                     <span className="text-sm font-medium text-ink">{u.displayName}</span>
                     <span className="ms-2 text-xs text-ink-soft">{u.email}</span>
+                    {u.phoneNumber && (
+                      <span className="ms-2 font-mono text-xs text-ink-soft" dir="ltr">
+                        +{u.phoneNumber}
+                      </span>
+                    )}
                     <div className="mt-0.5 flex flex-wrap gap-1">
                       {u.roles.length === 0 ? (
                         <span className="text-xs text-ink-soft">{t('userManagement.noRoles')}</span>
@@ -331,6 +338,12 @@ export function UserManagement({ token }: UserManagementProps) {
                       {t('userManagement.editRoles')}
                     </button>
                     <button
+                      onClick={() => setPhoneFor(phoneFor === u.id ? null : u.id)}
+                      className="text-label uppercase tracking-wide text-ink-soft hover:text-ink"
+                    >
+                      {t('userManagement.whatsapp')}
+                    </button>
+                    <button
                       onClick={() => startReset(u.id)}
                       className="text-label uppercase tracking-wide text-ink-soft hover:text-ink"
                     >
@@ -344,6 +357,10 @@ export function UserManagement({ token }: UserManagementProps) {
                     </button>
                   </div>
                 </div>
+
+                {phoneFor === u.id && (
+                  <UserPhonePanel token={token} user={u} onSaved={load} onClose={() => setPhoneFor(null)} />
+                )}
 
                 {resettingFor === u.id && (
                   <div className="border-t border-border rounded bg-bg p-3">

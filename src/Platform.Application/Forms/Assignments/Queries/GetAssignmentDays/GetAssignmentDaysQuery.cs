@@ -1,5 +1,6 @@
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using Platform.Application.Common.Interfaces;
 
 namespace Platform.Application.Forms.Assignments.Queries.GetAssignmentDays;
@@ -39,7 +40,24 @@ public class GetAssignmentDaysQueryHandler : IRequestHandler<GetAssignmentDaysQu
     {
         var (assignments, stamps) = await FormAssignmentTracker.LoadAsync(
             _db, _dynamicData, request.UserId, request.FormDefinitionId, request.From, request.To, cancellationToken);
-        return FormAssignmentTracker.BuildDays(
+        var days = FormAssignmentTracker.BuildDays(
             assignments, stamps, request.From, request.To, FormAssignmentTracker.SaudiToday(DateTime.UtcNow));
+        if (days.Count == 0) return days;
+
+        // WhatsApp reminders about each day, sent or failed.
+        var ids = assignments.Select(a => a.Id).ToList();
+        var reminders = (await _db.NotificationLogs
+                .Where(n => n.AssignmentId != null && ids.Contains(n.AssignmentId.Value) && n.ForDate != null)
+                .Where(n => n.ForDate >= request.From && n.ForDate <= request.To)
+                .Select(n => new { AssignmentId = n.AssignmentId!.Value, Date = n.ForDate!.Value, n.Status })
+                .ToListAsync(cancellationToken))
+            .GroupBy(n => (n.AssignmentId, n.Date))
+            .ToDictionary(g => g.Key, g => (Sent: g.Count(n => n.Status == "sent"), Failed: g.Count(n => n.Status == "failed")));
+
+        return days
+            .Select(d => reminders.TryGetValue((d.AssignmentId, d.Date), out var r)
+                ? d with { RemindersSent = r.Sent, RemindersFailed = r.Failed }
+                : d)
+            .ToList();
     }
 }

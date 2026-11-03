@@ -12,10 +12,13 @@ public record AssignmentInfo(
 /// One working day of one assignment. <paramref name="Status"/>: "filled" (the user submitted
 /// the form that Saudi day; <paramref name="FilledAtUtc"/> is the first time), "missed" (the
 /// day is over with nothing submitted) or "pending" (today, nothing yet).
+/// <paramref name="RemindersSent"/> / <paramref name="RemindersFailed"/>: WhatsApp reminders about
+/// that day (filled in by the tracking query only).
 /// </summary>
 public record AssignmentDayDto(
     Guid AssignmentId, Guid UserId, string UserName, Guid FormId, string FormName, DateOnly Date,
-    DateTime AssignedAtUtc, string? AssignedByName, string Status, DateTime? FilledAtUtc, int SubmissionCount);
+    DateTime AssignedAtUtc, string? AssignedByName, string Status, DateTime? FilledAtUtc, int SubmissionCount,
+    int RemindersSent = 0, int RemindersFailed = 0);
 
 /// <summary>
 /// Turns assignments into days, and days into filled / missed / pending by reading the form's

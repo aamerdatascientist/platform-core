@@ -155,6 +155,7 @@ export function AssignmentTracking({ token }: AssignmentTrackingProps) {
                     <th className={thClass}>{t('assignments.form')}</th>
                     <th className={thClass}>{t('assignments.statusLabel')}</th>
                     <th className={thClass}>{t('assignments.filledAt')}</th>
+                    <th className={thClass}>{t('assignments.whatsapp')}</th>
                     <th className={thClass}>{t('assignments.assignedAt')}</th>
                   </tr>
                 </thead>
@@ -175,6 +176,15 @@ export function AssignmentTracking({ token }: AssignmentTrackingProps) {
                         {day.submissionCount > 1 && (
                           <span className="block text-xs text-ink-soft">{t('assignments.times', { n: day.submissionCount })}</span>
                         )}
+                      </td>
+                      <td className={`${tdClass} whitespace-nowrap`}>
+                        {day.remindersSent > 0 && (
+                          <span className="block text-xs text-success">{t('assignments.remindersSent', { n: day.remindersSent })}</span>
+                        )}
+                        {day.remindersFailed > 0 && (
+                          <span className="block text-xs text-danger">{t('assignments.remindersFailed', { n: day.remindersFailed })}</span>
+                        )}
+                        {day.remindersSent === 0 && day.remindersFailed === 0 && t('common.empty')}
                       </td>
                       <td className={`${tdClass} whitespace-nowrap text-ink-soft`}>
                         {format.dateTime(day.assignedAtUtc)}

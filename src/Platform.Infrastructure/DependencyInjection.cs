@@ -6,6 +6,7 @@ using Platform.Application.Analytics;
 using Platform.Application.Common.Interfaces;
 using Platform.Infrastructure.Files;
 using Platform.Infrastructure.Identity;
+using Platform.Infrastructure.Notifications;
 using Platform.Infrastructure.Persistence;
 using Platform.Infrastructure.Persistence.DynamicSchema;
 
@@ -40,6 +41,12 @@ public static class DependencyInjection
         services.AddSingleton<IBlobStorageService, BlobStorageService>();
 
         services.AddHostedService<DatabaseWarmupService>();
+
+        // WhatsApp (Meta Cloud API). Off until WhatsApp:PhoneNumberId and WhatsApp:AccessToken
+        // are set; the reminder scheduler then does nothing and every send is skipped.
+        services.AddSingleton(configuration.GetSection("WhatsApp").Get<WhatsAppSettings>() ?? new WhatsAppSettings());
+        services.AddHttpClient<IWhatsAppSender, WhatsAppSender>(client => client.Timeout = TimeSpan.FromSeconds(15));
+        services.AddHostedService<AssignmentReminderService>();
 
         return services;
     }

@@ -184,6 +184,7 @@ export function FormAssignments({ token }: FormAssignmentsProps) {
                   <span className="truncate text-xs text-ink-soft" dir="ltr">
                     {user.email}
                   </span>
+                  {!user.phoneNumber && <span className="ms-auto shrink-0 text-xs text-danger">{t('assignments.admin.noPhone')}</span>}
                 </label>
               ))}
             </div>

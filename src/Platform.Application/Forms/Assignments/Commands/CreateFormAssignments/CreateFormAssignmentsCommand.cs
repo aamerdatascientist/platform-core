@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Platform.Application.Common.Exceptions;
 using Platform.Application.Common.Interfaces;
+using Platform.Application.Notifications;
 using Platform.Domain.Forms;
 using ValidationException = Platform.Application.Common.Exceptions.ValidationException;
 
@@ -37,8 +38,13 @@ public class CreateFormAssignmentsCommandValidator : AbstractValidator<CreateFor
 public class CreateFormAssignmentsCommandHandler : IRequestHandler<CreateFormAssignmentsCommand, CreateFormAssignmentsResult>
 {
     private readonly IApplicationDbContext _db;
+    private readonly AssignmentNotifier _notifier;
 
-    public CreateFormAssignmentsCommandHandler(IApplicationDbContext db) => _db = db;
+    public CreateFormAssignmentsCommandHandler(IApplicationDbContext db, AssignmentNotifier notifier)
+    {
+        _db = db;
+        _notifier = notifier;
+    }
 
     public async Task<CreateFormAssignmentsResult> Handle(CreateFormAssignmentsCommand request, CancellationToken cancellationToken)
     {
@@ -90,9 +96,15 @@ public class CreateFormAssignmentsCommandHandler : IRequestHandler<CreateFormAss
             .Distinct()
             .ToListAsync(cancellationToken);
 
-        foreach (var user in users.Where(u => !overlapping.Contains(u.Id)))
-            _db.FormAssignments.Add(FormAssignment.Create(form.Id, user.Id, request.StartDate, request.EndDate, request.Note));
+        var created = users
+            .Where(u => !overlapping.Contains(u.Id))
+            .Select(u => FormAssignment.Create(form.Id, u.Id, request.StartDate, request.EndDate, request.Note))
+            .ToList();
+        foreach (var assignment in created) _db.FormAssignments.Add(assignment);
         await _db.SaveChangesAsync(cancellationToken);
+
+        // WhatsApp, best effort: a failed message is logged, the assignment stands.
+        await _notifier.NotifyAssignedAsync(created.Select(a => a.Id).ToList(), cancellationToken);
 
         return new CreateFormAssignmentsResult(
             users.Count - overlapping.Count,

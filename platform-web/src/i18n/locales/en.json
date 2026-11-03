@@ -219,7 +219,8 @@
     },
     "assignment.formNotPublished": "This form isn't published yet, so it can't be filled.",
     "assignment.userInactive": "Deactivated users can't be assigned.",
-    "assignment.noFormAccess": "Some of these users can't open this form. Give them access to it first (Form builder > Access)."
+    "assignment.noFormAccess": "Some of these users can't open this form. Give them access to it first (Form builder > Access).",
+    "user.phoneInvalid": "Enter the full mobile number, e.g. 0551234567 or +966551234567."
   },
   "userManagement": {
     "title": "Users & roles",
@@ -264,7 +265,16 @@
     "resetTooShort": "The password needs at least 10 characters.",
     "resetError": "Could not reset that password.",
     "resetDone": "Done. Give {{name}} this password:",
-    "close": "Close"
+    "close": "Close",
+    "whatsapp": "WhatsApp",
+    "phone": "Mobile number",
+    "phoneExplain": "{{name}}'s mobile number for WhatsApp reminders about assigned forms. Leave it empty for no messages.",
+    "phoneError": "Could not save the number.",
+    "phoneTest": "Send a test message",
+    "phoneTesting": "Sending…",
+    "phoneTestSent": "Sent. It should arrive on WhatsApp within a minute.",
+    "phoneTestFailed": "Not sent:",
+    "phoneTestError": "Could not send the test message."
   },
   "executiveOverview": {
     "title": "Executive overview",
@@ -632,13 +642,17 @@
       "loadError": "Could not load assignments.",
       "summary": "{{filled}} filled · {{missed}} not filled · {{pending}} due today",
       "period": "Period",
-      "openTracking": "Filled or not, by day"
+      "openTracking": "Filled or not, by day",
+      "noPhone": "no WhatsApp number"
     },
     "tracking": {
       "title": "Filled or not, by day",
       "date": "Day",
       "back": "Form assignments",
       "notWorkingDay": "Friday is the day off, so nothing is due."
-    }
+    },
+    "whatsapp": "WhatsApp",
+    "remindersSent": "{{n}} reminder(s) sent",
+    "remindersFailed": "{{n}} failed"
   }
 }

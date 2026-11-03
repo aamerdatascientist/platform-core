@@ -490,6 +490,18 @@ export const api = {
   users: {
     list: (token: string) => request<UserSummaryDto[]>('/api/users', {}, token),
 
+    /** WhatsApp number; null removes it. */
+    setPhoneNumber: (token: string, userId: string, phoneNumber: string | null) =>
+      request<void>(`/api/users/${userId}/phone`, { method: 'PUT', body: JSON.stringify({ phoneNumber }) }, token),
+
+    /** Sends a sample reminder; the answer says whether Meta accepted it. */
+    sendWhatsAppTest: (token: string, userId: string) =>
+      request<{ success: boolean; messageId: string | null; error: string | null }>(
+        `/api/users/${userId}/whatsapp-test`,
+        { method: 'POST' },
+        token,
+      ),
+
     setRoles: (token: string, userId: string, roleIds: string[]) =>
       request<void>(`/api/users/${userId}/roles`, { method: 'PUT', body: JSON.stringify({ roleIds }) }, token),
 

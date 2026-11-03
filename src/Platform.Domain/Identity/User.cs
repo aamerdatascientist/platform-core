@@ -10,6 +10,12 @@ public class User : AuditableEntity
     public Guid? DepartmentId { get; private set; }
     public bool IsActive { get; private set; } = true;
 
+    /// <summary>
+    /// Mobile number for WhatsApp notifications, international digits without "+"
+    /// ("9665XXXXXXXX"); null = this user gets no WhatsApp messages.
+    /// </summary>
+    public string? PhoneNumber { get; private set; }
+
     private readonly List<UserRole> _userRoles = new();
     public IReadOnlyCollection<UserRole> UserRoles => _userRoles.AsReadOnly();
 
@@ -46,4 +52,7 @@ public class User : AuditableEntity
     public void Deactivate() => IsActive = false;
 
     public void ChangePasswordHash(string newHash) => PasswordHash = newHash;
+
+    /// <summary>Already normalized by the caller (see PhoneNumbers.Normalize); null clears it.</summary>
+    public void SetPhoneNumber(string? phoneNumber) => PhoneNumber = phoneNumber;
 }

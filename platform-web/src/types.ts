@@ -151,6 +151,8 @@ export interface UserSummaryDto {
   displayName: string;
   isActive: boolean;
   roles: UserRoleSummary[];
+  /** International digits without "+", for WhatsApp; null = no messages. */
+  phoneNumber: string | null;
 }
 
 export interface RoleDto {
@@ -311,6 +313,9 @@ export interface AssignmentDayDto {
   status: AssignmentDayStatus;
   filledAtUtc: string | null;
   submissionCount: number;
+  /** WhatsApp reminders about this day (tracking page only). */
+  remindersSent: number;
+  remindersFailed: number;
 }
 
 export interface MyAssignmentsDto {

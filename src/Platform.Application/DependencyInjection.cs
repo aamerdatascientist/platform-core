@@ -1,6 +1,7 @@
 using System.Reflection;
 using FluentValidation;
 using Platform.Application.Common.Behaviors;
+using Platform.Application.Notifications;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Platform.Application;
@@ -20,6 +21,7 @@ public static class DependencyInjection
         });
 
         services.AddValidatorsFromAssembly(assembly);
+        services.AddScoped<AssignmentNotifier>();
 
         return services;
     }
