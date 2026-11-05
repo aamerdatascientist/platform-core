@@ -667,7 +667,7 @@
       "summary": "{{filled}} filled · {{missed}} not filled · {{pending}} due today",
       "period": "Period",
       "openTracking": "Filled or not, by day",
-      "noPhone": "no Telegram or WhatsApp"
+      "noPhone": "no Telegram"
     },
     "tracking": {
       "title": "Filled or not, by day",
@@ -675,7 +675,7 @@
       "back": "Form assignments",
       "notWorkingDay": "Friday is the day off, so nothing is due."
     },
-    "whatsapp": "Reminders",
+    "telegram": "Telegram",
     "remindersSent": "{{n}} reminder(s) sent",
     "remindersFailed": "{{n}} failed"
   }

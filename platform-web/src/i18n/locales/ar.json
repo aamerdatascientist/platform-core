@@ -667,7 +667,7 @@
       "summary": "{{filled}} تمت تعبئتها · {{missed}} لم تتم تعبئتها · {{pending}} مطلوبة اليوم",
       "period": "المدة",
       "openTracking": "التعبئة حسب اليوم",
-      "noPhone": "لا يوجد تيليجرام أو واتساب"
+      "noPhone": "لا يوجد تيليجرام"
     },
     "tracking": {
       "title": "التعبئة حسب اليوم",
@@ -675,7 +675,7 @@
       "back": "تكليف النماذج",
       "notWorkingDay": "الجمعة يوم عطلة، فلا شيء مطلوب."
     },
-    "whatsapp": "التذكيرات",
+    "telegram": "تيليجرام",
     "remindersSent": "أُرسل {{n}} تذكير",
     "remindersFailed": "فشل {{n}}"
   }

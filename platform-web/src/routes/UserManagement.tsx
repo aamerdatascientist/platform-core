@@ -11,6 +11,12 @@ interface UserManagementProps {
   token: string;
 }
 
+/**
+ * Reminders go out on Telegram (2026-11-05). WhatsApp is built but switched off on the server,
+ * so its number button is hidden; set this to true when WhatsApp is configured again.
+ */
+const SHOW_WHATSAPP = false;
+
 export function UserManagement({ token }: UserManagementProps) {
   const { t } = useTranslation();
   const [users, setUsers] = useState<UserSummaryDto[] | null>(null);
@@ -312,7 +318,7 @@ export function UserManagement({ token }: UserManagementProps) {
                   <div>
                     <span className="text-sm font-medium text-ink">{u.displayName}</span>
                     <span className="ms-2 text-xs text-ink-soft">{u.email}</span>
-                    {u.phoneNumber && (
+                    {SHOW_WHATSAPP && u.phoneNumber && (
                       <span className="ms-2 font-mono text-xs text-ink-soft" dir="ltr">
                         +{u.phoneNumber}
                       </span>
@@ -348,12 +354,14 @@ export function UserManagement({ token }: UserManagementProps) {
                     >
                       {t('userManagement.telegram')}
                     </button>
-                    <button
-                      onClick={() => setPhoneFor(phoneFor === u.id ? null : u.id)}
-                      className="text-label uppercase tracking-wide text-ink-soft hover:text-ink"
-                    >
-                      {t('userManagement.whatsapp')}
-                    </button>
+                    {SHOW_WHATSAPP && (
+                      <button
+                        onClick={() => setPhoneFor(phoneFor === u.id ? null : u.id)}
+                        className="text-label uppercase tracking-wide text-ink-soft hover:text-ink"
+                      >
+                        {t('userManagement.whatsapp')}
+                      </button>
+                    )}
                     <button
                       onClick={() => startReset(u.id)}
                       className="text-label uppercase tracking-wide text-ink-soft hover:text-ink"
@@ -373,7 +381,7 @@ export function UserManagement({ token }: UserManagementProps) {
                   <UserTelegramPanel token={token} user={u} onChanged={load} onClose={() => setTelegramFor(null)} />
                 )}
 
-                {phoneFor === u.id && (
+                {SHOW_WHATSAPP && phoneFor === u.id && (
                   <UserPhonePanel token={token} user={u} onSaved={load} onClose={() => setPhoneFor(null)} />
                 )}
 

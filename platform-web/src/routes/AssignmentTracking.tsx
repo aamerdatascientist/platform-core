@@ -155,7 +155,7 @@ export function AssignmentTracking({ token }: AssignmentTrackingProps) {
                     <th className={thClass}>{t('assignments.form')}</th>
                     <th className={thClass}>{t('assignments.statusLabel')}</th>
                     <th className={thClass}>{t('assignments.filledAt')}</th>
-                    <th className={thClass}>{t('assignments.whatsapp')}</th>
+                    <th className={thClass}>{t('assignments.telegram')}</th>
                     <th className={thClass}>{t('assignments.assignedAt')}</th>
                   </tr>
                 </thead>
