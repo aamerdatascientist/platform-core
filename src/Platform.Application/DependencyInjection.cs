@@ -22,6 +22,7 @@ public static class DependencyInjection
 
         services.AddValidatorsFromAssembly(assembly);
         services.AddScoped<AssignmentNotifier>();
+        services.AddScoped<TelegramLinker>();
 
         return services;
     }

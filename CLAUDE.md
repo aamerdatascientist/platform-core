@@ -266,6 +266,30 @@ Real data starts 2026-11-02. Never treat those rows as client input; delete by t
   (`PhoneNumbers.Normalize`: 05XXXXXXXX -> 9665XXXXXXXX).
 - Migrations `AddFormAssignments`, `AddWhatsAppNotifications` - applied to staging only.
 
+### Telegram notifications - added 2026-11-05 (the channel in use; WhatsApp stays built but off)
+
+- `AssignmentNotifier` sends each message on **every channel that is configured on the server
+  and linked for the user**: `telegram` (`User.TelegramChatId`) and `whatsapp`
+  (`User.PhoneNumber`). The send-once index is now (AssignmentId, Kind, ForDate, **Channel**).
+  One `Message` record carries both shapes: WhatsApp template parameters and Telegram text + a
+  URL button (omitted when `Notifications:AppUrl` isn't a full http(s) URL - Telegram refuses it).
+- Shared settings moved to the `Notifications` section: `AppUrl`, `ReminderTimes`. The array
+  starts **empty** and `EffectiveReminderTimes` supplies 09:00/14:00 - a pre-filled array made
+  the configuration binder *append* overrides instead of replacing them.
+- **Linking**: a bot can't message a phone number. `CreateTelegramLinkCommand` stores a random
+  32-char `User.TelegramLinkCode` (7 days) and returns `t.me/{BotUsername}?start={code}`;
+  `TelegramBotService` (BackgroundService, long-polls `getUpdates`, no webhook/public URL) hands
+  each private-chat message to `TelegramLinker`: `/start {code}` links the chat and clears the
+  code, `/stop` unlinks every user on that chat. Group chats are ignored.
+- **One bot per environment.** Two servers polling one bot take each other's updates (409
+  Conflict, logged); a staging code arriving at production's poller would be "invalid".
+- Endpoints: `GET/POST link/DELETE api/me/telegram` (any signed-in user - Settings > Reminders);
+  admins: `POST api/users/{id}/telegram-link`, `DELETE api/users/{id}/telegram`,
+  `POST api/users/{id}/telegram-test`. The Settings button opens an empty tab inside the click
+  and points it at the link once fetched (pop-up blockers); it never fetches a link on page
+  load, since that would replace a link an admin just sent.
+- Migration `AddTelegramNotifications`. Settings `Telegram__BotToken`, `Telegram__BotUsername`.
+
 ## Releasing to production - `main` and the working branch have diverged (2026-11-03)
 
 Production is `main`; the working branch is `chore/dotnet-10`, which is also what `staging`

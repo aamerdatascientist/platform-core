@@ -10,6 +10,8 @@ import type {
   FormSummaryDto,
   PagedResult,
   RoleDto,
+  TelegramLinkDto,
+  TelegramStatusDto,
   TokenPair,
   UserSummaryDto,
   WorkflowStatusDto,
@@ -502,6 +504,21 @@ export const api = {
         token,
       ),
 
+    /** A one-time "Connect Telegram" link for this user, to send them (valid 7 days). */
+    createTelegramLink: (token: string, userId: string) =>
+      request<TelegramLinkDto>(`/api/users/${userId}/telegram-link`, { method: 'POST' }, token),
+
+    unlinkTelegram: (token: string, userId: string) =>
+      request<void>(`/api/users/${userId}/telegram`, { method: 'DELETE' }, token),
+
+    /** Sends a sample message; the answer says whether Telegram accepted it. */
+    sendTelegramTest: (token: string, userId: string) =>
+      request<{ success: boolean; messageId: string | null; error: string | null }>(
+        `/api/users/${userId}/telegram-test`,
+        { method: 'POST' },
+        token,
+      ),
+
     setRoles: (token: string, userId: string, roleIds: string[]) =>
       request<void>(`/api/users/${userId}/roles`, { method: 'PUT', body: JSON.stringify({ roleIds }) }, token),
 
@@ -511,6 +528,16 @@ export const api = {
     /** Sets a new password for someone who forgot theirs, and signs them out everywhere. */
     resetPassword: (token: string, userId: string, newPassword: string) =>
       request<void>(`/api/users/${userId}/password`, { method: 'POST', body: JSON.stringify({ newPassword }) }, token),
+  },
+
+  /** The signed-in user's own settings (any role). */
+  me: {
+    telegramStatus: (token: string) => request<TelegramStatusDto>('/api/me/telegram', {}, token),
+
+    /** A fresh link to open in Telegram; replaces any earlier one. */
+    createTelegramLink: (token: string) => request<TelegramLinkDto>('/api/me/telegram/link', { method: 'POST' }, token),
+
+    unlinkTelegram: (token: string) => request<void>('/api/me/telegram', { method: 'DELETE' }, token),
   },
 
   roles: {

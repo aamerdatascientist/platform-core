@@ -9,7 +9,7 @@ using Platform.Application.Notifications;
 namespace Platform.Infrastructure.Notifications;
 
 /// <summary>
-/// Once a minute: on a working day, once a reminder time (WhatsApp:ReminderTimes, Saudi time)
+/// Once a minute: on a working day, once a reminder time (Notifications:ReminderTimes, Saudi time)
 /// has passed, reminds everyone who hasn't filled today's assigned form. Only the latest time
 /// that has passed is sent, and only within <see cref="LateWindow"/> of it - an API that comes
 /// back from a restart in the afternoon sends the afternoon reminder, not the morning one as
@@ -21,14 +21,19 @@ public class AssignmentReminderService : BackgroundService
     private static readonly TimeSpan SaudiArabiaOffset = TimeSpan.FromHours(3);
 
     private readonly IServiceScopeFactory _scopeFactory;
-    private readonly WhatsAppSettings _settings;
+    private readonly NotificationSettings _settings;
+    private readonly TelegramSettings _telegram;
+    private readonly WhatsAppSettings _whatsApp;
     private readonly ILogger<AssignmentReminderService> _logger;
 
     public AssignmentReminderService(
-        IServiceScopeFactory scopeFactory, WhatsAppSettings settings, ILogger<AssignmentReminderService> logger)
+        IServiceScopeFactory scopeFactory, NotificationSettings settings, TelegramSettings telegram,
+        WhatsAppSettings whatsApp, ILogger<AssignmentReminderService> logger)
     {
         _scopeFactory = scopeFactory;
         _settings = settings;
+        _telegram = telegram;
+        _whatsApp = whatsApp;
         _logger = logger;
     }
 
@@ -46,9 +51,9 @@ public class AssignmentReminderService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_settings.IsConfigured)
+        if (!_telegram.IsConfigured && !_whatsApp.IsConfigured)
         {
-            _logger.LogInformation("WhatsApp isn't configured - assignment reminders are off.");
+            _logger.LogInformation("No notification channel (Telegram, WhatsApp) is configured - assignment reminders are off.");
             return;
         }
 
@@ -59,7 +64,7 @@ public class AssignmentReminderService : BackgroundService
             {
                 var saudiNow = DateTime.UtcNow + SaudiArabiaOffset;
                 var today = DateOnly.FromDateTime(saudiNow);
-                if (FormAssignmentTracker.IsWorkingDay(today) && DueSlot(_settings.ReminderTimes, TimeOnly.FromDateTime(saudiNow)) is { } slot)
+                if (FormAssignmentTracker.IsWorkingDay(today) && DueSlot(_settings.EffectiveReminderTimes, TimeOnly.FromDateTime(saudiNow)) is { } slot)
                 {
                     using var scope = _scopeFactory.CreateScope();
                     var notifier = scope.ServiceProvider.GetRequiredService<AssignmentNotifier>();

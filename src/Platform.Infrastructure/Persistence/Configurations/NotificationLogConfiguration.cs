@@ -17,9 +17,10 @@ public class NotificationLogConfiguration : IEntityTypeConfiguration<Notificatio
         builder.Property(n => n.ProviderMessageId).HasMaxLength(200);
         builder.Property(n => n.Error).HasMaxLength(1000);
 
-        // The send-once guard (see NotificationLog). Rows without an assignment (tests) are
-        // not covered - NULLs never collide in a Postgres unique index.
-        builder.HasIndex(n => new { n.AssignmentId, n.Kind, n.ForDate }).IsUnique();
+        // The send-once guard (see NotificationLog), per channel - a user linked to both
+        // Telegram and WhatsApp gets each reminder once on each. Rows without an assignment
+        // (tests) are not covered - NULLs never collide in a Postgres unique index.
+        builder.HasIndex(n => new { n.AssignmentId, n.Kind, n.ForDate, n.Channel }).IsUnique();
         builder.HasIndex(n => n.UserId);
     }
 }

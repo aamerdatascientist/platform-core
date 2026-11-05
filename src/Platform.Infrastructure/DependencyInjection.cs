@@ -42,11 +42,19 @@ public static class DependencyInjection
 
         services.AddHostedService<DatabaseWarmupService>();
 
-        // WhatsApp (Meta Cloud API). Off until WhatsApp:PhoneNumberId and WhatsApp:AccessToken
-        // are set; the reminder scheduler then does nothing and every send is skipped.
+        // Assignment notifications. Each channel is off until its settings are there; with
+        // none configured the reminder scheduler and the bot do nothing.
+        // - Notifications: AppUrl (links in messages), ReminderTimes (Saudi, default 09:00/14:00).
+        // - Telegram: BotToken + BotUsername (one bot per environment - see TelegramSettings).
+        // - WhatsApp (Meta Cloud API): PhoneNumberId + AccessToken.
+        services.AddSingleton(configuration.GetSection("Notifications").Get<NotificationSettings>() ?? new NotificationSettings());
+        services.AddSingleton(configuration.GetSection("Telegram").Get<TelegramSettings>() ?? new TelegramSettings());
         services.AddSingleton(configuration.GetSection("WhatsApp").Get<WhatsAppSettings>() ?? new WhatsAppSettings());
         services.AddHttpClient<IWhatsAppSender, WhatsAppSender>(client => client.Timeout = TimeSpan.FromSeconds(15));
+        // Longer than a long poll (50 s); each message has its own 15 s limit (TelegramClient).
+        services.AddHttpClient<ITelegramClient, TelegramClient>(client => client.Timeout = TimeSpan.FromSeconds(70));
         services.AddHostedService<AssignmentReminderService>();
+        services.AddHostedService<TelegramBotService>();
 
         return services;
     }

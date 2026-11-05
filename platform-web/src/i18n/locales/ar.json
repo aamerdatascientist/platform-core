@@ -220,7 +220,8 @@
     "assignment.formNotPublished": "هذا النموذج غير منشور بعد، فلا يمكن تعبئته.",
     "assignment.userInactive": "لا يمكن تكليف مستخدمين معطّلين.",
     "assignment.noFormAccess": "بعض هؤلاء المستخدمين لا يمكنهم فتح هذا النموذج. امنحهم صلاحية الوصول إليه أولاً (منشئ النماذج > الوصول).",
-    "user.phoneInvalid": "أدخل رقم الجوال كاملاً، مثل 0551234567 أو ‎+966551234567."
+    "user.phoneInvalid": "أدخل رقم الجوال كاملاً، مثل 0551234567 أو ‎+966551234567.",
+    "telegram.notConfigured": "لم يُعدّ تيليجرام على هذا الخادم بعد."
   },
   "userManagement": {
     "title": "المستخدمون والأدوار",
@@ -274,7 +275,18 @@
     "phoneTesting": "جارٍ الإرسال…",
     "phoneTestSent": "تم الإرسال. يُفترض أن تصل على واتساب خلال دقيقة.",
     "phoneTestFailed": "لم تُرسل:",
-    "phoneTestError": "تعذّر إرسال الرسالة التجريبية."
+    "phoneTestError": "تعذّر إرسال الرسالة التجريبية.",
+    "telegram": "تيليجرام",
+    "telegramLinked": "تيليجرام ✓",
+    "telegramExplain": "تذكيرات تيليجرام لـ {{name}}. يمكنه الربط بنفسه من «الإعدادات»، أو أرسل له هذا الرابط (صالح 7 أيام) ليفتحه على جواله ويضغط «Start».",
+    "telegramStatusLinked": "مربوط.",
+    "telegramStatusNotLinked": "غير مربوط بعد.",
+    "telegramCreateLink": "إنشاء رابط",
+    "telegramCopy": "نسخ",
+    "telegramCopied": "تم النسخ",
+    "telegramUnlink": "إلغاء الربط",
+    "telegramTestSent": "تم الإرسال. يُفترض أن تصل على تيليجرام خلال ثوانٍ.",
+    "telegramError": "تعذّر تحديث تيليجرام لهذا المستخدم."
   },
   "executiveOverview": {
     "title": "النظرة التنفيذية العامة",
@@ -545,7 +557,19 @@
     "usersHint": "الحسابات والأدوار وإعادة تعيين كلمات المرور",
     "assignments": "تكليف النماذج",
     "assignmentsHint": "كلّف المستخدمين بتعبئة النماذج يومياً وتابع من عبّأها",
-    "trackingHint": "من عبّأ النماذج المكلّف بها في يوم معيّن"
+    "trackingHint": "من عبّأ النماذج المكلّف بها في يوم معيّن",
+    "notifications": "التذكيرات",
+    "telegram": "تيليجرام",
+    "telegramExplain": "استلم النماذج المكلّف بها والتذكيرات اليومية على تيليجرام. اضغط «ربط»، ثم «Start» في تيليجرام.",
+    "telegramConnect": "ربط تيليجرام",
+    "telegramReconnect": "إعادة الربط",
+    "telegramOpening": "جارٍ الفتح…",
+    "telegramConnected": "مربوط - تصلك التذكيرات على تيليجرام.",
+    "telegramNotConnected": "غير مربوط.",
+    "telegramWaiting": "اضغط «Start» في تيليجرام، ثم عد إلى هنا.",
+    "telegramCheck": "تحقّق مرة أخرى",
+    "telegramDisconnect": "إلغاء الربط",
+    "telegramError": "تعذّر تحديث ربط تيليجرام."
   },
   "errors": {
     "offline": "تعذّر الاتصال بالخادم. تحقق من اتصالك بالإنترنت ثم حاول مرة أخرى.",
@@ -643,7 +667,7 @@
       "summary": "{{filled}} تمت تعبئتها · {{missed}} لم تتم تعبئتها · {{pending}} مطلوبة اليوم",
       "period": "المدة",
       "openTracking": "التعبئة حسب اليوم",
-      "noPhone": "لا يوجد رقم واتساب"
+      "noPhone": "لا يوجد تيليجرام أو واتساب"
     },
     "tracking": {
       "title": "التعبئة حسب اليوم",
@@ -651,7 +675,7 @@
       "back": "تكليف النماذج",
       "notWorkingDay": "الجمعة يوم عطلة، فلا شيء مطلوب."
     },
-    "whatsapp": "واتساب",
+    "whatsapp": "التذكيرات",
     "remindersSent": "أُرسل {{n}} تذكير",
     "remindersFailed": "فشل {{n}}"
   }

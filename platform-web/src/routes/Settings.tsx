@@ -6,6 +6,7 @@ import { getTokens, setTokens } from '../auth/tokenStore';
 import { ChangePasswordForm } from '../components/ChangePasswordForm';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { ModeToggle } from '../components/ModeToggle';
+import { TelegramConnect } from '../components/TelegramConnect';
 import { buildDashboardUrl } from '../dashboardLink';
 import { isRtl } from '../i18n';
 import { getMode } from '../theme/mode';
@@ -93,6 +94,8 @@ export function Settings({ token }: SettingsProps) {
           </button>
         </div>
       </section>
+
+      <TelegramConnect token={token} sectionClass={sectionClass} headingClass={headingClass} />
 
       <section className={sectionClass} aria-labelledby="settings-display">
         <h3 id="settings-display" className={headingClass}>

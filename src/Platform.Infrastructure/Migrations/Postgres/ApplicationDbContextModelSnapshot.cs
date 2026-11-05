@@ -535,10 +535,24 @@ namespace Platform.Infrastructure.Migrations.Postgres
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<long?>("TelegramChatId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("TelegramLinkCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("TelegramLinkCodeExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Email")
                         .IsUnique();
+
+                    b.HasIndex("TelegramLinkCode")
+                        .IsUnique()
+                        .HasFilter("\"TelegramLinkCode\" IS NOT NULL");
 
                     b.ToTable("Users", (string)null);
                 });
@@ -609,7 +623,7 @@ namespace Platform.Infrastructure.Migrations.Postgres
 
                     b.HasIndex("UserId");
 
-                    b.HasIndex("AssignmentId", "Kind", "ForDate")
+                    b.HasIndex("AssignmentId", "Kind", "ForDate", "Channel")
                         .IsUnique();
 
                     b.ToTable("NotificationLogs", (string)null);

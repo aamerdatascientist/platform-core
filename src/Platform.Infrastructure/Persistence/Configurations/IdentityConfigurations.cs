@@ -14,6 +14,9 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.HasIndex(u => u.Email).IsUnique();
         builder.Property(u => u.DisplayName).IsRequired().HasMaxLength(200);
         builder.Property(u => u.PhoneNumber).HasMaxLength(20);
+        builder.Property(u => u.TelegramLinkCode).HasMaxLength(64);
+        // The bot looks a code up when someone presses Start; codes are random, so unique in practice.
+        builder.HasIndex(u => u.TelegramLinkCode).IsUnique().HasFilter("\"TelegramLinkCode\" IS NOT NULL");
         builder.Property(u => u.PasswordHash).IsRequired();
 
         builder.HasMany(u => u.UserRoles).WithOne().HasForeignKey(ur => ur.UserId)

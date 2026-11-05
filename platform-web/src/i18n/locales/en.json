@@ -220,7 +220,8 @@
     "assignment.formNotPublished": "This form isn't published yet, so it can't be filled.",
     "assignment.userInactive": "Deactivated users can't be assigned.",
     "assignment.noFormAccess": "Some of these users can't open this form. Give them access to it first (Form builder > Access).",
-    "user.phoneInvalid": "Enter the full mobile number, e.g. 0551234567 or +966551234567."
+    "user.phoneInvalid": "Enter the full mobile number, e.g. 0551234567 or +966551234567.",
+    "telegram.notConfigured": "Telegram isn't set up on this server yet."
   },
   "userManagement": {
     "title": "Users & roles",
@@ -274,7 +275,18 @@
     "phoneTesting": "Sending…",
     "phoneTestSent": "Sent. It should arrive on WhatsApp within a minute.",
     "phoneTestFailed": "Not sent:",
-    "phoneTestError": "Could not send the test message."
+    "phoneTestError": "Could not send the test message.",
+    "telegram": "Telegram",
+    "telegramLinked": "Telegram ✓",
+    "telegramExplain": "Telegram reminders for {{name}}. They can connect it themselves in Settings, or you can send them this link (valid 7 days) - they open it on their phone and press Start.",
+    "telegramStatusLinked": "Connected.",
+    "telegramStatusNotLinked": "Not connected yet.",
+    "telegramCreateLink": "Create link",
+    "telegramCopy": "Copy",
+    "telegramCopied": "Copied",
+    "telegramUnlink": "Disconnect",
+    "telegramTestSent": "Sent. It should arrive on Telegram in a few seconds.",
+    "telegramError": "Could not update Telegram for this user."
   },
   "executiveOverview": {
     "title": "Executive overview",
@@ -545,7 +557,19 @@
     "usersHint": "Accounts, roles and password resets",
     "assignments": "Form assignments",
     "assignmentsHint": "Assign daily forms and see who filled them",
-    "trackingHint": "Who filled their assigned forms on a given day"
+    "trackingHint": "Who filled their assigned forms on a given day",
+    "notifications": "Reminders",
+    "telegram": "Telegram",
+    "telegramExplain": "Get your assigned forms and daily reminders on Telegram. Press Connect, then Start in Telegram.",
+    "telegramConnect": "Connect Telegram",
+    "telegramReconnect": "Connect again",
+    "telegramOpening": "Opening…",
+    "telegramConnected": "Connected - reminders come to your Telegram.",
+    "telegramNotConnected": "Not connected.",
+    "telegramWaiting": "Press Start in Telegram, then come back here.",
+    "telegramCheck": "Check again",
+    "telegramDisconnect": "Disconnect",
+    "telegramError": "Could not update your Telegram connection."
   },
   "errors": {
     "offline": "Can't reach the server. Check your internet connection and try again.",
@@ -643,7 +667,7 @@
       "summary": "{{filled}} filled · {{missed}} not filled · {{pending}} due today",
       "period": "Period",
       "openTracking": "Filled or not, by day",
-      "noPhone": "no WhatsApp number"
+      "noPhone": "no Telegram or WhatsApp"
     },
     "tracking": {
       "title": "Filled or not, by day",
@@ -651,7 +675,7 @@
       "back": "Form assignments",
       "notWorkingDay": "Friday is the day off, so nothing is due."
     },
-    "whatsapp": "WhatsApp",
+    "whatsapp": "Reminders",
     "remindersSent": "{{n}} reminder(s) sent",
     "remindersFailed": "{{n}} failed"
   }

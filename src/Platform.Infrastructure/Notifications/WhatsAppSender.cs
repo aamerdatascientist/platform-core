@@ -20,10 +20,10 @@ public class WhatsAppSender : IWhatsAppSender
         _settings = settings;
     }
 
-    public async Task<WhatsAppSendResult> SendTemplateAsync(
+    public async Task<NotificationSendResult> SendTemplateAsync(
         string to, string templateName, IReadOnlyList<string> bodyParameters, CancellationToken cancellationToken = default)
     {
-        if (!_settings.IsConfigured) return new WhatsAppSendResult(false, null, "WhatsApp isn't configured.");
+        if (!_settings.IsConfigured) return new NotificationSendResult(false, null, "WhatsApp isn't configured.");
 
         var payload = new
         {
@@ -60,20 +60,20 @@ public class WhatsAppSender : IWhatsAppSender
             using var json = JsonDocument.Parse(body);
             if (response.IsSuccessStatusCode &&
                 json.RootElement.TryGetProperty("messages", out var messages) && messages.GetArrayLength() > 0)
-                return new WhatsAppSendResult(true, messages[0].GetProperty("id").GetString(), null);
+                return new NotificationSendResult(true, messages[0].GetProperty("id").GetString(), null);
 
             if (json.RootElement.TryGetProperty("error", out var error))
             {
                 var message = error.TryGetProperty("message", out var m) ? m.GetString() : null;
                 var details = error.TryGetProperty("error_data", out var d) && d.TryGetProperty("details", out var dd) ? dd.GetString() : null;
                 var code = error.TryGetProperty("code", out var c) ? c.ToString() : null;
-                return new WhatsAppSendResult(false, null, $"{(int)response.StatusCode} ({code}): {message}{(details is null ? "" : " - " + details)}");
+                return new NotificationSendResult(false, null, $"{(int)response.StatusCode} ({code}): {message}{(details is null ? "" : " - " + details)}");
             }
         }
         catch (JsonException)
         {
         }
-        return new WhatsAppSendResult(false, null, $"{(int)response.StatusCode}: {Truncate(body, 300)}");
+        return new NotificationSendResult(false, null, $"{(int)response.StatusCode}: {Truncate(body, 300)}");
     }
 
     private static string Clean(string text) =>

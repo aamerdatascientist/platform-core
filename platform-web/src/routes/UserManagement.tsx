@@ -4,6 +4,7 @@ import { api } from '../api/client';
 import type { RoleDto, UserSummaryDto } from '../types';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { UserPhonePanel } from '../components/UserPhonePanel';
+import { UserTelegramPanel } from '../components/UserTelegramPanel';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 
 interface UserManagementProps {
@@ -25,6 +26,7 @@ export function UserManagement({ token }: UserManagementProps) {
 
   const [editingRolesFor, setEditingRolesFor] = useState<string | null>(null);
   const [phoneFor, setPhoneFor] = useState<string | null>(null);
+  const [telegramFor, setTelegramFor] = useState<string | null>(null);
   const [pendingRoleIds, setPendingRoleIds] = useState<Set<string>>(new Set());
   const [savingRoles, setSavingRoles] = useState(false);
 
@@ -315,6 +317,9 @@ export function UserManagement({ token }: UserManagementProps) {
                         +{u.phoneNumber}
                       </span>
                     )}
+                    {u.telegramLinked && (
+                      <span className="ms-2 text-xs text-success">{t('userManagement.telegramLinked')}</span>
+                    )}
                     <div className="mt-0.5 flex flex-wrap gap-1">
                       {u.roles.length === 0 ? (
                         <span className="text-xs text-ink-soft">{t('userManagement.noRoles')}</span>
@@ -338,6 +343,12 @@ export function UserManagement({ token }: UserManagementProps) {
                       {t('userManagement.editRoles')}
                     </button>
                     <button
+                      onClick={() => setTelegramFor(telegramFor === u.id ? null : u.id)}
+                      className="text-label uppercase tracking-wide text-ink-soft hover:text-ink"
+                    >
+                      {t('userManagement.telegram')}
+                    </button>
+                    <button
                       onClick={() => setPhoneFor(phoneFor === u.id ? null : u.id)}
                       className="text-label uppercase tracking-wide text-ink-soft hover:text-ink"
                     >
@@ -357,6 +368,10 @@ export function UserManagement({ token }: UserManagementProps) {
                     </button>
                   </div>
                 </div>
+
+                {telegramFor === u.id && (
+                  <UserTelegramPanel token={token} user={u} onChanged={load} onClose={() => setTelegramFor(null)} />
+                )}
 
                 {phoneFor === u.id && (
                   <UserPhonePanel token={token} user={u} onSaved={load} onClose={() => setPhoneFor(null)} />

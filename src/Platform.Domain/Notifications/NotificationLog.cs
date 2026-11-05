@@ -3,9 +3,10 @@ using Platform.Domain.Common;
 namespace Platform.Domain.Notifications;
 
 /// <summary>
-/// One message sent (or tried) to a user - today only WhatsApp. The row is written BEFORE the
-/// message goes out, under a unique (AssignmentId, Kind, ForDate) key, so two API instances or
-/// a restart can never send the same reminder twice: whoever inserts the row sends it.
+/// One message sent (or tried) to a user over one channel ("telegram" or "whatsapp"). The row
+/// is written BEFORE the message goes out, under a unique (AssignmentId, Kind, ForDate, Channel)
+/// key, so two API instances or a restart can never send the same reminder twice: whoever
+/// inserts the row sends it.
 /// </summary>
 public class NotificationLog : BaseEntity
 {

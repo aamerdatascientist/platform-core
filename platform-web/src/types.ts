@@ -153,6 +153,22 @@ export interface UserSummaryDto {
   roles: UserRoleSummary[];
   /** International digits without "+", for WhatsApp; null = no messages. */
   phoneNumber: string | null;
+  /** The user has connected Telegram (pressed Start on their link). */
+  telegramLinked: boolean;
+}
+
+/** The signed-in user's own Telegram connection (Settings). */
+export interface TelegramStatusDto {
+  /** The server has a bot; when false the Settings section is hidden. */
+  configured: boolean;
+  linked: boolean;
+  botUsername: string | null;
+}
+
+/** A one-time "Connect Telegram" link (t.me/bot?start=code), valid 7 days. */
+export interface TelegramLinkDto {
+  url: string;
+  expiresAtUtc: string;
 }
 
 export interface RoleDto {

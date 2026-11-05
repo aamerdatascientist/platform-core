@@ -142,9 +142,46 @@ a file (it should land in `attachments-staging`, not `attachments`).
 - One extra user exists on staging only (6 users vs production's 5).
 - A test assignment (Qasim, daily progress report) ran on 2026-11-03 and was stopped.
 
+## Telegram (form assignment notifications) - the channel in use since 2026-11-05
+
+Chosen over WhatsApp (Meta setup didn't work out) and SMS (sender-name registration, paid):
+Telegram is free, needs no templates or approval, and takes ~5 minutes. The one difference: a
+bot can't message someone by phone number - each person opens their "Connect Telegram" link
+once and presses **Start**, which links that chat to their Asas account.
+
+1. In Telegram, open **@BotFather** > `/newbot`. Name e.g. "Asas Staging"; username e.g.
+   `AsasStagingBot` (must end in `bot`). BotFather replies with the **token** - a secret.
+   **Make a separate bot for production later**: the API reads the bot by polling, and two
+   servers polling one bot steal each other's messages (`TelegramBotService` logs a 409).
+2. Optional, in BotFather: `/setuserpic`, `/setdescription` (shown before Start), e.g.
+   «تذكيرات النماذج اليومية من أساس».
+3. Apply the migration `AddTelegramNotifications` to the staging database **before** deploying
+   the code (adds `Users.TelegramChatId`/`TelegramLinkCode`/`TelegramLinkCodeExpiresAtUtc`).
+4. `asas-api-staging` > Environment variables:
+
+| Setting | Value |
+| --- | --- |
+| `Telegram__BotToken` | from BotFather (secret - the owner pastes it, never into chat) |
+| `Telegram__BotUsername` | e.g. `AsasStagingBot` (no `@`) |
+| `Notifications__AppUrl` | `https://staging.asasksa.co` (links and the button in messages) |
+| `Notifications__ReminderTimes__0` / `__1` | optional; unset = `09:00` / `14:00` Saudi. Setting them **replaces** the defaults (fixed 2026-11-05 - the array used to start pre-filled). |
+
+5. On staging: **Settings > Reminders > Connect Telegram** (any user) - Telegram opens the bot,
+   press Start, the bot replies «تم ربط حسابك». Or an administrator: **Users > Telegram >
+   Create link** and send the link to the person (valid 7 days; a new link replaces the old).
+   Then **Send a test message** in the same panel. `/stop` in the bot unlinks.
+
+What gets sent: on assignment «مرحباً {name}، تم تكليفك بتعبئة نموذج «{form}» ...» with a «مهامي»
+button; reminders at the reminder times on working days to anyone whose form isn't filled yet,
+with a «تعبئة النموذج» button to the form. Each is a `NotificationLog` row (Channel `telegram`),
+and the tracking page's "Reminders" column counts them. A user linked to Telegram **and** with
+a WhatsApp number (once WhatsApp is configured) gets each message on both.
+
 ## WhatsApp (form assignment notifications) - built, switched off until these are done
 
-The code is on staging (commit `43dd17b`); without the settings below it sends nothing.
+The code is on staging (commit `43dd17b`); without the settings below it sends nothing. Since
+2026-11-05 the link base and reminder times are the shared `Notifications__AppUrl` /
+`Notifications__ReminderTimes__N` (see Telegram above), not `WhatsApp__...`.
 
 1. developers.facebook.com > My Apps > Create app > **Business**, add the **WhatsApp** product.
    Meta gives a free **test number**, which can message only up to **5 verified recipient
@@ -165,8 +202,7 @@ The code is on staging (commit `43dd17b`); without the settings below it sends n
 | --- | --- |
 | `WhatsApp__PhoneNumberId` | from step 2 |
 | `WhatsApp__AccessToken` | from step 4 |
-| `WhatsApp__AppUrl` | `https://staging.asasksa.co` |
-| `WhatsApp__ReminderTimes__0` / `__1` | leave unset: default `09:00` / `14:00` (Saudi time). **Caveat, untested:** the settings array is pre-filled with the defaults and .NET's configuration binder adds to a pre-filled array rather than replacing it, so overriding probably *adds* times. To make times configurable, start the array empty in `WhatsAppSettings` and apply the defaults when nothing is bound. |
+| `Notifications__AppUrl` | `https://staging.asasksa.co` (shared with Telegram) |
 | `WhatsApp__TemplateLanguage`, `WhatsApp__AssignedTemplate`, `WhatsApp__ReminderTemplate`, `WhatsApp__ApiVersion` | optional, defaults `ar`, `form_assigned`, `form_reminder`, `v23.0` |
 
 6. On staging: Users > a user > **WhatsApp** > save the number (05XXXXXXXX or +966...) > **Send a

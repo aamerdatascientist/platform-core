@@ -16,6 +16,16 @@ public class User : AuditableEntity
     /// </summary>
     public string? PhoneNumber { get; private set; }
 
+    /// <summary>The Telegram chat the bot sends this user's notifications to; null = not linked.</summary>
+    public long? TelegramChatId { get; private set; }
+
+    /// <summary>
+    /// One-time code in a "Connect Telegram" link (t.me/bot?start=code). The person presses
+    /// Start, the bot receives the code and links that chat to this user. Null when no link is open.
+    /// </summary>
+    public string? TelegramLinkCode { get; private set; }
+    public DateTime? TelegramLinkCodeExpiresAtUtc { get; private set; }
+
     private readonly List<UserRole> _userRoles = new();
     public IReadOnlyCollection<UserRole> UserRoles => _userRoles.AsReadOnly();
 
@@ -55,4 +65,29 @@ public class User : AuditableEntity
 
     /// <summary>Already normalized by the caller (see PhoneNumbers.Normalize); null clears it.</summary>
     public void SetPhoneNumber(string? phoneNumber) => PhoneNumber = phoneNumber;
+
+    /// <summary>Opens a new link (replacing any earlier code); the chat already linked stays until replaced.</summary>
+    public void StartTelegramLink(string code, DateTime expiresAtUtc)
+    {
+        TelegramLinkCode = code;
+        TelegramLinkCodeExpiresAtUtc = expiresAtUtc;
+    }
+
+    public bool HasOpenTelegramLink(string code, DateTime nowUtc) =>
+        TelegramLinkCode is not null && TelegramLinkCode == code && TelegramLinkCodeExpiresAtUtc > nowUtc;
+
+    /// <summary>The person pressed Start with this user's code: messages now go to <paramref name="chatId"/>.</summary>
+    public void LinkTelegram(long chatId)
+    {
+        TelegramChatId = chatId;
+        TelegramLinkCode = null;
+        TelegramLinkCodeExpiresAtUtc = null;
+    }
+
+    public void UnlinkTelegram()
+    {
+        TelegramChatId = null;
+        TelegramLinkCode = null;
+        TelegramLinkCodeExpiresAtUtc = null;
+    }
 }

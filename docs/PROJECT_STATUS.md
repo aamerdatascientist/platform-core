@@ -5,6 +5,24 @@ itself stable; this is where the narrative goes.
 
 ## Current state - 2026-11-05 (read this first)
 
+### 2026-11-05 evening - Telegram reminders (staging), work moved to a Mac
+
+- **Owner's call:** WhatsApp setup with Meta didn't work out; SMS was priced (Msegat/Unifonic
+  ~0.05 SAR, Arabic bills as 2 SMS, sender name needs registration) and set aside; **Telegram for
+  now** - free, no approvals. WhatsApp code stays, switched off.
+- Built on `feature/telegram-notifications`: link a Telegram chat per user (Settings > Reminders >
+  Connect Telegram, or Users > Telegram > Create link), assignment + reminder messages with a
+  button to the form, test message, `/stop`. Migration `AddTelegramNotifications`. Details:
+  CLAUDE.md "Telegram notifications", setup: `docs/STAGING.md` "Telegram".
+- Fixed with it: `Notifications__ReminderTimes__N` now replaces the default times (moved from
+  `WhatsApp__ReminderTimes`, which appended); `WhatsApp__AppUrl` is now `Notifications__AppUrl`.
+- Tests: 153 pass (20 new). Also `037b6e0`: a test formatted a date in the machine's culture and
+  failed on Saudi-region machines (Hijri year) - invariant culture now.
+- The owner now works on a Mac: repo clones in `~/Desktop/platform-core/{staging,production}`;
+  .NET 10, Node 24, PostgreSQL 18 client tools, PowerShell 7 installed in the home folder
+  (`~/.dotnet`, `~/.local/...`), no admin rights. Git there needs
+  `DEVELOPER_DIR=/Library/Developer/CommandLineTools` until the Xcode license is accepted.
+
 ### Where the code is - two lines of history, read before deploying anything
 
 - **`main` = production** (`https://asasksa.co`), at `8544610` since 2026-11-03. It got the six
