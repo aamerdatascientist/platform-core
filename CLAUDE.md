@@ -5,7 +5,8 @@ React/TS frontend. First customer is a construction company; the platform itself
 to be industry-agnostic. Full rationale: see chat history / architecture doc if available,
 or ask before re-deriving decisions below from scratch.
 
-**Current phase and what to do next: see `docs/PROJECT_STATUS.md`.** That file changes
+**Current phase and what to do next: see `docs/PROJECT_STATUS.md`** (and `docs/KNOWLEDGE_TRANSFER.md`
+for the latest hand-over: branches, data, held-back features). That file changes
 often; this one shouldn't. Read it before starting work each session.
 
 ## Core architectural decision - do not relitigate without discussion
@@ -210,6 +211,72 @@ Don't add a second anonymous data endpoint by copying this one without the same 
 account and password, sign out, language, light/dark, and the admin-only dashboard / form
 builder / users & roles - is on `/settings` (`routes/Settings.tsx`); `/account` redirects there.
 
+### Executive Overview: the client's plan, lateness KPIs, stage filter - added 2026-11-02/03
+
+All the numbers come from `ExecutiveOverviewCalculator.cs` (pure, unit-tested; the query only
+loads rows). Three static classes there are the knobs:
+- `OverviewProgressPlan` - the **client's plan** (2026-11-02): paperwork milestones
+  `design_approval` 10 / `permit_application` 8 / `utility_approvals` 5 / `final_permit` 3
+  working days; 18 per zone (excavation), 14 per footing (foundation), 17 per floor (structural),
+  6 per MEP trade per floor (3 trades, alongside structure); `Slack = 0.10`. A unit "earns" its
+  plan-met report days, capped at its planned days; work complete = earned / planned.
+- `OverviewKpiThresholds` - one place for the green/amber/red cut-offs (forecast <= 0 / <= 30
+  days late; days late <= 5 / <= 15; lateness < 10% / <= 25%). The API sends a `tone`
+  (`good`/`warn`/`bad`) per tile; the page never decides colours itself.
+- Forecast: chain paperwork -> excavation -> foundation -> structural + a 6-day MEP tail, pace =
+  plan-met share of the last 30 days (`ForecastPaceDays`), counted forward with `AddWorkingDays`
+  (skips **Fridays only**, not holidays). Target = project expected completion, or a stage's
+  start + planned days x 1.1.
+
+`GET /api/analytics/executive-overview?projectId=&phase=` (and the public endpoint) take an
+optional `phase` (`paperwork|excavation|foundation|structural|mep`); every KPI then reads that
+stage only. Time elapsed is capped at 100%. Weather chart needs >= 5 reports per condition. The
+stage is still a fixed 1760x990 canvas - tile text uses `line-clamp-2`, never `sm:`/`lg:`.
+
+**Project 119 history is generated, not real**: 273 rows dated 2026-01-20..2026-11-01 tagged
+`Extensions = '{"backfill":"2026-11-02"}'` (generator `scripts/data/backfill-project-119.mjs`).
+Real data starts 2026-11-02. Never treat those rows as client input; delete by that tag if asked.
+
+## Form assignments + WhatsApp reminders - added 2026-11-03, **staging only** until released
+
+- `FormAssignment` (static schema, `AuditableEntity`): `FormDefinitionId`, `UserId`, `StartDate`,
+  `EndDate?` (`DateOnly`, Saudi calendar), `Note`. Recurring **daily**: due once per working day
+  (Saturday-Thursday; `FormAssignmentTracker.IsWorkingDay` - Friday is the only day off, no
+  holiday list). `Stop` soft-deletes one that hasn't started, else sets `EndDate = today`.
+- **"Filled" is read from the form's own dynamic table**, not stored: a row the user created
+  (`CreatedByUserId`) that Saudi day - `IDynamicDataRepository.GetSubmissionStampsAsync`. Status
+  per day: `filled` / `missed` (day over) / `pending` (today). Names are resolved with
+  `IgnoreQueryFilters` so history survives removed users/forms.
+- Creating refuses unpublished forms, inactive users and users without access to the form
+  (`FormAccessChecker.HasAccess`), and skips users with an overlapping assignment.
+- API `api/form-assignments`: `GET mine` (any signed-in user); administrators: `GET /`,
+  `GET days?from&to&userId&formId` (max 366 days), `POST /`, `POST {id}/stop`.
+- Pages: `/assignments` (My assignments, sidebar), `/admin/assignments`,
+  `/admin/assignments/status` (one day, default today).
+- **WhatsApp** (Meta Cloud API, `WhatsAppSender`, `HttpClient` to
+  `graph.facebook.com/{ApiVersion}/{PhoneNumberId}/messages`): template messages only.
+  `AssignmentNotifier` sends `form_assigned` on assignment and `form_reminder` from
+  `AssignmentReminderService` (BackgroundService, 1-minute timer; sends the latest passed
+  `WhatsApp:ReminderTimes` slot within 2 hours, default 09:00 and 14:00 Saudi). Every send is a
+  `NotificationLog` row inserted **before** sending; its unique index (AssignmentId, Kind,
+  ForDate) is the "send at most once" lock across restarts and instances - a duplicate-key
+  error means someone else claimed it. Off entirely while `WhatsApp:PhoneNumberId` or
+  `AccessToken` is empty (`IsConfigured`, checked at service start - a settings change restarts
+  the app anyway). `User.PhoneNumber` is stored as international digits without `+`
+  (`PhoneNumbers.Normalize`: 05XXXXXXXX -> 9665XXXXXXXX).
+- Migrations `AddFormAssignments`, `AddWhatsAppNotifications` - applied to staging only.
+
+## Releasing to production - `main` and the working branch have diverged (2026-11-03)
+
+Production is `main`; the working branch is `chore/dotnet-10`, which is also what `staging`
+runs. On 2026-11-03 only the dashboard commits went to production, by cherry-pick
+(`release/dashboard-2026-11-03`), so `main` is no longer an ancestor of the working branch. To
+release only part of the working branch again, do the same: a branch from `origin/main`,
+cherry-pick, test, push to `main`. To release everything, merge. **Before any release that
+includes a migration, apply it to the production database first** (the API never migrates on
+startup). Back up production before any data change, and change production only on the
+owner's explicit word - staging is where things get tried.
+
 ## Hardening batch (2026-10-20) - field rules, record edits, sign-in, headers
 
 - **Field rules on live forms**: `PUT /api/forms/{id}/fields/{fieldId}/rules` (`UpdateFieldRulesCommand`)
@@ -249,7 +316,9 @@ deploys the API to `asas-api-staging` and the site to `asas-web-staging` at
 still the production deploy.
 The staging site is built with `--mode staging`, so it reads `platform-web/.env.staging`.
 Both API origins are in the one CSP `connect-src` - **a third environment, or a changed API
-URL, needs adding there too**. Staging shares production's App Service plan and storage
+URL, needs adding there too**. Staging's database is ahead of production's (two extra
+migrations since 2026-11-03) and its form data was replaced with a copy of production's plus the
+project 119 backfill on 2026-11-02, so it lacks production's real reports from 2026-11-03 on. Staging shares production's App Service plan and storage
 account; it keeps its uploads apart through `Files:ContainerName` (`attachments-staging`;
 default `attachments`). Its database is separate - never point staging at the production
 database.
@@ -332,6 +401,16 @@ database.
   since the Postgres migration completed (see `docs/PROJECT_STATUS.md`) - don't
   reintroduce it as a reference point, and don't assume any Azure SQL-specific gotcha
   below this point still applies to the live database.
+- **Claude Code running on Aamer's own Windows machine is different from the cloud sandbox:**
+  it CAN reach both Railway databases directly with the PostgreSQL 18 client tools
+  (`C:\Program Files\PostgreSQL\18\bin\psql.exe` / `pg_dump.exe`, `PGSSLMODE=require`). The
+  pattern used 2026-11-02/03: host/port/db/user in a `*.conn` file and the password in a
+  `pgpass.conf` in the session scratchpad, a tiny `q.sh <prod|staging> -c/-f` wrapper setting
+  `PGPASSFILE` - passwords never on a command line or printed. Writes to production are also
+  checked by Claude Code's auto-mode permission check: a production change the owner didn't name
+  explicitly gets refused - ask, don't work around it. Shell gotchas there: Git Bash heredocs
+  break on apostrophes in Arabic/English text (write scripts with the Write tool instead), and
+  some source files are CRLF (edit scripts must normalise and restore line endings).
 - **Code's sandbox can only reach the outside world over HTTPS, via its proxy - raw TCP
   database connections don't work at all**, regardless of provider. Confirmed for the
   Railway Postgres database (`metro.proxy.rlwy.net:36575`): DNS resolves fine, but the

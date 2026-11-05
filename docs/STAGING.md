@@ -128,6 +128,54 @@ first. Push it (`git push origin chore/staging-environment:staging`) once the se
 exist, then check: open the staging site, sign in, open a form, submit a test record, attach
 a file (it should land in `attachments-staging`, not `attachments`).
 
+## Staging data since 2026-11-02 - not a plain copy of production any more
+
+- 2026-11-02: staging backed up (`asas-staging-backup-2026-11-02-before-replace.dump`, repo root),
+  its form data replaced with production's (project 119 and its zones/footings/floors, the one
+  real report of 2026-11-02), then the **273 generated project 119 reports** added (tag
+  `Extensions = '{"backfill":"2026-11-02"}'`, generator `scripts/data/backfill-project-119.mjs`).
+  Production got the same 273 rows on 2026-11-03.
+- Production's real reports from 2026-11-03 on are **not** on staging.
+- Project 119 expected completion: 2026-09-15 (same as production).
+- Schema is **ahead of production**: `AddFormAssignments` and `AddWhatsAppNotifications` applied
+  2026-11-03 (scripted with `dotnet ef migrations script <prev> <new>` and run with psql).
+- One extra user exists on staging only (6 users vs production's 5).
+- A test assignment (Qasim, daily progress report) ran on 2026-11-03 and was stopped.
+
+## WhatsApp (form assignment notifications) - built, switched off until these are done
+
+The code is on staging (commit `43dd17b`); without the settings below it sends nothing.
+
+1. developers.facebook.com > My Apps > Create app > **Business**, add the **WhatsApp** product.
+   Meta gives a free **test number**, which can message only up to **5 verified recipient
+   numbers** - add them under WhatsApp > API Setup > "To".
+2. Copy the **Phone number ID** from API Setup.
+3. WhatsApp Manager > Message templates: create two, category **Utility**, language **Arabic**
+   (a body may not start or end with a variable; Meta wants an example for each):
+   - `form_assigned`: `مرحباً {{1}}، تم تكليفك بتعبئة نموذج «{{2}}» في كل يوم عمل ابتداءً من {{3}}. يمكنك متابعة مهامك من هنا: {{4}} شكراً لك.`
+     - parameters sent: name, form, start date, `{AppUrl}/assignments`
+   - `form_reminder`: `مرحباً {{1}}، تذكير بأن نموذج «{{2}}» لهذا اليوم ({{3}}) لم تتم تعبئته بعد. للتعبئة: {{4}} شكراً لك.`
+     - parameters sent: name, form, date, `{AppUrl}/forms/{formId}`
+4. business.facebook.com > Settings > System users: an Admin system user with the app and the
+   WhatsApp account assigned; generate a token with `whatsapp_business_messaging` and
+   `whatsapp_business_management`, **never expires**.
+5. `asas-api-staging` > Environment variables (the owner sets these; the token is a secret):
+
+| Setting | Value |
+| --- | --- |
+| `WhatsApp__PhoneNumberId` | from step 2 |
+| `WhatsApp__AccessToken` | from step 4 |
+| `WhatsApp__AppUrl` | `https://staging.asasksa.co` |
+| `WhatsApp__ReminderTimes__0` / `__1` | leave unset: default `09:00` / `14:00` (Saudi time). **Caveat, untested:** the settings array is pre-filled with the defaults and .NET's configuration binder adds to a pre-filled array rather than replacing it, so overriding probably *adds* times. To make times configurable, start the array empty in `WhatsAppSettings` and apply the defaults when nothing is bound. |
+| `WhatsApp__TemplateLanguage`, `WhatsApp__AssignedTemplate`, `WhatsApp__ReminderTemplate`, `WhatsApp__ApiVersion` | optional, defaults `ar`, `form_assigned`, `form_reminder`, `v23.0` |
+
+6. On staging: Users > a user > **WhatsApp** > save the number (05XXXXXXXX or +966...) > **Send a
+   test message**; Meta's error, if any, shows there. The tracking page shows reminders sent/failed.
+
+Staging users are copies of real people - only save numbers of people who agreed to test.
+Production later needs business verification, a real number not already on the WhatsApp app,
+an approved display name and a payment method (~0.04 SAR per utility message).
+
 ## Day-to-day use
 
 - Try a change on staging: push the branch to `staging`

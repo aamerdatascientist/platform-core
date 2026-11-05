@@ -61,7 +61,13 @@ for the full rationale.
 - **File Management**: upload/list/view/delete attachments via Azure Blob Storage,
   including attaching a file inline while filling out a form.
 - **Executive Overview** dashboard (administrators): a standalone 16:9 page over the live
-  forms, with an optional public secret link.
+  forms, with an optional public secret link. Measured against the client's plan
+  (`OverviewProgressPlan`), with forecast finish, days late and lateness KPIs (green/amber/red)
+  and a stage filter (since 2026-11-03).
+- **Form assignments** (staging only so far, 2026-11-03): administrators assign a form to users
+  to fill every working day; users see "My assignments"; a tracking page shows who filled what
+  and when, one day at a time. **WhatsApp** reminders are built but off until the Meta account is
+  set up (`docs/STAGING.md`).
 - **Settings page**: the sidebar lists only the forms; account, password, sign out, language,
   light/dark mode and the admin pages all live under Settings.
 - Full **Arabic/RTL** bilingual UI (`react-i18next`), Tajawal type, and a dark/light-mode
