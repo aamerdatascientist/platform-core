@@ -166,10 +166,16 @@ once and presses **Start**, which links that chat to their Asas account.
 | `Notifications__AppUrl` | `https://staging.asasksa.co` (links and the button in messages) |
 | `Notifications__ReminderTimes__0` / `__1` | optional; unset = `09:00` / `14:00` Saudi. Setting them **replaces** the defaults (fixed 2026-11-05 - the array used to start pre-filled). |
 
-5. On staging: **Settings > Reminders > Connect Telegram** (any user) - Telegram opens the bot,
-   press Start, the bot replies «تم ربط حسابك». Or an administrator: **Users > Telegram >
-   Create link** and send the link to the person (valid 7 days; a new link replaces the old).
-   Then **Send a test message** in the same panel. `/stop` in the bot unlinks.
+5. **The usual way (owner's choice, 2026-11-05) - engineers do nothing:** in Telegram the
+   administrator creates a small group per engineer (administrator + engineer, added by phone
+   number), then on staging **Users > Telegram > Link to a group** and picks that group. The bot
+   joins and posts «تم ربط هذه المجموعة بحساب ...»; press Refresh, then **Send a test message**.
+   The bot stays silent in groups otherwise, and `/stop` there is ignored (disconnect on the
+   Users page). If someone's Telegram privacy blocks being added to groups, Telegram sends them
+   an invite instead, which they accept once.
+   Alternatives: **Settings > Reminders > Connect Telegram** (any user, private chat, press
+   Start), or **Users > Telegram > Private link instead** to send someone (valid 7 days; a new
+   link replaces the old). `/stop` in a private chat unlinks.
 
 What gets sent: on assignment «مرحباً {name}، تم تكليفك بتعبئة نموذج «{form}» ...» with a «مهامي»
 button; reminders at the reminder times on working days to anyone whose form isn't filled yet,

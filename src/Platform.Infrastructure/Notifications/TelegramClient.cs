@@ -81,15 +81,24 @@ public class TelegramClient : ITelegramClient
             var updateId = u.GetProperty("update_id").GetInt64();
             long? chatId = null;
             string? text = null;
+            var isGroup = false;
+            long? migrateTo = null;
             if (u.TryGetProperty("message", out var message))
             {
-                // Only private chats: a bot added to a group must not link the group.
-                if (message.TryGetProperty("chat", out var chat) &&
-                    chat.TryGetProperty("type", out var type) && type.GetString() == "private")
-                    chatId = chat.GetProperty("id").GetInt64();
+                // Private chats and groups; channels are not served.
+                if (message.TryGetProperty("chat", out var chat) && chat.TryGetProperty("type", out var type))
+                {
+                    var kind = type.GetString();
+                    if (kind is "private" or "group" or "supergroup")
+                    {
+                        chatId = chat.GetProperty("id").GetInt64();
+                        isGroup = kind != "private";
+                    }
+                }
                 if (message.TryGetProperty("text", out var t)) text = t.GetString();
+                if (message.TryGetProperty("migrate_to_chat_id", out var m)) migrateTo = m.GetInt64();
             }
-            updates.Add(new TelegramUpdate(updateId, chatId, text));
+            updates.Add(new TelegramUpdate(updateId, chatId, text, isGroup, migrateTo));
         }
         return updates;
     }

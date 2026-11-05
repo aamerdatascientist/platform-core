@@ -163,6 +163,73 @@ public class TelegramNotificationTests
         (await new TelegramLinker(db).HandleAsync(new TelegramUpdate(1, null, "/start code"), Now, default)).Should().BeNull();
     }
 
+    // ---- groups (an administrator links an engineer's group; the engineer does nothing) ----
+
+    private const long GroupId = -4_987_654_321;
+
+    [Fact]
+    public async Task GroupStart_WithAnOpenCode_LinksTheGroup_AndConfirmsThere()
+    {
+        await using var db = NewDb();
+        var user = NewUser(db);
+        user.StartTelegramLink("code-1", Now.AddDays(7));
+        await db.SaveChangesAsync();
+
+        var reply = await new TelegramLinker(db).HandleAsync(
+            new TelegramUpdate(1, GroupId, "/start@AsasStagingBot code-1", IsGroup: true), Now, default);
+
+        reply.Should().Contain("تم ربط هذه المجموعة").And.Contain("Qasim");
+        user.TelegramChatId.Should().Be(GroupId);
+        Telegram().GroupLinkFor("code-1").Should().Be("https://t.me/AsasStagingBot?startgroup=code-1");
+    }
+
+    [Fact]
+    public async Task InAGroup_TheBotStaysQuiet_AndStopIsIgnored()
+    {
+        await using var db = NewDb();
+        var user = NewUser(db);
+        user.LinkTelegram(GroupId);
+        await db.SaveChangesAsync();
+        var linker = new TelegramLinker(db);
+
+        (await linker.HandleAsync(new TelegramUpdate(1, GroupId, "/stop", IsGroup: true), Now, default)).Should().BeNull();
+        (await linker.HandleAsync(new TelegramUpdate(2, GroupId, "/help", IsGroup: true), Now, default)).Should().BeNull();
+        (await linker.HandleAsync(new TelegramUpdate(3, GroupId, "/start", IsGroup: true), Now, default)).Should().BeNull();
+        // A re-sent /start with the used code: no "invalid link" message in the group.
+        (await linker.HandleAsync(new TelegramUpdate(4, GroupId, "/start@AsasStagingBot code-1", IsGroup: true), Now, default))
+            .Should().BeNull();
+        user.TelegramChatId.Should().Be(GroupId, "only an administrator unlinks a group, on the Users page");
+    }
+
+    [Fact]
+    public async Task AGroupUpgradedToASupergroup_KeepsGettingTheReminders()
+    {
+        const long supergroupId = -1_001_987_654_321;
+        await using var db = NewDb();
+        var user = NewUser(db);
+        user.LinkTelegram(GroupId);
+        await db.SaveChangesAsync();
+
+        var reply = await new TelegramLinker(db).HandleAsync(
+            new TelegramUpdate(1, GroupId, null, IsGroup: true, MigrateToChatId: supergroupId), Now, default);
+
+        reply.Should().BeNull();
+        user.TelegramChatId.Should().Be(supergroupId);
+    }
+
+    [Fact]
+    public async Task Reminders_GoToTheLinkedGroup()
+    {
+        await using var db = NewDb();
+        var user = NewUser(db);
+        user.LinkTelegram(GroupId);
+        await db.SaveChangesAsync();
+        var telegram = new FakeTelegram();
+
+        (await Notifier(db, telegram).SendTestAsync(user.Id, AssignmentNotifier.TelegramChannel, default)).Success.Should().BeTrue();
+        telegram.Sent.Should().ContainSingle().Which.ChatId.Should().Be(GroupId);
+    }
+
     // ---- messages ----
 
     [Fact]

@@ -16,11 +16,22 @@ public class TelegramSettings
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(BotToken) && !string.IsNullOrWhiteSpace(BotUsername);
 
+    /// <summary>Private chat: the person opens it and presses Start.</summary>
     public string LinkFor(string code) => $"https://t.me/{BotUsername!.TrimStart('@')}?start={code}";
+
+    /// <summary>
+    /// Group: Telegram asks which group to add the bot to, adds it, and the bot receives
+    /// "/start@Bot {code}" there - an administrator does this, the engineer does nothing.
+    /// </summary>
+    public string GroupLinkFor(string code) => $"https://t.me/{BotUsername!.TrimStart('@')}?startgroup={code}";
 }
 
-/// <summary>A text message someone sent the bot (other update kinds are skipped).</summary>
-public record TelegramUpdate(long UpdateId, long? ChatId, string? Text);
+/// <summary>
+/// A message the bot received (other update kinds are skipped). <paramref name="ChatId"/> is
+/// null for chats the bot doesn't serve (channels). <paramref name="MigrateToChatId"/> is set when
+/// Telegram upgraded a group to a supergroup, which gives it a new id.
+/// </summary>
+public record TelegramUpdate(long UpdateId, long? ChatId, string? Text, bool IsGroup = false, long? MigrateToChatId = null);
 
 /// <summary>The Telegram Bot API, called directly (free; no provider in between).</summary>
 public interface ITelegramClient

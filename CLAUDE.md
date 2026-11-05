@@ -279,8 +279,14 @@ Real data starts 2026-11-02. Never treat those rows as client input; delete by t
 - **Linking**: a bot can't message a phone number. `CreateTelegramLinkCommand` stores a random
   32-char `User.TelegramLinkCode` (7 days) and returns `t.me/{BotUsername}?start={code}`;
   `TelegramBotService` (BackgroundService, long-polls `getUpdates`, no webhook/public URL) hands
-  each private-chat message to `TelegramLinker`: `/start {code}` links the chat and clears the
-  code, `/stop` unlinks every user on that chat. Group chats are ignored.
+  each message to `TelegramLinker`: `/start {code}` links the chat and clears the code, `/stop`
+  unlinks every user on that chat (private chats only).
+- **Groups - the way it's used (owner, 2026-11-05):** a bot can't message someone who never
+  pressed Start, so the administrator makes a group per engineer and uses the `startgroup` link
+  (`TelegramLinkDto.GroupUrl`, Users > Telegram > Link to a group): the bot joins, receives
+  `/start@Bot {code}` and that group's (negative) chat id becomes the user's `TelegramChatId`.
+  In groups the bot replies only to that, ignores `/stop`, and follows `migrate_to_chat_id`
+  when Telegram upgrades a group to a supergroup (new id). `UserSummaryDto.TelegramIsGroup`.
 - **One bot per environment.** Two servers polling one bot take each other's updates (409
   Conflict, logged); a staging code arriving at production's poller would be "invalid".
 - Endpoints: `GET/POST link/DELETE api/me/telegram` (any signed-in user - Settings > Reminders);

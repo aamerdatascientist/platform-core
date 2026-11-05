@@ -8,7 +8,7 @@ public record UserRoleSummary(Guid Id, string Name);
 
 public record UserSummaryDto(
     Guid Id, string Email, string DisplayName, bool IsActive, IReadOnlyList<UserRoleSummary> Roles, string? PhoneNumber,
-    bool TelegramLinked);
+    bool TelegramLinked, bool TelegramIsGroup);
 
 public record GetUsersQuery : IRequest<IReadOnlyList<UserSummaryDto>>;
 
@@ -34,7 +34,8 @@ public class GetUsersQueryHandler : IRequestHandler<GetUsersQuery, IReadOnlyList
                     .Select(ur => new UserRoleSummary(ur.RoleId, rolesById[ur.RoleId]))
                     .ToList(),
                 u.PhoneNumber,
-                u.TelegramChatId != null))
+                u.TelegramChatId != null,
+                u.TelegramChatId < 0))
             .ToList();
     }
 }

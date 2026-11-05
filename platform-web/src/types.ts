@@ -155,6 +155,8 @@ export interface UserSummaryDto {
   phoneNumber: string | null;
   /** The user has connected Telegram (pressed Start on their link). */
   telegramLinked: boolean;
+  /** Linked to a Telegram group (set up by an administrator) rather than a private chat. */
+  telegramIsGroup: boolean;
 }
 
 /** The signed-in user's own Telegram connection (Settings). */
@@ -168,6 +170,8 @@ export interface TelegramStatusDto {
 /** A one-time "Connect Telegram" link (t.me/bot?start=code), valid 7 days. */
 export interface TelegramLinkDto {
   url: string;
+  /** For an administrator: Telegram asks which group to add the bot to. */
+  groupUrl: string;
   expiresAtUtc: string;
 }
 

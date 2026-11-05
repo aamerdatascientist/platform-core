@@ -5,9 +5,10 @@ import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { UserSummaryDto } from '../types';
 
 /**
- * A user's Telegram connection (Users page). People usually connect themselves from Settings;
- * this is for an administrator to make a link and send it to them (e.g. on WhatsApp), check
- * that messages arrive, or disconnect someone.
+ * A user's Telegram connection (Users page). The usual way (2026-11-05, owner's choice): the
+ * administrator makes a small Telegram group with the engineer, presses "Link to a group" and
+ * picks it - the bot joins and the engineer's reminders go there, with nothing for the engineer
+ * to do. A private-chat link to send the person is the alternative. Also: test, disconnect.
  */
 export function UserTelegramPanel({
   token,
@@ -21,8 +22,9 @@ export function UserTelegramPanel({
   onClose: () => void;
 }) {
   const { t } = useTranslation();
-  const [link, setLink] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [privateLink, setPrivateLink] = useState<string | null>(null);
+  const [groupLink, setGroupLink] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useErrorMessage();
   const [testResult, setTestResult] = useState<{ success: boolean; error: string | null } | null>(null);
@@ -40,12 +42,30 @@ export function UserTelegramPanel({
     }
   }
 
-  const handleCreateLink = () =>
+  /** Opens Telegram's "add to group" screen. The tab is opened inside the click (pop-up blockers). */
+  async function handleLinkGroup() {
+    const tab = window.open('', '_blank');
+    await run(async () => {
+      try {
+        const result = await api.users.createTelegramLink(token, user.id);
+        setGroupLink(result.groupUrl);
+        setPrivateLink(null);
+        if (tab) tab.location.href = result.groupUrl;
+      } catch (err) {
+        tab?.close();
+        throw err;
+      }
+    });
+  }
+
+  const handlePrivateLink = () =>
     run(async () => {
       const result = await api.users.createTelegramLink(token, user.id);
-      setLink(result.url);
-      setCopied(false);
+      setPrivateLink(result.url);
+      setGroupLink(null);
     });
+
+  const handleRefresh = () => run(async () => onChanged());
 
   const handleTest = () =>
     run(async () => {
@@ -55,15 +75,15 @@ export function UserTelegramPanel({
   const handleUnlink = () =>
     run(async () => {
       await api.users.unlinkTelegram(token, user.id);
-      setLink(null);
+      setPrivateLink(null);
+      setGroupLink(null);
       await onChanged();
     });
 
-  async function handleCopy() {
-    if (!link) return;
+  async function handleCopy(link: string) {
     try {
       await navigator.clipboard.writeText(link);
-      setCopied(true);
+      setCopied(link);
     } catch {
       // Clipboard refused (permissions): the link is selectable in the box anyway.
     }
@@ -72,27 +92,54 @@ export function UserTelegramPanel({
   const secondaryButton =
     'rounded border border-border bg-panel px-3 py-1.5 text-sm text-ink hover:border-ink disabled:opacity-50';
 
+  function linkBox(link: string) {
+    return (
+      <div className="flex flex-wrap gap-2">
+        <input
+          readOnly
+          dir="ltr"
+          aria-label={t('userManagement.telegram')}
+          value={link}
+          onFocus={(e) => e.target.select()}
+          className="min-w-0 flex-1 rounded border border-border bg-panel px-3 py-1.5 font-mono text-xs text-ink focus:border-accent focus:outline-none"
+        />
+        <button type="button" onClick={() => handleCopy(link)} className={secondaryButton}>
+          {copied === link ? t('userManagement.telegramCopied') : t('userManagement.telegramCopy')}
+        </button>
+      </div>
+    );
+  }
+
+  const status = !user.telegramLinked
+    ? t('userManagement.telegramStatusNotLinked')
+    : user.telegramIsGroup
+      ? t('userManagement.telegramStatusGroup')
+      : t('userManagement.telegramStatusPrivate');
+
   return (
     <div className="space-y-2 rounded border-t border-border bg-bg p-3">
-      <p className="text-xs text-ink-soft">{t('userManagement.telegramExplain', { name: user.displayName })}</p>
-      <p className={`text-sm ${user.telegramLinked ? 'text-success' : 'text-ink-soft'}`}>
-        {user.telegramLinked ? t('userManagement.telegramStatusLinked') : t('userManagement.telegramStatusNotLinked')}
-      </p>
+      <p className={`text-sm ${user.telegramLinked ? 'text-success' : 'text-ink-soft'}`}>{status}</p>
 
-      {link && (
-        <div className="flex flex-wrap gap-2">
-          <input
-            readOnly
-            dir="ltr"
-            aria-label={t('userManagement.telegram')}
-            value={link}
-            onFocus={(e) => e.target.select()}
-            className="min-w-0 flex-1 rounded border border-border bg-panel px-3 py-1.5 font-mono text-xs text-ink focus:border-accent focus:outline-none"
-          />
-          <button type="button" onClick={handleCopy} className={secondaryButton}>
-            {copied ? t('userManagement.telegramCopied') : t('userManagement.telegramCopy')}
-          </button>
+      {!user.telegramLinked && (
+        <div className="space-y-1 text-xs text-ink-soft">
+          <p>{t('userManagement.telegramExplain', { name: user.displayName })}</p>
+          <p>{t('userManagement.telegramStep1', { name: user.displayName })}</p>
+          <p>{t('userManagement.telegramStep2')}</p>
         </div>
+      )}
+
+      {groupLink && !user.telegramLinked && (
+        <>
+          <p className="text-sm text-ink">{t('userManagement.telegramGroupWaiting')}</p>
+          {linkBox(groupLink)}
+        </>
+      )}
+
+      {privateLink && (
+        <>
+          <p className="text-xs text-ink-soft">{t('userManagement.telegramPrivateExplain', { name: user.displayName })}</p>
+          {linkBox(privateLink)}
+        </>
       )}
 
       {error && <p className="text-sm text-danger">{error}</p>}
@@ -105,15 +152,7 @@ export function UserTelegramPanel({
       )}
 
       <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={handleCreateLink}
-          disabled={busy}
-          className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50"
-        >
-          {t('userManagement.telegramCreateLink')}
-        </button>
-        {user.telegramLinked && (
+        {user.telegramLinked ? (
           <>
             <button type="button" onClick={handleTest} disabled={busy} className={secondaryButton}>
               {busy ? t('userManagement.phoneTesting') : t('userManagement.phoneTest')}
@@ -125,6 +164,25 @@ export function UserTelegramPanel({
               className="rounded border border-danger bg-panel px-3 py-1.5 text-sm text-danger hover:bg-bg disabled:opacity-50"
             >
               {t('userManagement.telegramUnlink')}
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={handleLinkGroup}
+              disabled={busy}
+              className="rounded bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50"
+            >
+              {t('userManagement.telegramLinkGroup')}
+            </button>
+            {groupLink && (
+              <button type="button" onClick={handleRefresh} disabled={busy} className={secondaryButton}>
+                {t('userManagement.telegramRefresh')}
+              </button>
+            )}
+            <button type="button" onClick={handlePrivateLink} disabled={busy} className={secondaryButton}>
+              {t('userManagement.telegramPrivateLink')}
             </button>
           </>
         )}

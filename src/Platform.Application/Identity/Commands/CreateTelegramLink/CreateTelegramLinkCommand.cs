@@ -7,7 +7,9 @@ using ValidationException = Platform.Application.Common.Exceptions.ValidationExc
 
 namespace Platform.Application.Identity.Commands.CreateTelegramLink;
 
-public record TelegramLinkDto(string Url, DateTime ExpiresAtUtc);
+/// <param name="Url">Private chat: the person opens it and presses Start.</param>
+/// <param name="GroupUrl">Group: an administrator opens it and picks a group with the person in it.</param>
+public record TelegramLinkDto(string Url, string GroupUrl, DateTime ExpiresAtUtc);
 
 /// <summary>
 /// A fresh "Connect Telegram" link for a user (valid <see cref="TelegramLinker.LinkLifetime"/>,
@@ -39,6 +41,6 @@ public class CreateTelegramLinkCommandHandler : IRequestHandler<CreateTelegramLi
         var expires = DateTime.UtcNow + TelegramLinker.LinkLifetime;
         user.StartTelegramLink(code, expires);
         await _db.SaveChangesAsync(cancellationToken);
-        return new TelegramLinkDto(_settings.LinkFor(code), expires);
+        return new TelegramLinkDto(_settings.LinkFor(code), _settings.GroupLinkFor(code), expires);
     }
 }
