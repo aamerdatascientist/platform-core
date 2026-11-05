@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using FluentAssertions;
 using Platform.Application.Forms;
@@ -92,9 +93,9 @@ public class SubmissionValueValidatorTests
         var v = NewVersion();
         v.AddField("report_date", "Date", FieldType.DateTime, true, null, null, """{"noFutureDates":true}""");
 
-        SubmissionValueValidator.Validate(v.Fields, Values(new { report_date = SaudiToday.ToString("yyyy-MM-dd") }))
+        SubmissionValueValidator.Validate(v.Fields, Values(new { report_date = SaudiToday.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) }))
             .Should().BeEmpty();
-        SubmissionValueValidator.Validate(v.Fields, Values(new { report_date = SaudiToday.AddDays(1).ToString("yyyy-MM-dd") }))
+        SubmissionValueValidator.Validate(v.Fields, Values(new { report_date = SaudiToday.AddDays(1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) }))
             .Should().ContainKey("report_date");
     }
 
