@@ -296,6 +296,30 @@ Real data starts 2026-11-02. Never treat those rows as client input; delete by t
   load, since that would replace a link an admin just sent.
 - Migration `AddTelegramNotifications`. Settings `Telegram__BotToken`, `Telegram__BotUsername`.
 
+## Stakeholder reports (PDF + Claude analysis on WhatsApp) - added 2026-11-06, staging
+
+- Owner's choices: one stakeholder gets every project; daily (Sat-Thu), weekly (Thursday) and
+  monthly (last day) at 18:00 Saudi; design "D" (dashboard charts + written analysis); WhatsApp
+  PDF; **Claude Opus 5.5 capped at $15/month**; PDFs by Gotenberg on Railway.
+- Flow (`StakeholderReportService.RunAsync`): `ReportRun` row first (scheduled runs unique on
+  (Kind, PeriodStart) - send-once lock) -> `ExecutiveOverviewLoader` (the dashboard's loading,
+  moved out of `GetExecutiveOverviewQueryHandler`, plus display labels) -> `StakeholderReportBuilder`
+  (pure; project status = `ExecutiveOverviewCalculator` per project, "at period start" = same call
+  with later reports left out) -> analysis -> `ReportHtmlRenderer` (A4 + phone) -> `GotenbergPdfRenderer`
+  (fonts embedded, sent with the page) -> blob `reports/...` -> `WhatsAppSender.SendDocumentAsync`
+  (upload media, template with a document header) per `ReportRecipient` -> `ReportDelivery` rows.
+- **Analysis honesty:** Claude gets only `ReportFigures.ToJson` (percentages as whole numbers,
+  differences precomputed) and must copy numbers, never compute. `ReportNumberCheck` rejects any
+  number not in the figures (0-10 allowed); one retry with the offending numbers, then the report
+  goes out without the analysis. Structured outputs fix the JSON shape.
+- **Budget:** before every Claude call, month-to-date `ReportRuns.CostUsd` (Saudi month) + worst
+  case (figures/2 + 4000 input tokens, `MaxOutputTokens` output) must stay <= `MonthlyBudgetUsd`,
+  else analysis `skipped-budget`. Cost is saved the moment Claude answers. Previews count too.
+- Scheduler `StakeholderReportScheduler`: off without `Reports:PdfServiceUrl`; makes a kind only
+  if an active recipient receives it. No server-side refusal fallback on purpose (a refusal just
+  means no analysis, and a fallback model could cost more than the cap assumes).
+- Admin page `/admin/reports`; API `api/reports` (administrators). Migration `AddStakeholderReports`.
+
 ## Releasing to production - `main` and the working branch have diverged (2026-11-03)
 
 Production is `main`; the working branch is `chore/dotnet-10`, which is also what `staging`

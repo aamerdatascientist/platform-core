@@ -4,11 +4,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Platform.Application.Analytics;
 using Platform.Application.Common.Interfaces;
+using Platform.Application.Reports;
 using Platform.Infrastructure.Files;
 using Platform.Infrastructure.Identity;
 using Platform.Infrastructure.Notifications;
 using Platform.Infrastructure.Persistence;
 using Platform.Infrastructure.Persistence.DynamicSchema;
+using Platform.Infrastructure.Reports;
 
 namespace Platform.Infrastructure;
 
@@ -55,6 +57,18 @@ public static class DependencyInjection
         services.AddHttpClient<ITelegramClient, TelegramClient>(client => client.Timeout = TimeSpan.FromSeconds(70));
         services.AddHostedService<AssignmentReminderService>();
         services.AddHostedService<TelegramBotService>();
+
+        // Stakeholder reports (daily/weekly/monthly PDFs on WhatsApp). Section "Reports":
+        // AnthropicApiKey (the written analysis; capped by MonthlyBudgetUsd), PdfServiceUrl +
+        // PdfServiceUsername/Password (Gotenberg), SendTime. Off until PdfServiceUrl is set.
+        services.AddSingleton(configuration.GetSection("Reports").Get<ReportSettings>() ?? new ReportSettings());
+        services.AddSingleton<IReportAnalyst, ClaudeReportAnalyst>();
+        services.AddSingleton<IReportRenderer, ReportHtmlRenderer>();
+        services.AddHttpClient<IPdfRenderer, GotenbergPdfRenderer>(client => client.Timeout = TimeSpan.FromMinutes(2));
+        // Uploading a PDF to Meta takes longer than a text message.
+        services.AddHttpClient<IWhatsAppDocumentSender, WhatsAppSender>(client => client.Timeout = TimeSpan.FromSeconds(60));
+        services.AddScoped<StakeholderReportService>();
+        services.AddHostedService<StakeholderReportScheduler>();
 
         return services;
     }

@@ -358,3 +358,61 @@ export interface FormAssignmentDto {
   daysDue: number;
   daysFilled: number;
 }
+
+// ------------------------------------------------------------------- stakeholder reports
+// Mirrors Platform.Application.Reports.ReportDtos.
+
+export type ReportKind = 'daily' | 'weekly' | 'monthly';
+
+export interface ReportRecipientDto {
+  id: string;
+  name: string;
+  /** International digits without "+". */
+  phoneNumber: string;
+  receivesDaily: boolean;
+  receivesWeekly: boolean;
+  receivesMonthly: boolean;
+  isActive: boolean;
+}
+
+export interface ReportDeliveryDto {
+  recipientName: string;
+  phoneNumber: string;
+  /** running | sent | failed */
+  status: string;
+  error: string | null;
+  sentAtUtc: string | null;
+}
+
+export interface ReportRunDto {
+  id: string;
+  kind: ReportKind;
+  periodStart: string;
+  periodEnd: string;
+  /** schedule | preview | send-now */
+  trigger: string;
+  /** running | done | failed */
+  status: string;
+  /** written | skipped-budget | not-configured | failed | off */
+  analysis: string | null;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  error: string | null;
+  createdAtUtc: string;
+  completedAtUtc: string | null;
+  hasPdf: boolean;
+  deliveries: ReportDeliveryDto[];
+}
+
+export interface ReportsOverviewDto {
+  analysisConfigured: boolean;
+  pdfConfigured: boolean;
+  whatsAppConfigured: boolean;
+  model: string;
+  sendTime: string;
+  monthlyBudgetUsd: number;
+  spentThisMonthUsd: number;
+  recipients: ReportRecipientDto[];
+  runs: ReportRunDto[];
+}

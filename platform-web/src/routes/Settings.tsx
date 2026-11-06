@@ -147,6 +147,13 @@ export function Settings({ token }: SettingsProps) {
               </span>
               <RowIcon kind="next" rtl={rtl} />
             </Link>
+            <Link to="/admin/reports" className={rowButtonClass}>
+              <span>
+                <span className="block text-sm font-medium text-ink">{t('reports.title')}</span>
+                <span className="block text-xs text-ink-soft">{t('settings.reportsHint')}</span>
+              </span>
+              <RowIcon kind="next" rtl={rtl} />
+            </Link>
             <Link to="/admin/users" className={rowButtonClass}>
               <span>
                 <span className="block text-sm font-medium text-ink">{t('userManagement.title')}</span>

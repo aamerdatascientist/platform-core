@@ -3,7 +3,22 @@
 Update this file at the end of every session - what changed, what's next. Keep CLAUDE.md
 itself stable; this is where the narrative goes.
 
-## Current state - 2026-11-05 (read this first)
+## Current state - 2026-11-06 (read this first)
+
+### 2026-11-06 - stakeholder reports with Claude analysis (staging)
+
+- WhatsApp is being set up again (Meta test number works, templates `form_assigned` /
+  `form_reminder` submitted for review; token and phone number id in Azure, confirmed by error
+  132001 = template not approved yet). The Users page shows the WhatsApp button again (`f809bd5`).
+- Built on `feature/stakeholder-reports`: daily/weekly/monthly PDF reports for stakeholders with
+  Claude's analysis, sent on WhatsApp at 18:00. See CLAUDE.md "Stakeholder reports" and
+  docs/STAGING.md for the setup (Gotenberg on Railway, Anthropic key, template
+  `stakeholder_report`). Owner's estimate approved: ~$8-10/month on Opus 5.5, hard cap $15.
+- Tests: 173 pass (26 new). The 18 Testcontainers tests need Docker, which this Mac doesn't have.
+- Still to do: the owner sets up Railway/Anthropic/the template; first preview and send on staging;
+  production later with its own release (migration first).
+
+## State on 2026-11-05
 
 ### 2026-11-05 evening - Telegram reminders (staging), work moved to a Mac
 

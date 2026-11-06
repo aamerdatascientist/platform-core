@@ -218,6 +218,38 @@ Staging users are copies of real people - only save numbers of people who agreed
 Production later needs business verification, a real number not already on the WhatsApp app,
 an approved display name and a payment method (~0.04 SAR per utility message).
 
+## Stakeholder reports (PDF on WhatsApp) - added 2026-11-06
+
+Daily (working days), weekly (Thursday) and monthly (last day of the month) PDF reports with a
+written analysis by Claude, sent at 18:00 Saudi time to the recipients on **Settings > Stakeholder
+reports**. One report covers all projects. The phone-sized PDF is sent; the A4 one is kept for
+download. Three things to set up, in this order:
+
+1. **PDF service (Gotenberg) on Railway** - Railway project > New > Docker Image
+   `gotenberg/gotenberg:8`. Variables: `GOTENBERG_API_BASIC_AUTH_USERNAME` and
+   `GOTENBERG_API_BASIC_AUTH_PASSWORD` (the owner picks them; secret). Settings > Deploy >
+   Custom Start Command: `gotenberg --api-enable-basic-auth`. Settings > Networking > Generate
+   Domain (port 3000). One service serves staging and production. ~$1-5/month.
+2. **Anthropic API key** - console.anthropic.com > Settings > API keys > Create key. Also set
+   a spend limit there (Limits) as a second guard; the app's own cap is `Reports__MonthlyBudgetUsd`.
+3. **WhatsApp template** `stakeholder_report` - Utility, Arabic, **Header: Document**, body:
+   `مرحباً {{1}}، مرفق {{2}} لمشاريع أساس عن {{3}}. للاطلاع على التفاصيل افتح الملف المرفق. شكراً لك.`
+   (1 name, 2 report title, 3 period). On Meta's test number the recipient's number must be on
+   the API Setup "To" list.
+
+`asas-api-staging` > Environment variables (the owner sets these; the key and password are secrets):
+
+| Setting | Value |
+| --- | --- |
+| `Reports__PdfServiceUrl` | the Railway domain, `https://...up.railway.app` |
+| `Reports__PdfServiceUsername` / `Reports__PdfServicePassword` | as on Railway |
+| `Reports__AnthropicApiKey` | from step 2; unset = reports go out without the analysis |
+| `Reports__MonthlyBudgetUsd` | optional, default `15` (owner, 2026-11-06) |
+| `Reports__SendTime` / `Reports__Model` / `Reports__WhatsAppTemplate` | optional, defaults `18:00` / `claude-opus-5-5` / `stakeholder_report` |
+
+Migration `AddStakeholderReports` (three new tables) must be applied first. Then on the page:
+add the recipient, **Preview** (no send) to check the PDFs, then **Send now** once.
+
 ## Day-to-day use
 
 - Try a change on staging: push the branch to `staging`

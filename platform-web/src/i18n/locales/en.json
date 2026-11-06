@@ -576,7 +576,8 @@
     "telegramWaiting": "Press Start in Telegram, then come back here.",
     "telegramCheck": "Check again",
     "telegramDisconnect": "Disconnect",
-    "telegramError": "Could not update your Telegram connection."
+    "telegramError": "Could not update your Telegram connection.",
+    "reportsHint": "Daily, weekly and monthly PDF reports with analysis, sent to stakeholders on WhatsApp"
   },
   "errors": {
     "offline": "Can't reach the server. Check your internet connection and try again.",
@@ -685,5 +686,88 @@
     "telegram": "Telegram",
     "remindersSent": "{{n}} reminder(s) sent",
     "remindersFailed": "{{n}} failed"
+  },
+  "reports": {
+    "title": "Stakeholder reports",
+    "back": "← Settings",
+    "intro": "A PDF report with a written analysis goes to each recipient on WhatsApp at {{time}} (Saudi time): daily on working days, weekly on Thursday, monthly on the last day of the month.",
+    "loadError": "Could not load the reports.",
+    "cancel": "Cancel",
+    "kind": {
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "monthly": "Monthly"
+    },
+    "trigger": {
+      "schedule": "Scheduled",
+      "preview": "Preview",
+      "send-now": "Sent now"
+    },
+    "status": {
+      "running": "In progress",
+      "done": "Done",
+      "failed": "Failed"
+    },
+    "analysis": {
+      "written": "Analysis written",
+      "skipped-budget": "No analysis: monthly budget reached",
+      "not-configured": "No analysis: Claude not set up",
+      "failed": "No analysis: it could not be completed",
+      "off": "Without analysis"
+    },
+    "delivery": {
+      "running": "sending",
+      "sent": "sent on WhatsApp",
+      "failed": "not sent"
+    },
+    "setup": {
+      "title": "Setup",
+      "analysis": "Claude (written analysis)",
+      "pdf": "PDF service",
+      "whatsApp": "WhatsApp"
+    },
+    "budget": {
+      "title": "Claude spend this month",
+      "hint": "A report is only analysed if its worst-case cost still fits the monthly cap; otherwise it goes out with figures and charts only."
+    },
+    "recipients": {
+      "title": "Recipients",
+      "hint": "People outside the app who receive the reports on WhatsApp. Each one gets every project.",
+      "empty": "No recipients yet - scheduled reports are not made until someone is added.",
+      "name": "Name",
+      "phone": "WhatsApp number",
+      "active": "Active",
+      "add": "Add a recipient",
+      "edit": "Edit",
+      "delete": "Remove",
+      "save": "Save",
+      "none": "no reports",
+      "saveError": "Could not save the recipient.",
+      "confirmDelete": "Remove {{name}} from the reports?"
+    },
+    "run": {
+      "title": "Make a report now",
+      "kind": "Report",
+      "date": "Up to",
+      "withAnalysis": "With Claude's analysis (counts towards the budget)",
+      "hint": "Preview makes the PDFs without sending them. With the analysis it takes up to two minutes.",
+      "preview": "Preview",
+      "send": "Send now",
+      "working": "Working…",
+      "confirmSend": "Send the {{kind}} report to its recipients on WhatsApp now?",
+      "error": "The report could not be made."
+    },
+    "download": {
+      "phone": "Phone PDF",
+      "a4": "A4 PDF"
+    },
+    "history": {
+      "title": "Recent reports",
+      "empty": "No reports yet.",
+      "when": "Made",
+      "report": "Report",
+      "result": "Result",
+      "files": "Files"
+    }
   }
 }

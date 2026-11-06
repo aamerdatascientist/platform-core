@@ -10,6 +10,7 @@ import { FormView } from './routes/FormView';
 import { Layout } from './routes/Layout';
 import { AssignmentTracking } from './routes/AssignmentTracking';
 import { FormAssignments } from './routes/FormAssignments';
+import { StakeholderReports } from './routes/StakeholderReports';
 import { MyAssignments } from './routes/MyAssignments';
 import { Settings } from './routes/Settings';
 import { SignIn } from './routes/SignIn';
@@ -68,6 +69,7 @@ export default function App() {
           <Route path="admin/users" element={<UserManagement token={accessToken} />} />
           <Route path="admin/assignments" element={<FormAssignments token={accessToken} />} />
           <Route path="admin/assignments/status" element={<AssignmentTracking token={accessToken} />} />
+          <Route path="admin/reports" element={<StakeholderReports token={accessToken} />} />
         </Route>
         <Route path="*" element={<StatusPage kind="notFound" />} />
       </Route>

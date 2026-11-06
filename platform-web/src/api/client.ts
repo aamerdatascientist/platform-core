@@ -9,6 +9,10 @@ import type {
   FormDefinitionDto,
   FormSummaryDto,
   PagedResult,
+  ReportKind,
+  ReportRecipientDto,
+  ReportRunDto,
+  ReportsOverviewDto,
   RoleDto,
   TelegramLinkDto,
   TelegramStatusDto,
@@ -461,6 +465,33 @@ export const api = {
       }
       return response.json();
     },
+  },
+
+  /** Stakeholder reports (administrators). */
+  reports: {
+    overview: (token: string) => request<ReportsOverviewDto>('/api/reports', {}, token),
+
+    saveRecipient: (
+      token: string,
+      input: Omit<ReportRecipientDto, 'id'>,
+      id?: string,
+    ) =>
+      request<ReportRecipientDto>(
+        id ? `/api/reports/recipients/${id}` : '/api/reports/recipients',
+        { method: id ? 'PUT' : 'POST', body: JSON.stringify(input) },
+        token,
+      ),
+
+    deleteRecipient: (token: string, id: string) =>
+      request<void>(`/api/reports/recipients/${id}`, { method: 'DELETE' }, token),
+
+    /** Makes a report now (up to a couple of minutes with the analysis). deliver false = preview only. */
+    run: (token: string, input: { kind: ReportKind; to: string | null; withAnalysis: boolean; deliver: boolean }) =>
+      request<ReportRunDto>('/api/reports/run', { method: 'POST', body: JSON.stringify(input) }, token),
+
+    /** A 10-minute download link for a stored PDF. */
+    download: (token: string, runId: string, phone: boolean) =>
+      request<{ url: string }>(`/api/reports/runs/${runId}/download?phone=${phone}`, {}, token),
   },
 
   /** Daily form assignments. Everything but `mine` is for administrators. */
