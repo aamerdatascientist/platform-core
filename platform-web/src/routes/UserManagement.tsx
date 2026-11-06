@@ -12,10 +12,10 @@ interface UserManagementProps {
 }
 
 /**
- * Reminders go out on Telegram (2026-11-05). WhatsApp is built but switched off on the server,
- * so its number button is hidden; set this to true when WhatsApp is configured again.
+ * Reminders go out on Telegram (2026-11-05); WhatsApp shown again 2026-11-06 while it is set up
+ * on staging (Meta test number). Set to false to hide the number button again.
  */
-const SHOW_WHATSAPP = false;
+const SHOW_WHATSAPP = true;
 
 export function UserManagement({ token }: UserManagementProps) {
   const { t } = useTranslation();
