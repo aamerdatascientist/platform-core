@@ -15,7 +15,9 @@ import { MyAssignments } from './routes/MyAssignments';
 import { Settings } from './routes/Settings';
 import { SignIn } from './routes/SignIn';
 import { UserManagement } from './routes/UserManagement';
-import { Welcome } from './routes/Welcome';
+import { Account } from './routes/Account';
+import { FormsList } from './routes/FormsList';
+import { MyEntries } from './routes/MyEntries';
 import { RequireAdmin } from './components/RequireAdmin';
 import { DevGallery } from './routes/DevGallery';
 
@@ -62,16 +64,20 @@ export default function App() {
   return (
     <Routes>
       <Route element={<Layout token={accessToken} />}>
-        <Route index element={<Welcome />} />
+        {/* Today (screen 02) replaces this page in phase 4; until then the home page is My assignments. */}
+        <Route index element={<MyAssignments token={accessToken} />} />
+        <Route path="assignments" element={<Navigate to="/" replace />} />
+        <Route path="forms" element={<FormsList />} />
         <Route path="forms/:formId" element={<FormView token={accessToken} />} />
-        <Route path="assignments" element={<MyAssignments token={accessToken} />} />
+        <Route path="entries" element={<MyEntries />} />
         <Route path="settings" element={<Settings token={accessToken} />} />
-        <Route path="account" element={<Navigate to="/settings" replace />} />
+        <Route path="account" element={<Account token={accessToken} />} />
         <Route element={<RequireAdmin token={accessToken} />}>
           <Route path="builder" element={<BuilderHome token={accessToken} />} />
           <Route path="builder/:formId" element={<FormBuilder token={accessToken} />} />
           <Route path="admin/users" element={<UserManagement token={accessToken} />} />
           <Route path="admin/assignments" element={<FormAssignments token={accessToken} />} />
+          {/* Merged into /admin/assignments in phase 8 (screen 23); the old page stays reachable until then. */}
           <Route path="admin/assignments/status" element={<AssignmentTracking token={accessToken} />} />
           <Route path="admin/reports" element={<StakeholderReports token={accessToken} />} />
         </Route>

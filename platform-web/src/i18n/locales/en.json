@@ -781,7 +781,8 @@
     "searchOrJump": "Search or jump to…",
     "searchPlaceholder": "Type a form or page name",
     "noMatches": "Nothing matches “{{q}}”.",
-    "opensNewTab": "Opens in a new tab"
+    "opensNewTab": "Opens in a new tab",
+    "appName": "Asas"
   },
   "today": {
     "greetingMorning": "Good morning, {{name}}",
@@ -857,7 +858,8 @@
     "tagPlanMet": "Plan met",
     "tagPlanNotMet": "Plan not met",
     "loadMore": "Load more",
-    "loadError": "Could not load your entries."
+    "loadError": "Could not load your entries.",
+    "comingSoon": "The entries you send will be listed here."
   },
   "records": {
     "tabFill": "Fill",
@@ -982,5 +984,9 @@
     "languageEnglish": "English",
     "telegramConnectedShort": "Connected — reminders come to you",
     "signInHint": "Forgot your password? An administrator resets it for you from the Users page."
+  },
+  "roleName": {
+    "Administrator": "Administrator",
+    "Project Manager": "Project manager"
   }
 }

@@ -207,7 +207,12 @@ that is intended, not a leak. Since 2026-10-20 all of `/api/analytics/*` is admi
 and the dashboard link shows for administrators only (Project managers don't see the dashboard).
 Don't add a second anonymous data endpoint by copying this one without the same key check.
 
-**Since 2026-10-21 the sidebar holds only the forms plus one Settings link.** Everything else -
+**Reversed 2026-11-06 (redesign, decision 1):** admin pages are back in the desktop side menu under
+"Administration", and the app has two shells - below 1024px a phone shell with a bottom tab bar (Today,
+Forms, My entries, Settings), from 1024px a 264px side menu with Ctrl/Cmd+K search
+(`routes/Layout.tsx`, `components/shell/`). Settings still lists the admin pages on a phone. The redesign
+spec is `docs/redesign/HANDOFF.md`; shared components are in `components/ui/`. Superseded:
+~~Since 2026-10-21 the sidebar holds only the forms plus one Settings link.~~ Everything else -
 account and password, sign out, language, light/dark, and the admin-only dashboard / form
 builder / users & roles - is on `/settings` (`routes/Settings.tsx`); `/account` redirects there.
 

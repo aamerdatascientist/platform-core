@@ -781,7 +781,8 @@
     "searchOrJump": "ابحث أو انتقل…",
     "searchPlaceholder": "اكتب اسم نموذج أو صفحة",
     "noMatches": "لا توجد نتائج لـ «{{q}}».",
-    "opensNewTab": "تُفتح في علامة تبويب جديدة"
+    "opensNewTab": "تُفتح في علامة تبويب جديدة",
+    "appName": "أساس"
   },
   "today": {
     "greetingMorning": "صباح الخير، {{name}}",
@@ -868,7 +869,8 @@
     "tagPlanMet": "أُنجز المخطط",
     "tagPlanNotMet": "لم يُنجز المخطط",
     "loadMore": "عرض المزيد",
-    "loadError": "تعذّر تحميل إدخالاتك."
+    "loadError": "تعذّر تحميل إدخالاتك.",
+    "comingSoon": "ستظهر هنا الإدخالات التي ترسلها."
   },
   "records": {
     "tabFill": "تعبئة",
@@ -1008,5 +1010,9 @@
     "languageEnglish": "English",
     "telegramConnectedShort": "مربوط — تصلك التذكيرات",
     "signInHint": "نسيت كلمة المرور؟ يعيد المسؤول تعيينها لك من صفحة المستخدمين."
+  },
+  "roleName": {
+    "Administrator": "مسؤول",
+    "Project Manager": "مدير مشروع"
   }
 }

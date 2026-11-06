@@ -47,7 +47,7 @@ const paths: Record<IconName, { body: ReactNode; stroke?: number; flip?: boolean
   grip: { body: <><circle cx="9" cy="6" r="1.6" /><circle cx="15" cy="6" r="1.6" /><circle cx="9" cy="12" r="1.6" /><circle cx="15" cy="12" r="1.6" /><circle cx="9" cy="18" r="1.6" /><circle cx="15" cy="18" r="1.6" /></>, fill: true },
   bell: { body: <path d="M6 9a6 6 0 0 1 12 0c0 6 3 7 3 7H3s3-1 3-7M10 20a2 2 0 0 0 4 0" /> },
   expand: { body: <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /> },
-  external: { body: <path d="M7 17 17 7M9 7h8v8" />, flip: true },
+  external: { body: <path d="M7 17 17 7M9 7h8v8" /> },
   trash: { body: <path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13" /> },
   paperclip: { body: <path d="M21 11.5 12.5 20a5 5 0 0 1-7-7L14 4.5a3.5 3.5 0 0 1 5 5L10.5 18a2 2 0 0 1-3-3l7.5-7.5" /> },
 };
