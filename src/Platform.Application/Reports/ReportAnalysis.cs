@@ -127,7 +127,7 @@ public static class ReportNumberCheck
             .ToList();
     }
 
-    private static IEnumerable<string> Texts(ReportAnalysis a)
+    internal static IEnumerable<string> Texts(ReportAnalysis a)
     {
         yield return a.Summary;
         foreach (var f in a.Findings) { yield return f.Headline; yield return f.Title; yield return f.Text; }
@@ -159,5 +159,53 @@ public static class ReportNumberCheck
             if (decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var d))
                 yield return d.ToString(CultureInfo.InvariantCulture);
         }
+    }
+}
+
+/// <summary>
+/// The rest of what an analysis must satisfy before it goes in a stakeholder's PDF - the guard
+/// against prompt injection through text typed into the forms. Claude has no tools and its
+/// answer is fixed-shape JSON, so the worst an injected instruction could do is change the
+/// wording; this rejects the tell-tale results (links, e-mail addresses, markup or code,
+/// projects that don't exist, runaway length) and the run retries once, then goes out without
+/// an analysis.
+/// </summary>
+public static class ReportOutputCheck
+{
+    public const int MaxSummaryLength = 1500;
+    public const int MaxTextLength = 900;
+    public const int MaxFindings = 6;
+    public const int MaxRecommendations = 8;
+    public const int MaxWatch = 6;
+
+    private static readonly Regex Forbidden = new(
+        @"https?://|www\.|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|<\s*[A-Za-z/!]|```|\{\{|\}\}",
+        RegexOptions.Compiled | RegexOptions.IgnoreCase);
+
+    private static readonly HashSet<string> Tones = new() { "good", "warn", "bad", "neutral" };
+    private static readonly HashSet<string> Priorities = new() { "high", "medium", "low" };
+
+    public static IReadOnlyList<string> Problems(ReportAnalysis a, StakeholderReport report)
+    {
+        var problems = new List<string>();
+        if (string.IsNullOrWhiteSpace(a.Summary)) problems.Add("the summary is empty");
+        if (a.Summary.Length > MaxSummaryLength) problems.Add("the summary is too long");
+        if (a.Findings.Count > MaxFindings) problems.Add($"more than {MaxFindings} findings");
+        if (a.Recommendations.Count > MaxRecommendations) problems.Add($"more than {MaxRecommendations} recommendations");
+        if (a.Watch.Count > MaxWatch) problems.Add($"more than {MaxWatch} watch items");
+        if (ReportNumberCheck.Texts(a).Any(t => t.Length > MaxTextLength && t != a.Summary)) problems.Add("a text is too long");
+        if (ReportNumberCheck.Texts(a).Any(t => Forbidden.IsMatch(t)))
+            problems.Add("links, e-mail addresses, markup, code or template braces are not allowed");
+        if (a.Findings.Any(f => !Tones.Contains(f.Tone))) problems.Add("unknown tone");
+        if (a.Recommendations.Any(r => !Priorities.Contains(r.Priority))) problems.Add("unknown priority");
+
+        var codes = report.Projects.Select(p => p.Code).ToHashSet();
+        var unknown = a.Projects.Select(p => p.Code)
+            .Concat(a.Recommendations.Select(r => r.ProjectCode).Where(c => !string.IsNullOrWhiteSpace(c)))
+            .Where(c => !codes.Contains(c))
+            .Distinct()
+            .ToList();
+        if (unknown.Count > 0) problems.Add($"project codes not in the figures: {string.Join(", ", unknown)}");
+        return problems;
     }
 }

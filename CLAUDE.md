@@ -319,6 +319,15 @@ Real data starts 2026-11-02. Never treat those rows as client input; delete by t
   if an active recipient receives it. No server-side refusal fallback on purpose (a refusal just
   means no analysis, and a fallback model could cost more than the cap assumes).
 - Admin page `/admin/reports`; API `api/reports` (administrators). Migration `AddStakeholderReports`.
+- **Security (2026-11-06), keep all of it:** form text is untrusted - `StakeholderReportBuilder.Clip`
+  (160 chars, no control characters) before Claude or the PDF; the prompt marks `<figures>` text as
+  data, never instructions; `ReportOutputCheck` rejects links, e-mails, markup/code, `{{ }}`,
+  unknown project codes, over-long text (retry once, then no analysis); Claude has no tools. Budget:
+  `ReportRun.ReserveCost` holds the worst case on `CostUsd` during the call, and a static
+  `SemaphoreSlim` makes check+reserve+call one step per process (one API instance - scaling out
+  needs a DB lock). `POST api/reports/run` is rate limited (10/hour/admin). Claude client: 3-minute
+  timeout, 1 retry. The relay URL holds a key: `Redact` strips it from every stored error. The
+  report HTML carries a CSP (no scripts, no network, fonts from `file:` only) and escapes all text.
 
 ## Releasing to production - `main` and the working branch have diverged (2026-11-03)
 

@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Platform.Application.Reports;
 using Platform.Application.Reports.Commands.DeleteReportRecipient;
 using Platform.Application.Reports.Commands.RunReport;
@@ -51,6 +52,7 @@ public class ReportsController : ControllerBase
 
     /// <summary>Makes a report now. Takes up to a couple of minutes with the analysis.</summary>
     [HttpPost("run")]
+    [EnableRateLimiting(RateLimitPolicies.Reports)]
     public async Task<ActionResult<ReportRunDto>> Run(RunRequest request, CancellationToken cancellationToken) =>
         Ok(await _sender.Send(new RunReportCommand(request.Kind, request.To, request.WithAnalysis, request.Deliver), cancellationToken));
 

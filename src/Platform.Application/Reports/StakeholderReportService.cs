@@ -135,7 +135,7 @@ public class StakeholderReportService
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Stakeholder report {Kind} {To} failed.", kind, to);
-            run.Fail(ex.Message, DateTime.UtcNow);
+            run.Fail(Redact(ex.Message)!, DateTime.UtcNow);
             await _db.SaveChangesAsync(CancellationToken.None);
         }
 
@@ -160,42 +160,81 @@ public class StakeholderReportService
         string? correction = null;
         for (var attempt = 1; attempt <= 2; attempt++)
         {
-            var spent = await SpentThisMonthAsync(DateTime.UtcNow, cancellationToken);
-            if (spent + WorstCaseCallCost(figures) > _settings.MonthlyBudgetUsd)
+            // One Claude call at a time in this process: the budget check, the reservation and the
+            // call happen together, so two reports at once can't both squeeze under the cap. (The
+            // API runs as one instance; the reservation also covers a second one, minus the race.)
+            await ClaudeGate.WaitAsync(cancellationToken);
+            AnalystResult result;
+            try
             {
-                _logger.LogWarning("Report analysis skipped: ${Spent} spent this month of ${Budget}.", spent, _settings.MonthlyBudgetUsd);
-                run.RecordAnalysis(ReportRun.AnalysisSkippedBudget, 0, 0, 0);
+                var spent = await SpentThisMonthAsync(DateTime.UtcNow, cancellationToken);
+                var worstCase = WorstCaseCallCost(figures);
+                if (spent + worstCase > _settings.MonthlyBudgetUsd)
+                {
+                    _logger.LogWarning("Report analysis skipped: ${Spent} spent this month of ${Budget}.", spent, _settings.MonthlyBudgetUsd);
+                    run.RecordAnalysis(ReportRun.AnalysisSkippedBudget, 0, 0, 0);
+                    await _db.SaveChangesAsync(cancellationToken);
+                    return (null, "لم يُكتب التحليل لهذا التقرير لأن ميزانية التحليل الشهرية اكتملت. الأرقام والرسوم كاملة.");
+                }
+
+                run.ReserveCost(worstCase);
                 await _db.SaveChangesAsync(cancellationToken);
-                return (null, "لم يُكتب التحليل لهذا التقرير لأن ميزانية التحليل الشهرية اكتملت. الأرقام والرسوم كاملة.");
+                try
+                {
+                    result = await _analyst.AnalyseAsync(report.Kind, figures, correction, cancellationToken);
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // Nothing came back, so nothing to bill: release the reservation.
+                    result = new AnalystResult(null, 0, 0, ex.Message);
+                }
+            }
+            finally
+            {
+                ClaudeGate.Release();
             }
 
-            var result = await _analyst.AnalyseAsync(report.Kind, figures, correction, cancellationToken);
             var cost = _settings.Cost(result.InputTokens, result.OutputTokens);
             if (result.Analysis is null)
             {
-                run.RecordAnalysis(ReportRun.AnalysisFailed, result.InputTokens, result.OutputTokens, cost, result.Error);
+                run.RecordAnalysis(ReportRun.AnalysisFailed, result.InputTokens, result.OutputTokens, cost, Redact(result.Error));
                 await _db.SaveChangesAsync(cancellationToken);
                 return (null, "تعذّر إعداد التحليل المكتوب لهذا التقرير. الأرقام والرسوم كاملة.");
             }
 
-            var unknown = ReportNumberCheck.UnknownNumbers(result.Analysis, figures);
-            if (unknown.Count == 0)
+            var problems = ReportNumberCheck.UnknownNumbers(result.Analysis, figures)
+                .Select(n => $"number {n} is not in the figures")
+                .Concat(ReportOutputCheck.Problems(result.Analysis, report))
+                .ToList();
+            if (problems.Count == 0)
             {
                 run.RecordAnalysis(ReportRun.AnalysisWritten, result.InputTokens, result.OutputTokens, cost);
                 await _db.SaveChangesAsync(cancellationToken);
                 return (result.Analysis, null);
             }
 
-            _logger.LogWarning("Report analysis used numbers not in the figures: {Numbers}", string.Join(", ", unknown));
+            _logger.LogWarning("Report analysis rejected: {Problems}", string.Join("; ", problems));
             run.RecordAnalysis(ReportRun.AnalysisFailed, result.InputTokens, result.OutputTokens, cost,
-                $"Numbers not in the figures: {string.Join(", ", unknown)}");
+                $"Analysis rejected: {string.Join("; ", problems)}");
             await _db.SaveChangesAsync(cancellationToken);
-            correction = "Your previous answer used these numbers, which do not appear in the figures: " +
-                         string.Join(", ", unknown) +
-                         ". Rewrite the analysis using only numbers copied exactly from the figures (or words instead of numbers).";
+            correction = "Your previous answer was rejected by the automatic checks: " + string.Join("; ", problems) +
+                         ". Rewrite it: copy numbers exactly from the figures (or use words), no links, e-mail " +
+                         "addresses, markup or code, only the project codes in the figures, and keep to the lengths.";
         }
 
-        return (null, "تعذّر التحقق من أرقام التحليل المكتوب، فأُرسل التقرير بدونه. الأرقام والرسوم كاملة.");
+        return (null, "تعذّر التحقق من التحليل المكتوب، فأُرسل التقرير بدونه. الأرقام والرسوم كاملة.");
+    }
+
+    private static readonly SemaphoreSlim ClaudeGate = new(1, 1);
+
+    /// <summary>Errors are stored and shown on the page: never with the relay address (it holds the relay key).</summary>
+    private string? Redact(string? error)
+    {
+        if (error is null || string.IsNullOrWhiteSpace(_settings.AnthropicBaseUrl)) return error;
+        var secret = _settings.AnthropicBaseUrl.Trim().TrimEnd('/');
+        var path = Uri.TryCreate(secret, UriKind.Absolute, out var uri) ? uri.AbsolutePath.Trim('/') : null;
+        var redacted = error.Replace(secret, "[relay]", StringComparison.OrdinalIgnoreCase);
+        return string.IsNullOrEmpty(path) ? redacted : redacted.Replace(path, "[key]", StringComparison.Ordinal);
     }
 
     private async Task UploadAsync(string name, byte[] pdf, CancellationToken cancellationToken)

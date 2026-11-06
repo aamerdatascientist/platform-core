@@ -21,6 +21,13 @@ public static class StakeholderReportBuilder
     private const int MaxCauses = 6;
     private const int MaxIssues = 14;
 
+    /// <summary>
+    /// Text typed into the forms is untrusted: it is shortened and stripped of control characters
+    /// before it reaches Claude or the PDF, so a long or crafted entry can't crowd out the figures.
+    /// </summary>
+    public const int MaxTextLength = 160;
+    public const int MaxNameLength = 80;
+
     /// <summary>The period a report covers, ending on <paramref name="to"/>, and the one it is compared with.</summary>
     public static (DateOnly From, DateOnly To, DateOnly PreviousFrom, DateOnly PreviousTo) Period(string kind, DateOnly to)
     {
@@ -96,15 +103,15 @@ public static class StakeholderReportBuilder
         var issues = new List<ReportIssue>();
         foreach (var r in inPeriod.OrderByDescending(r => r.Date).ThenBy(r => projectCodes.GetValueOrDefault(r.ProjectId), StringComparer.Ordinal))
         {
-            var unit = labels.Unit(r.Phase, r.UnitKey);
+            var unit = Clip(labels.Unit(r.Phase, r.UnitKey), MaxNameLength) ?? string.Empty;
             if (r.HasProblem && !string.IsNullOrWhiteSpace(r.ProblemDescription))
-                issues.Add(new ReportIssue("problem", r.Date, projectCodes.GetValueOrDefault(r.ProjectId) ?? "", unit, r.ProblemDescription!.Trim()));
+                issues.Add(new ReportIssue("problem", r.Date, projectCodes.GetValueOrDefault(r.ProjectId) ?? "", unit, Clip(r.ProblemDescription, MaxTextLength)!));
             if (r.HadDelay && !string.IsNullOrWhiteSpace(r.DelayCause) && kind == ReportRun.Daily)
-                issues.Add(new ReportIssue("delay", r.Date, projectCodes.GetValueOrDefault(r.ProjectId) ?? "", unit, r.DelayCause!.Trim()));
+                issues.Add(new ReportIssue("delay", r.Date, projectCodes.GetValueOrDefault(r.ProjectId) ?? "", unit, Clip(r.DelayCause, MaxTextLength)!));
         }
         foreach (var p in projects)
             foreach (var unit in p.MissingUnits)
-                issues.Add(new ReportIssue("missing", to, p.Code, unit, "لم يصل تقرير اليوم"));
+                issues.Add(new ReportIssue("missing", to, p.Code, Clip(unit, MaxNameLength)!, "لم يصل تقرير اليوم"));
 
         return new StakeholderReport(
             Kind: kind, From: from, To: to, PreviousFrom: previousFrom, PreviousTo: previousTo,
@@ -198,9 +205,9 @@ public static class StakeholderReportBuilder
 
         return new ReportProject(
             Code: project.Code,
-            Name: project.Name,
-            City: project.City,
-            Manager: project.Manager,
+            Name: Clip(project.Name, MaxNameLength)!,
+            City: Clip(project.City, MaxNameLength),
+            Manager: Clip(project.Manager, MaxNameLength),
             Tone: tilesNow.ForecastTone ?? (dto.ScheduleStatus == "behind" ? OverviewKpiThresholds.Warn : OverviewKpiThresholds.Good),
             WorkCompletePercent: completeNow,
             WorkCompletePercentAtStart: completeStart,
@@ -226,8 +233,8 @@ public static class StakeholderReportBuilder
                     .Select(r => new ReportUnitDay(
                         r.Phase, StageLabel(labels, r.Phase), labels.Unit(r.Phase, r.UnitKey), r.CrewCount,
                         labels.Option("weather", r.Weather), r.PlanMet,
-                        r.HadDelay ? r.DelayCause?.Trim() : null,
-                        r.HasProblem ? r.ProblemDescription?.Trim() : null))
+                        r.HadDelay ? Clip(r.DelayCause, MaxTextLength) : null,
+                        r.HasProblem ? Clip(r.ProblemDescription, MaxTextLength) : null))
                     .ToList()
                 : Array.Empty<ReportUnitDay>(),
             MissingUnits: missingUnits,
@@ -301,13 +308,22 @@ public static class StakeholderReportBuilder
 
     private static IReadOnlyList<ReportCount> Causes(IEnumerable<OverviewReportRow> rows, int max) =>
         rows.Where(r => r.HadDelay && !string.IsNullOrWhiteSpace(r.DelayCause))
-            .GroupBy(r => r.DelayCause!.Trim())
+            .GroupBy(r => Clip(r.DelayCause, MaxTextLength)!)
             .Select(g => new ReportCount(g.Key, g.Count()))
             .OrderByDescending(c => c.Count).ThenBy(c => c.Label, StringComparer.Ordinal)
             .Take(max)
             .ToList();
 
     // -------------------------------------------------------------------- helpers
+
+    /// <summary>Trimmed, control characters and runs of spaces removed, cut to <paramref name="max"/> characters.</summary>
+    public static string? Clip(string? text, int max)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return text;
+        var clean = System.Text.RegularExpressions.Regex.Replace(
+            new string(text.Select(c => char.IsControl(c) ? ' ' : c).ToArray()), @"\s{2,}", " ").Trim();
+        return clean.Length <= max ? clean : clean[..(max - 1)].TrimEnd() + "…";
+    }
 
     public static bool IsWorkingDay(DateOnly day) => day.DayOfWeek != DayOfWeek.Friday;
 

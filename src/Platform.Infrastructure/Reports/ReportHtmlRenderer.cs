@@ -20,7 +20,11 @@ public class ReportHtmlRenderer : IReportRenderer
     public string RenderHtml(StakeholderReport r, ReportAnalysis? analysis, string? analysisNote, bool phone)
     {
         var html = new StringBuilder();
-        html.Append("<!doctype html><html lang=\"ar\" dir=\"rtl\"><head><meta charset=\"utf-8\"><style>")
+        // No scripts, no network: even if escaping ever failed, nothing in the page could run or
+        // fetch anything while the PDF service prints it. Only the bundled fonts (files sent with it).
+        html.Append("<!doctype html><html lang=\"ar\" dir=\"rtl\"><head><meta charset=\"utf-8\">")
+            .Append("<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; font-src file: 'self'; img-src data:\">")
+            .Append("<style>")
             .Append(Css).Append("</style></head><body class=\"").Append(phone ? "phone" : "a4").Append("\"><div class=\"wrap\">");
 
         Hero(html, r);

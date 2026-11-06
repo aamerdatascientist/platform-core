@@ -274,6 +274,13 @@ handle {
 }
 ```
 
+**Hardening (owner, 2026-11-06):** Gotenberg start command
+`gotenberg --api-enable-basic-auth --chromium-disable-javascript=true --chromium-allow-list=^file:///tmp/.* --libreoffice-disable-routes=true --webhook-disable=true`
+(only the HTML-to-PDF route is used; Chromium may read only the files sent with the page). If the
+service fails to start after a Gotenberg upgrade, check the flag names in its log. On
+console.anthropic.com set a monthly spend limit of $15 as well - the app's cap is the first guard,
+that one the last.
+
 Migration `AddStakeholderReports` (three new tables) must be applied first. Then on the page:
 add the recipient, **Preview** (no send) to check the PDFs, then **Send now** once.
 

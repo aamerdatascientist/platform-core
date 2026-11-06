@@ -65,13 +65,28 @@ public class ReportRun : BaseEntity
         CreatedAtUtc = nowUtc,
     };
 
+    // Worst-case cost held on CostUsd while a Claude call is in flight (not a column).
+    private decimal _reserved;
+
+    /// <summary>
+    /// Counts a call's worst-case cost BEFORE it is made, so a report running at the same time
+    /// sees it in the monthly total. Replaced by the real cost in <see cref="RecordAnalysis"/>; if
+    /// the process dies mid-call the reservation stays, which errs on the safe side.
+    /// </summary>
+    public void ReserveCost(decimal usd)
+    {
+        CostUsd += usd;
+        _reserved += usd;
+    }
+
     /// <summary>Recorded as soon as Claude answers, so the cost counts even if a later step fails.</summary>
     public void RecordAnalysis(string outcome, int inputTokens, int outputTokens, decimal costUsd, string? error = null)
     {
         Analysis = outcome;
         InputTokens += inputTokens;
         OutputTokens += outputTokens;
-        CostUsd += costUsd;
+        CostUsd += costUsd - _reserved;
+        _reserved = 0;
         if (error is not null) Error = Truncate(error);
     }
 
