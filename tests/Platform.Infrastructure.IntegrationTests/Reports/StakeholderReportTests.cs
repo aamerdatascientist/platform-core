@@ -353,6 +353,22 @@ public class StakeholderReportTests
             .Should().Be(new DateTime(2026, 11, 30, 21, 0, 0, DateTimeKind.Utc), "at 01:00 Saudi time on 1 December a new month has begun");
     }
 
+    [Theory]
+    [InlineData("gotenberg-production.up.railway.app", "https://gotenberg-production.up.railway.app")]
+    [InlineData("https://gotenberg.up.railway.app/", "https://gotenberg.up.railway.app")]
+    [InlineData(" http://localhost:3000 ", "http://localhost:3000")]
+    public void PdfServiceUrl_AcceptsTheDomainWithOrWithoutHttps(string configured, string expected) =>
+        GotenbergPdfRenderer.BaseUrl(configured).Should().Be(expected);
+
+    [Fact]
+    public void Fail_KeepsTheAnalysisErrorInFront()
+    {
+        var run = ReportRun.Start(ReportRun.Daily, Today, Today, ReportRun.Preview, null, DateTime.UtcNow);
+        run.RecordAnalysis(ReportRun.AnalysisFailed, 0, 0, 0, "Claude API error: 401");
+        run.Fail("PDF service answered 500", DateTime.UtcNow);
+        run.Error.Should().Be("Claude API error: 401 | PDF service answered 500");
+    }
+
     // ------------------------------------------------------------------ the page
 
     [Theory]

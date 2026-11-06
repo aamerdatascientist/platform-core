@@ -29,6 +29,15 @@ public class GotenbergPdfRenderer : IPdfRenderer
         _settings = settings;
     }
 
+    /// <summary>Railway shows the domain without "https://"; accept it either way.</summary>
+    public static string BaseUrl(string configured)
+    {
+        var url = configured.Trim().TrimEnd('/');
+        return url.StartsWith("http://", StringComparison.OrdinalIgnoreCase) || url.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+            ? url
+            : "https://" + url;
+    }
+
     public async Task<byte[]> RenderAsync(string html, bool phone, CancellationToken cancellationToken)
     {
         if (!_settings.IsPdfConfigured) throw new InvalidOperationException("The PDF service isn't set up.");
@@ -68,7 +77,7 @@ public class GotenbergPdfRenderer : IPdfRenderer
             foreach (var side in new[] { "marginTop", "marginBottom", "marginLeft", "marginRight" }) Field(side, A4Margin);
         }
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, $"{_settings.PdfServiceUrl!.TrimEnd('/')}/forms/chromium/convert/html")
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{BaseUrl(_settings.PdfServiceUrl!)}/forms/chromium/convert/html")
         {
             Content = form,
         };

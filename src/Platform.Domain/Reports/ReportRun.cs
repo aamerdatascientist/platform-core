@@ -83,10 +83,11 @@ public class ReportRun : BaseEntity
         CompletedAtUtc = nowUtc;
     }
 
+    /// <summary>Keeps an earlier error (the analysis's) in front of this one, so neither is lost.</summary>
     public void Fail(string error, DateTime nowUtc)
     {
         Status = Failed;
-        Error = Truncate(error);
+        Error = Truncate(Error is null ? error : $"{Error} | {error}");
         CompletedAtUtc = nowUtc;
     }
 
