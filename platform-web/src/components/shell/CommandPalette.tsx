@@ -68,7 +68,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-start justify-center p-6 pt-[12vh]">
       <div className="absolute inset-0 animate-[scrim-in_160ms_ease-out]" style={{ background: 'var(--scrim)' }} onClick={onClose} aria-hidden="true" />
-      <div ref={ref} role="dialog" aria-modal="true" aria-label={t('nav.searchOrJump')} className="relative flex max-h-[70vh] w-full max-w-[560px] flex-col overflow-hidden rounded-r-2xl border border-border bg-panel">
+      <div ref={ref} role="dialog" aria-modal="true" aria-label={t('nav.searchOrJump')} className="relative flex max-h-[70vh] w-full max-w-[560px] flex-col overflow-hidden rounded-ui-2xl border border-border bg-panel">
         <div className="flex items-center gap-2 border-b border-divider px-4">
           <Icon name="search" size={20} className="text-ink-soft" />
           <input
@@ -109,7 +109,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
               aria-selected={i === active}
               onMouseEnter={() => setActive(i)}
               onClick={() => choose(entry)}
-              className={`flex min-h-[44px] cursor-pointer items-center justify-between gap-3 rounded-r-md px-3 ${i === active ? 'bg-accent-soft text-accent-strong' : 'text-ink'}`}
+              className={`flex min-h-[44px] cursor-pointer items-center justify-between gap-3 rounded-ui-md px-3 ${i === active ? 'bg-accent-soft text-accent-strong' : 'text-ink'}`}
             >
               <span className="truncate text-[15px] font-medium"><bdi>{entry.label}</bdi></span>
               <span className="shrink-0 text-[12px] text-ink-soft">{entry.group}</span>

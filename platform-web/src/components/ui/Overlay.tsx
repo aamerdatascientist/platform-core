@@ -105,8 +105,8 @@ export function Sheet({
         tabIndex={-1}
         className={
           desktop
-            ? 'relative flex max-h-[80vh] w-full flex-col rounded-r-2xl border border-border bg-panel pt-4 focus:outline-none'
-            : 'relative flex h-[76vh] w-full animate-[sheet-up_220ms_ease-out] flex-col rounded-t-r-sheet bg-panel focus:outline-none'
+            ? 'relative flex max-h-[80vh] w-full flex-col rounded-ui-2xl border border-border bg-panel pt-4 focus:outline-none'
+            : 'relative flex h-[76vh] w-full animate-[sheet-up_220ms_ease-out] flex-col rounded-t-ui-sheet bg-panel focus:outline-none'
         }
         style={desktop ? { maxWidth: desktopWidth } : { transform: drag ? `translateY(${drag}px)` : undefined, paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
@@ -121,7 +121,7 @@ export function Sheet({
               start.current = null;
             }}
           >
-            <span className="h-[5px] w-10 rounded-r-pill bg-sheet-handle" aria-hidden="true" />
+            <span className="h-[5px] w-10 rounded-ui-pill bg-sheet-handle" aria-hidden="true" />
           </div>
         )}
         {header}
@@ -175,7 +175,7 @@ export function Drawer({
       aria-modal={wide ? undefined : true}
       aria-labelledby={titleId}
       tabIndex={-1}
-      className={`flex flex-col rounded-r-2xl border border-border bg-panel focus:outline-none ${
+      className={`flex flex-col rounded-ui-2xl border border-border bg-panel focus:outline-none ${
         wide ? 'max-w-[400px] flex-[1_1_340px] self-start' : 'h-full w-[min(400px,92vw)]'
       }`}
     >

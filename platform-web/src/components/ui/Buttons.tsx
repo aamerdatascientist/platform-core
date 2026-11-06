@@ -12,9 +12,9 @@ const base =
   'inline-flex items-center justify-center gap-2 font-sans transition-colors disabled:cursor-not-allowed disabled:opacity-50';
 
 const sizes: Record<Size, string> = {
-  phone: 'min-h-[56px] rounded-r-2xl px-5 text-[18px] font-bold',
-  desktop: 'min-h-[42px] rounded-r-lg px-4 text-[15px] font-bold',
-  compact: 'min-h-[44px] rounded-r-md px-3 text-[14px] font-medium',
+  phone: 'min-h-[56px] rounded-ui-2xl px-5 text-[18px] font-bold',
+  desktop: 'min-h-[42px] rounded-ui-lg px-4 text-[15px] font-bold',
+  compact: 'min-h-[44px] rounded-ui-md px-3 text-[14px] font-medium',
 };
 
 const variants: Record<Variant, string> = {
@@ -70,7 +70,7 @@ export function IconButton({
       type="button"
       aria-label={label}
       title={label}
-      className={`inline-flex shrink-0 items-center justify-center text-ink hover:bg-field-muted ${round ? 'rounded-full' : 'rounded-r-lg'} ${className}`}
+      className={`inline-flex shrink-0 items-center justify-center text-ink hover:bg-field-muted ${round ? 'rounded-full' : 'rounded-ui-lg'} ${className}`}
       style={{ width: size, height: size }}
       {...rest}
     >
@@ -129,7 +129,7 @@ export function ChipGroup<T extends string>({
             aria-checked={on}
             tabIndex={on || (value === null && option === options[0]) ? 0 : -1}
             onClick={() => onChange(option.value)}
-            className={`inline-flex h-[46px] items-center gap-1.5 rounded-r-pill border-[1.5px] text-[16px] ${compact ? 'px-4' : 'px-[18px]'} ${on ? choiceOn : choiceOff} ${invalid && !on ? '!border-danger' : ''}`}
+            className={`inline-flex h-[46px] items-center gap-1.5 rounded-ui-pill border-[1.5px] text-[16px] ${compact ? 'px-4' : 'px-[18px]'} ${on ? choiceOn : choiceOff} ${invalid && !on ? '!border-danger' : ''}`}
           >
             {on && <Icon name="check" size={16} strokeWidth={2.6} />}
             {option.label}
@@ -181,7 +181,7 @@ export function YesNo({
             aria-checked={on}
             tabIndex={on || (value === null && v) ? 0 : -1}
             onClick={() => onChange(v)}
-            className={`h-[52px] rounded-r-xl border-[1.5px] text-[17px] ${on ? choiceOn : choiceOff} ${invalid && !on ? '!border-danger' : ''}`}
+            className={`h-[52px] rounded-ui-xl border-[1.5px] text-[17px] ${on ? choiceOn : choiceOff} ${invalid && !on ? '!border-danger' : ''}`}
           >
             {label}
           </button>
@@ -212,7 +212,7 @@ export function Segmented<T extends string>({
     <div
       role="radiogroup"
       aria-label={label}
-      className="grid gap-1 rounded-r-lg bg-field-muted p-1"
+      className="grid gap-1 rounded-ui-lg bg-field-muted p-1"
       style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
       onKeyDown={(e) => moveFocus(e, options.findIndex((o) => o.value === value), options.length, (i) => onChange(options[i].value))}
     >
@@ -226,7 +226,7 @@ export function Segmented<T extends string>({
             aria-checked={on}
             tabIndex={on ? 0 : -1}
             onClick={() => onChange(option.value)}
-            className={`relative ${size === 'phone' ? 'h-[42px] text-[16px] before:-inset-y-px' : 'h-[36px] text-[14px] before:-inset-y-1'} min-w-0 rounded-r-md px-2 before:absolute before:inset-x-0 before:content-[''] ${
+            className={`relative ${size === 'phone' ? 'h-[42px] text-[16px] before:-inset-y-px' : 'h-[36px] text-[14px] before:-inset-y-1'} min-w-0 rounded-ui-md px-2 before:absolute before:inset-x-0 before:content-[''] ${
               on ? 'bg-panel font-bold text-ink shadow-elev-1' : 'font-medium text-ink-soft hover:text-ink'
             }`}
           >

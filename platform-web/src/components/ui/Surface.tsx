@@ -9,7 +9,7 @@ export function Card({
   children,
   ...rest
 }: { kind?: 'phone' | 'phone-secondary' | 'desktop' } & HTMLAttributes<HTMLDivElement>) {
-  const radius = kind === 'phone' ? 'rounded-r-4xl' : kind === 'phone-secondary' ? 'rounded-r-3xl' : 'rounded-r-2xl';
+  const radius = kind === 'phone' ? 'rounded-ui-4xl' : kind === 'phone-secondary' ? 'rounded-ui-3xl' : 'rounded-ui-2xl';
   return (
     <div className={`border border-border bg-panel ${radius} ${className}`} {...rest}>
       {children}
@@ -36,7 +36,7 @@ const toneClass: Record<Tone, string> = {
 export function Pill({ tone = 'neutral', children, className = '', large = false }: { tone?: Tone; children: ReactNode; className?: string; large?: boolean }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-r-pill font-bold ${
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-ui-pill font-bold ${
         large ? 'px-3 py-[5px] text-[13px]' : 'px-[9px] py-[3px] text-[12px]'
       } ${toneClass[tone]} ${className}`}
     >
@@ -49,7 +49,7 @@ export function Pill({ tone = 'neutral', children, className = '', large = false
 export function InfoBanner({ tone = 'info', children, className = '' }: { tone?: 'info' | 'warning'; children: ReactNode; className?: string }) {
   return (
     <div
-      className={`rounded-r-lg px-[14px] py-[10px] text-[14px] ${
+      className={`rounded-ui-lg px-[14px] py-[10px] text-[14px] ${
         tone === 'info' ? 'bg-accent-soft text-accent-strong' : 'bg-warning-soft text-warning-strong'
       } ${className}`}
     >
@@ -61,7 +61,7 @@ export function InfoBanner({ tone = 'info', children, className = '' }: { tone?:
 /** Empty state: dashed box, a 14px/700 title, and a line saying what will fill it. */
 export function EmptyState({ title, body, className = '' }: { title: ReactNode; body?: ReactNode; className?: string }) {
   return (
-    <div className={`flex flex-col items-center justify-center gap-1 rounded-r-lg border-[1.5px] border-dashed border-border px-4 py-8 text-center ${className}`}>
+    <div className={`flex flex-col items-center justify-center gap-1 rounded-ui-lg border-[1.5px] border-dashed border-border px-4 py-8 text-center ${className}`}>
       <p className="text-[14px] font-bold text-ink">{title}</p>
       {body && <p className="text-[13px] text-ink-soft">{body}</p>}
     </div>

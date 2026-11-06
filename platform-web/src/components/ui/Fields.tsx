@@ -75,7 +75,7 @@ export function FieldShell({
 /** 56px on a phone / 44px on a desktop; 17px text on a phone (no iOS zoom). */
 export function inputClass(invalid?: boolean, desktop?: boolean) {
   return `w-full min-w-0 border-[1.5px] bg-panel px-[14px] text-ink placeholder:text-ink-soft focus:border-accent focus:shadow-focus-ring focus:outline-none ${
-    desktop ? 'h-[44px] rounded-r-md text-[15px]' : 'h-[56px] rounded-r-xl text-[17px]'
+    desktop ? 'h-[44px] rounded-ui-md text-[15px]' : 'h-[56px] rounded-ui-xl text-[17px]'
   } ${invalid ? '!border-danger !bg-danger-soft' : 'border-border'}`;
 }
 
@@ -90,7 +90,7 @@ export function TextArea({ invalid, className = '', ...rest }: { invalid?: boole
     <textarea
       rows={3}
       aria-invalid={invalid || undefined}
-      className={`w-full min-w-0 resize-none rounded-r-xl border-[1.5px] bg-panel px-[14px] py-3 text-[17px] text-ink placeholder:text-ink-soft focus:border-accent focus:shadow-focus-ring focus:outline-none md:text-[15px] ${
+      className={`w-full min-w-0 resize-none rounded-ui-xl border-[1.5px] bg-panel px-[14px] py-3 text-[17px] text-ink placeholder:text-ink-soft focus:border-accent focus:shadow-focus-ring focus:outline-none md:text-[15px] ${
         invalid ? '!border-danger !bg-danger-soft' : 'border-border'
       } ${className}`}
       {...rest}
@@ -127,7 +127,7 @@ export function Stepper({
     onChange(String(next));
   };
   const square =
-    'flex h-[56px] w-[56px] shrink-0 items-center justify-center rounded-r-xl border-[1.5px] border-border bg-panel text-ink hover:border-ink-soft';
+    'flex h-[56px] w-[56px] shrink-0 items-center justify-center rounded-ui-xl border-[1.5px] border-border bg-panel text-ink hover:border-ink-soft';
   return (
     <div dir="ltr" className="flex items-center gap-[10px]">
       <button type="button" className={square} aria-label={t('steps.decrease')} onClick={() => step(-1)}>
@@ -141,7 +141,7 @@ export function Stepper({
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={invalid || undefined}
         aria-describedby={describedBy}
-        className={`h-[56px] min-w-0 flex-1 rounded-r-xl border-[1.5px] bg-panel text-center text-[24px] font-bold text-ink focus:border-accent focus:shadow-focus-ring focus:outline-none ${
+        className={`h-[56px] min-w-0 flex-1 rounded-ui-xl border-[1.5px] bg-panel text-center text-[24px] font-bold text-ink focus:border-accent focus:shadow-focus-ring focus:outline-none ${
           invalid ? '!border-danger !bg-danger-soft' : 'border-border'
         }`}
       />
@@ -173,7 +173,7 @@ export function DateQuickPick({
   const yesterday = yesterdayIso();
   const other = !!value && value !== today && value !== yesterday;
   const cls = (on: boolean) =>
-    `flex h-[48px] items-center justify-center gap-1.5 rounded-r-lg border-[1.5px] text-[16px] ${
+    `flex h-[48px] items-center justify-center gap-1.5 rounded-ui-lg border-[1.5px] text-[16px] ${
       on ? 'border-accent bg-accent-soft font-bold text-accent-strong' : `bg-panel font-medium text-ink hover:border-ink-soft ${invalid ? 'border-danger' : 'border-border'}`
     }`;
   return (
@@ -239,7 +239,7 @@ export function LookupRow({
       aria-haspopup="dialog"
       aria-invalid={invalid || undefined}
       aria-describedby={describedBy}
-      className={`flex min-h-[56px] w-full items-center gap-3 rounded-r-xl border-[1.5px] px-[14px] py-2 text-start disabled:cursor-not-allowed ${
+      className={`flex min-h-[56px] w-full items-center gap-3 rounded-ui-xl border-[1.5px] px-[14px] py-2 text-start disabled:cursor-not-allowed ${
         disabled ? 'border-border bg-field-muted text-ink-soft' : invalid ? 'border-danger bg-danger-soft' : 'border-border bg-panel hover:border-ink-soft'
       }`}
     >

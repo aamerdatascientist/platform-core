@@ -92,17 +92,17 @@ export default {
       },
       borderRadius: {
         DEFAULT: '2px',
-        // Redesign radii, by token name (rounded-r-xl = 14px ...).
-        'r-xs': 'var(--radius-xs)',
-        'r-sm': 'var(--radius-sm)',
-        'r-md': 'var(--radius-md)',
-        'r-lg': 'var(--radius-lg)',
-        'r-xl': 'var(--radius-xl)',
-        'r-2xl': 'var(--radius-2xl)',
-        'r-3xl': 'var(--radius-3xl)',
-        'r-4xl': 'var(--radius-4xl)',
-        'r-sheet': 'var(--radius-sheet)',
-        'r-pill': 'var(--radius-pill)',
+        // Redesign radii, by token name (rounded-ui-xl = 14px ...; "ui-" so no key collides with Tailwind's rounded-r-* = right-side corners).
+        'ui-xs': 'var(--radius-xs)',
+        'ui-sm': 'var(--radius-sm)',
+        'ui-md': 'var(--radius-md)',
+        'ui-lg': 'var(--radius-lg)',
+        'ui-xl': 'var(--radius-xl)',
+        'ui-2xl': 'var(--radius-2xl)',
+        'ui-3xl': 'var(--radius-3xl)',
+        'ui-4xl': 'var(--radius-4xl)',
+        'ui-sheet': 'var(--radius-sheet)',
+        'ui-pill': 'var(--radius-pill)',
       },
       boxShadow: {
         recessed: 'var(--shadow-recessed)',

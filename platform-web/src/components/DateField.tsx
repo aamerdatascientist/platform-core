@@ -195,10 +195,10 @@ export function CalendarPanel({
   if (!years.includes(view.y)) years.push(view.y);
   years.sort((a, b) => a - b);
 
-  const navClass = 'flex h-11 w-11 items-center justify-center rounded-r-md border border-border bg-panel text-lg text-ink hover:bg-bg';
+  const navClass = 'flex h-11 w-11 items-center justify-center rounded-ui-md border border-border bg-panel text-lg text-ink hover:bg-bg';
 
   return (
-    <div role="dialog" aria-label={t('formRenderer.pickDate')} className={`rounded-r-xl border border-border bg-panel p-3 ${className}`}>
+    <div role="dialog" aria-label={t('formRenderer.pickDate')} className={`rounded-ui-xl border border-border bg-panel p-3 ${className}`}>
       <div className="mb-3 flex items-center gap-2">
         {/* Each arrow points outward, toward the side its button sits on: in Arabic the
             previous-month button is on the right and points right, next is on the left and
@@ -209,7 +209,7 @@ export function CalendarPanel({
         </button>
         <select
           aria-label={t('formRenderer.month')}
-          className="h-11 min-w-0 flex-1 rounded-r-md border border-border bg-panel px-2 text-sm text-ink"
+          className="h-11 min-w-0 flex-1 rounded-ui-md border border-border bg-panel px-2 text-sm text-ink"
           value={view.m}
           onChange={(e) => setView((v) => ({ ...v, m: Number(e.target.value) }))}
         >
@@ -221,7 +221,7 @@ export function CalendarPanel({
         </select>
         <select
           aria-label={t('formRenderer.year')}
-          className="h-11 rounded-r-md border border-border bg-panel px-2 text-sm text-ink"
+          className="h-11 rounded-ui-md border border-border bg-panel px-2 text-sm text-ink"
           value={view.y}
           onChange={(e) => setView((v) => ({ ...v, y: Number(e.target.value) }))}
         >
@@ -256,7 +256,7 @@ export function CalendarPanel({
               onClick={() => onPick(iso)}
               aria-pressed={isSelected}
               aria-label={longFormat.format(utc(view.y, view.m, day))}
-              className={`h-11 rounded-r-md text-sm disabled:cursor-not-allowed disabled:opacity-30 ${
+              className={`h-11 rounded-ui-md text-sm disabled:cursor-not-allowed disabled:opacity-30 ${
                 isSelected
                   ? 'bg-accent font-bold text-accent-ink'
                   : isToday

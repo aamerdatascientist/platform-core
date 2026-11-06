@@ -30,11 +30,11 @@ export function SideMenu({ onSearch }: { onSearch: () => void }) {
       <button
         type="button"
         onClick={onSearch}
-        className="flex h-[44px] items-center gap-2 rounded-r-lg border border-border bg-field-muted px-3 text-[14px] text-ink-soft hover:border-ink-soft"
+        className="flex h-[44px] items-center gap-2 rounded-ui-lg border border-border bg-field-muted px-3 text-[14px] text-ink-soft hover:border-ink-soft"
       >
         <Icon name="search" size={17} />
         <span className="flex-1 text-start">{t('nav.searchOrJump')}</span>
-        <span dir="ltr" className="rounded-r-xs border border-border bg-panel px-1.5 py-px text-[12px]">
+        <span dir="ltr" className="rounded-ui-xs border border-border bg-panel px-1.5 py-px text-[12px]">
           {isMac ? '⌘ K' : 'Ctrl K'}
         </span>
       </button>
@@ -43,7 +43,7 @@ export function SideMenu({ onSearch }: { onSearch: () => void }) {
         <Item to="/" end>
           <span className="flex-1">{t('nav.todayTasks')}</span>
           {dueTodayCount > 0 && (
-            <span className="rounded-r-pill bg-warning-soft px-2 py-0.5 text-[12px] font-bold text-warning">{dueTodayCount}</span>
+            <span className="rounded-ui-pill bg-warning-soft px-2 py-0.5 text-[12px] font-bold text-warning">{dueTodayCount}</span>
           )}
         </Item>
       </div>
@@ -63,7 +63,7 @@ export function SideMenu({ onSearch }: { onSearch: () => void }) {
           <button
             type="button"
             onClick={openDashboard}
-            className="flex min-h-[44px] items-center gap-2 rounded-r-md px-[10px] text-start text-[15px] font-medium text-ink hover:bg-field-muted"
+            className="flex min-h-[44px] items-center gap-2 rounded-ui-md px-[10px] text-start text-[15px] font-medium text-ink hover:bg-field-muted"
             aria-label={`${t('sidebar.executiveOverview')} (${t('nav.opensNewTab')})`}
           >
             <span>{t('sidebar.executiveOverview')}</span>
@@ -97,7 +97,7 @@ export function SideMenu({ onSearch }: { onSearch: () => void }) {
           aria-label={t('nav.settings')}
           title={t('nav.settings')}
           className={({ isActive }) =>
-            `flex h-11 w-11 items-center justify-center rounded-r-md hover:bg-field-muted ${isActive ? 'bg-accent-soft text-accent-strong' : 'text-ink-soft'}`
+            `flex h-11 w-11 items-center justify-center rounded-ui-md hover:bg-field-muted ${isActive ? 'bg-accent-soft text-accent-strong' : 'text-ink-soft'}`
           }
         >
           <Icon name="sliders" size={20} />
@@ -122,7 +122,7 @@ function Item({ to, end, active, children }: { to: string; end?: boolean; active
       to={to}
       end={end}
       className={({ isActive }) =>
-        `flex min-h-[44px] items-center gap-2 rounded-r-md px-[10px] text-[15px] ${
+        `flex min-h-[44px] items-center gap-2 rounded-ui-md px-[10px] text-[15px] ${
           active ?? isActive ? 'bg-accent-soft font-bold text-accent-strong' : 'font-medium text-ink hover:bg-field-muted'
         }`
       }
