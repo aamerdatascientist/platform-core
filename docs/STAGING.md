@@ -244,8 +244,35 @@ download. Three things to set up, in this order:
 | `Reports__PdfServiceUrl` | the Railway domain, `https://...up.railway.app` |
 | `Reports__PdfServiceUsername` / `Reports__PdfServicePassword` | as on Railway |
 | `Reports__AnthropicApiKey` | from step 2; unset = reports go out without the analysis |
+| `Reports__AnthropicBaseUrl` | the Claude relay, `https://{relay-domain}/{RELAY_KEY}` (see below) |
 | `Reports__MonthlyBudgetUsd` | optional, default `15` (owner, 2026-11-06) |
 | `Reports__SendTime` / `Reports__Model` / `Reports__WhatsAppTemplate` | optional, defaults `18:00` / `claude-opus-5-5` / `stakeholder_report` |
+
+**Claude relay (needed because the API runs in Azure Hong Kong).** Anthropic's API refuses
+requests from Hong Kong (403 "Request not allowed", seen 2026-11-06), so the API calls Claude
+through a small Caddy relay on Railway (Singapore). Owner's choice over Microsoft Foundry, to keep
+the Anthropic key and credit. Railway > New > Docker Image `caddy:2`; variables `PORT` = `8080`,
+`RELAY_KEY` = a long random secret (the owner makes it), `CADDYFILE` = the config below (no
+secret in it); Custom Start Command
+`sh -c 'printf "%s" "$CADDYFILE" > /tmp/Caddyfile && caddy run --config /tmp/Caddyfile --adapter caddyfile'`;
+Generate Domain on port 8080. Then `Reports__AnthropicBaseUrl` = `https://{relay-domain}/{RELAY_KEY}`.
+Anything without the key in the path gets a 404. The relay doesn't hide where calls come from;
+if Anthropic ever refuses it, switch to Claude on Microsoft Foundry.
+
+```
+{
+	admin off
+}
+:{$PORT}
+handle_path /{$RELAY_KEY}/* {
+	reverse_proxy https://api.anthropic.com {
+		header_up Host api.anthropic.com
+	}
+}
+handle {
+	respond 404
+}
+```
 
 Migration `AddStakeholderReports` (three new tables) must be applied first. Then on the page:
 add the recipient, **Preview** (no send) to check the PDFs, then **Send now** once.

@@ -41,6 +41,13 @@ public class ReportSettings
     /// <summary>Anthropic API key. Empty = reports go out without the written analysis.</summary>
     public string? AnthropicApiKey { get; set; }
 
+    /// <summary>
+    /// Where Claude is called. Empty = Anthropic directly. The API runs in Azure Hong Kong, where
+    /// Anthropic's API is not offered, so staging/production point this at the relay on Railway
+    /// (Singapore): https://{relay-domain}/{relay-key} - see docs/STAGING.md.
+    /// </summary>
+    public string? AnthropicBaseUrl { get; set; }
+
     public string Model { get; set; } = "claude-opus-5-5";
 
     /// <summary>Hard ceiling on Claude spend per Saudi calendar month, in US dollars (owner, 2026-11-06: $15).</summary>

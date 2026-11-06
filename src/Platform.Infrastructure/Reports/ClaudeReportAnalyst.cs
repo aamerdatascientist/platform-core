@@ -26,7 +26,9 @@ public class ClaudeReportAnalyst : IReportAnalyst
     {
         _settings = settings;
         _logger = logger;
-        _client = new Lazy<AnthropicClient>(() => new AnthropicClient { ApiKey = settings.AnthropicApiKey });
+        _client = new Lazy<AnthropicClient>(() => string.IsNullOrWhiteSpace(settings.AnthropicBaseUrl)
+            ? new AnthropicClient { ApiKey = settings.AnthropicApiKey }
+            : new AnthropicClient { ApiKey = settings.AnthropicApiKey, BaseUrl = settings.AnthropicBaseUrl.Trim().TrimEnd('/') });
     }
 
     public async Task<AnalystResult> AnalyseAsync(string kind, string figuresJson, string? correction, CancellationToken cancellationToken)
