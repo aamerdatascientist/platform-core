@@ -12,11 +12,11 @@ interface StakeholderReportsProps {
 }
 
 const sectionClass = 'rounded border border-border bg-panel p-4 shadow-recessed sm:p-5';
-const headingClass = 'mb-3 text-label font-medium uppercase tracking-wider text-ink-soft';
+const headingClass = 'mb-3 text-label font-medium text-ink-soft';
 const inputClass = 'w-full rounded border border-border bg-bg px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none';
 const buttonClass = 'rounded border border-border bg-panel px-3 py-1.5 text-sm text-ink hover:border-ink disabled:opacity-50';
 const primaryClass = 'rounded bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50';
-const thClass = 'whitespace-nowrap border-b border-border px-2 py-2 text-start text-label font-medium uppercase tracking-wider text-ink-soft';
+const thClass = 'whitespace-nowrap border-b border-border px-2 py-2 text-start text-label font-medium text-ink-soft';
 const tdClass = 'border-b border-border px-2 py-2 align-top';
 const KINDS: ReportKind[] = ['daily', 'weekly', 'monthly'];
 
@@ -60,7 +60,7 @@ export function StakeholderReports({ token }: StakeholderReportsProps) {
         <Link to="/settings" className="text-xs text-ink-soft hover:text-ink">
           {t('reports.back')}
         </Link>
-        <h2 className="mt-1 font-display text-xl font-semibold uppercase tracking-[0.07em] text-ink">{t('reports.title')}</h2>
+        <h2 className="mt-1 font-display text-xl font-semibold text-ink">{t('reports.title')}</h2>
         <p className="mt-1 text-sm text-ink-soft">{t('reports.intro', { time: overview?.sendTime ?? '18:00' })}</p>
       </div>
 

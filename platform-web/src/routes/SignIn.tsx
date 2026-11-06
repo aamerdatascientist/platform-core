@@ -44,7 +44,7 @@ export function SignIn() {
       <div className="flex w-full max-w-sm flex-col items-center border border-border rounded bg-panel py-12 shadow-recessed">
         <div className="flex flex-col items-center px-10">
           <Logo size="lg" />
-          <span className="mb-1 mt-4 font-display text-lg font-semibold uppercase tracking-[0.07em] text-ink">ASAS</span>
+          <span className="mb-1 mt-4 font-display text-lg font-semibold text-ink">ASAS</span>
           <p className="text-sm text-ink-soft">{t('signIn.subtitle')}</p>
         </div>
         <div className="rivet-strip my-7 w-full" />

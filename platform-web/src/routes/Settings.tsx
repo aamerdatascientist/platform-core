@@ -62,13 +62,13 @@ export function Settings({ token }: SettingsProps) {
   }
 
   const sectionClass = 'rounded border border-border bg-panel p-4 shadow-recessed sm:p-5';
-  const headingClass = 'mb-4 text-label font-medium uppercase tracking-wider text-ink-soft';
+  const headingClass = 'mb-4 text-label font-medium text-ink-soft';
   const rowButtonClass =
     'flex w-full items-center justify-between gap-3 rounded border border-border bg-bg px-4 py-3 text-start hover:border-accent';
 
   return (
     <div className="max-w-2xl space-y-6">
-      <h2 className="font-display text-xl font-semibold uppercase tracking-[0.07em] text-ink">{t('settings.title')}</h2>
+      <h2 className="font-display text-xl font-semibold text-ink">{t('settings.title')}</h2>
 
       <section className={sectionClass} aria-labelledby="settings-account">
         <h3 id="settings-account" className={headingClass}>

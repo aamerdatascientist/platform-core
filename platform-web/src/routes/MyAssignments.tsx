@@ -31,14 +31,14 @@ export function MyAssignments({ token }: MyAssignmentsProps) {
   }, [token]);
 
   const sectionClass = 'rounded border border-border bg-panel p-4 shadow-recessed sm:p-5';
-  const headingClass = 'mb-3 text-label font-medium uppercase tracking-wider text-ink-soft';
+  const headingClass = 'mb-3 text-label font-medium text-ink-soft';
 
   if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!data)
     return (
       <div className="flex items-center gap-2">
         <LoadingSpinner size="sm" />
-        <span className="text-xs uppercase tracking-wide text-ink-soft">{t('common.loading')}</span>
+        <span className="text-xs text-ink-soft">{t('common.loading')}</span>
       </div>
     );
 
@@ -47,7 +47,7 @@ export function MyAssignments({ token }: MyAssignmentsProps) {
 
   return (
     <div className="max-w-3xl space-y-6">
-      <h2 className="font-display text-xl font-semibold uppercase tracking-[0.07em] text-ink">{t('assignments.mine.title')}</h2>
+      <h2 className="font-display text-xl font-semibold text-ink">{t('assignments.mine.title')}</h2>
 
       {data.days.length === 0 ? (
         <p className="text-sm text-ink-soft">{t('assignments.mine.none')}</p>

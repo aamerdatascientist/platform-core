@@ -17,6 +17,7 @@ import { SignIn } from './routes/SignIn';
 import { UserManagement } from './routes/UserManagement';
 import { Welcome } from './routes/Welcome';
 import { RequireAdmin } from './components/RequireAdmin';
+import { DevGallery } from './routes/DevGallery';
 
 /**
  * Real routing now (React Router) - refreshing or bookmarking /forms/{id} keeps your
@@ -41,6 +42,9 @@ export default function App() {
   // The Executive Overview is a standalone page: no sidebar, and - when its link carries a
   // share key - no sign-in either. It is checked before the sign-in gate for that reason.
   if (isDashboardPath(location.pathname)) return <ExecutiveOverview token={accessToken} />;
+
+  // Development only: the redesign component gallery (never in a production build).
+  if (import.meta.env.DEV && location.pathname === '/dev/ui') return <DevGallery />;
 
   if (!accessToken && showSessionEnded) {
     return (

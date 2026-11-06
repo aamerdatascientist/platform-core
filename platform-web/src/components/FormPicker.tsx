@@ -30,7 +30,7 @@ export function FormPicker({ token }: FormPickerProps) {
     return (
       <div className="flex items-center gap-2">
         <LoadingSpinner size="sm" />
-        <span className="font-mono text-xs uppercase tracking-wide text-sidebar-ink">{t('sidebar.loading')}</span>
+        <span className="font-mono text-xs text-sidebar-ink">{t('sidebar.loading')}</span>
       </div>
     );
   if (forms.length === 0) return <p className="text-sm text-sidebar-ink">{t('sidebar.noForms')}</p>;
@@ -44,7 +44,7 @@ export function FormPicker({ token }: FormPickerProps) {
     <nav className="space-y-5">
       {Object.entries(byModule).map(([moduleName, moduleForms]) => (
         <div key={moduleName}>
-          <h3 className="mb-1.5 text-micro font-medium uppercase tracking-wider text-sidebar-ink">
+          <h3 className="mb-1.5 text-micro font-medium text-sidebar-ink">
             {/* Module names are typed in English in the builder; the known ones have a
                 translation, anything else shows as typed. */}
             {t(`moduleName.${moduleName}`, { defaultValue: moduleName })}

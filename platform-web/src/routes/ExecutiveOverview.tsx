@@ -175,7 +175,7 @@ export function ExecutiveOverview({ token }: { token: string | null }) {
       <Stage>
         <div className="flex h-full items-center justify-center gap-3">
           <LoadingSpinner size="md" />
-          <span className="text-sm uppercase tracking-wide text-ink-soft">{t('common.loading')}</span>
+          <span className="text-sm text-ink-soft">{t('common.loading')}</span>
         </div>
       </Stage>
     );
@@ -271,7 +271,7 @@ export function ExecutiveOverview({ token }: { token: string | null }) {
           <div className="flex min-w-0 items-center gap-3">
             <Logo size="sm" />
             <div className="min-w-0">
-              <h1 className="truncate font-display text-xl font-semibold uppercase tracking-[0.07em] text-ink">
+              <h1 className="truncate font-display text-xl font-semibold text-ink">
                 {t('executiveOverview.title')}
               </h1>
               <p className="truncate text-xs text-ink-soft" dir="auto">

@@ -12,10 +12,17 @@
 })();
 
 // Set data-mode, same reasoning and same localStorage-key pattern (see src/theme/mode.ts).
-// Defaults to dark - "Structural steel" is a dark-first industrial direction; light is the
-// deliberate companion palette, not the default.
+// The stored value is the person's preference: 'light', 'dark' or 'system' ("Match phone").
+// Nothing stored = 'system' (redesign, 2026-11-06), resolved here from prefers-color-scheme so
+// the first paint is already in the right mode - no flash.
 (function () {
-  var mode = 'dark';
-  try { mode = localStorage.getItem('mode') || 'dark'; } catch (e) {}
+  var pref = 'system';
+  try { pref = localStorage.getItem('mode') || 'system'; } catch (e) {}
+  var mode = pref;
+  if (pref !== 'light' && pref !== 'dark') {
+    var dark = false;
+    try { dark = window.matchMedia('(prefers-color-scheme: dark)').matches; } catch (e) {}
+    mode = dark ? 'dark' : 'light';
+  }
   document.documentElement.setAttribute('data-mode', mode);
 })();

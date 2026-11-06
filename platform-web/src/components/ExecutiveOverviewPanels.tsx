@@ -15,7 +15,7 @@ import { StatusLed } from './StatusLed';
 // always the same size and is scaled as a whole, so viewport breakpoints would be wrong.
 
 const TABLE_HEAD_CLASS =
-  'sticky top-0 z-[1] whitespace-nowrap border-b border-border bg-panel px-1.5 py-1.5 text-start font-display text-label font-semibold uppercase tracking-[0.07em] text-ink-soft';
+  'sticky top-0 z-[1] whitespace-nowrap border-b border-border bg-panel px-1.5 py-1.5 text-start font-display text-label font-semibold text-ink-soft';
 
 /**
  * Number and date formatting for the dashboard, in the active language. Arabic keeps Latin
@@ -46,7 +46,7 @@ export function useOverviewFormat() {
 export function Panel({ title, caption, children }: { title: string; caption?: string; children: ReactNode }) {
   return (
     <section className="flex h-full min-h-0 min-w-0 flex-col rounded border border-border bg-panel p-3.5 shadow-recessed">
-      <h3 className="shrink-0 truncate font-display text-sm font-semibold uppercase tracking-[0.07em] text-ink">{title}</h3>
+      <h3 className="shrink-0 truncate font-display text-sm font-semibold text-ink">{title}</h3>
       {caption && (
         <p className="line-clamp-2 shrink-0 text-xs leading-tight text-ink-soft" title={caption}>
           {caption}
@@ -90,7 +90,7 @@ function Tile({
       className={`flex min-w-0 flex-col justify-center rounded border border-border bg-panel px-4 shadow-recessed ${tone ? TONE_EDGE_CLASS[tone] : ''}`}
     >
       {/* Label and detail wrap to a second line rather than being cut off; two lines fit the row. */}
-      <div className="line-clamp-2 font-display text-label font-semibold uppercase leading-tight tracking-[0.07em] text-ink-soft">
+      <div className="line-clamp-2 font-display text-label font-semibold leading-tight text-ink-soft">
         {label}
       </div>
       <div

@@ -175,7 +175,7 @@ export function FormView({ token }: FormViewProps) {
     return (
       <div className="flex items-center gap-2">
         <LoadingSpinner size="sm" />
-        <span className="text-xs uppercase tracking-wide text-ink-soft">{t('common.loading')}</span>
+        <span className="text-xs text-ink-soft">{t('common.loading')}</span>
       </div>
     );
 
@@ -184,7 +184,7 @@ export function FormView({ token }: FormViewProps) {
   if (!isAdmin) {
     return (
       <div className="max-w-3xl space-y-8">
-        <h2 className="font-display text-xl font-semibold uppercase tracking-[0.07em] text-ink">{formDefinition.name}</h2>
+        <h2 className="font-display text-xl font-semibold text-ink">{formDefinition.name}</h2>
         <FormRenderer token={token} formDefinition={formDefinition} onSubmitted={() => {}} />
       </div>
     );
@@ -193,11 +193,11 @@ export function FormView({ token }: FormViewProps) {
   return (
     <div className="grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
       <div className="space-y-8">
-        <h2 className="font-display text-xl font-semibold uppercase tracking-[0.07em] text-ink">{formDefinition.name}</h2>
+        <h2 className="font-display text-xl font-semibold text-ink">{formDefinition.name}</h2>
 
         {editingRecord ? (
           <section className="rounded border border-accent p-4">
-            <h3 className="mb-4 text-label font-medium uppercase tracking-wider text-accent">{t('formView.editingRecord')}</h3>
+            <h3 className="mb-4 text-label font-medium text-accent">{t('formView.editingRecord')}</h3>
             <FormRenderer
               key={`edit-${editingRecord.id}`}
               token={token}
@@ -221,7 +221,7 @@ export function FormView({ token }: FormViewProps) {
 
         <div>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-label font-medium uppercase tracking-wider text-ink-soft">
+            <h3 className="text-label font-medium text-ink-soft">
               {t('formView.recordsHeading')}
             </h3>
             {scopeField && (
@@ -268,7 +268,7 @@ export function FormView({ token }: FormViewProps) {
         {selectedRecordId ? (
           <>
             <div className="rounded border border-border p-4">
-              <h3 className="mb-3 text-label font-medium uppercase tracking-wider text-ink-soft">{t('formView.recordActions')}</h3>
+              <h3 className="mb-3 text-label font-medium text-ink-soft">{t('formView.recordActions')}</h3>
               {confirmingDelete ? (
                 <div className="space-y-3">
                   <p className="text-sm text-ink">{t('formView.confirmDelete')}</p>

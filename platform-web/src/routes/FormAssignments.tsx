@@ -14,8 +14,8 @@ interface FormAssignmentsProps {
 
 const inputClass = 'w-full rounded border border-border bg-bg px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none';
 const sectionClass = 'rounded border border-border bg-panel p-4 shadow-recessed sm:p-5';
-const headingClass = 'mb-3 text-label font-medium uppercase tracking-wider text-ink-soft';
-const thClass = 'whitespace-nowrap border-b border-border px-2 py-2 text-start text-label font-medium uppercase tracking-wider text-ink-soft';
+const headingClass = 'mb-3 text-label font-medium text-ink-soft';
+const thClass = 'whitespace-nowrap border-b border-border px-2 py-2 text-start text-label font-medium text-ink-soft';
 const tdClass = 'border-b border-border px-2 py-2 align-top';
 
 /**
@@ -113,14 +113,14 @@ export function FormAssignments({ token }: FormAssignmentsProps) {
     return (
       <div className="flex items-center gap-2">
         <LoadingSpinner size="sm" />
-        <span className="text-xs uppercase tracking-wide text-ink-soft">{t('common.loading')}</span>
+        <span className="text-xs text-ink-soft">{t('common.loading')}</span>
       </div>
     );
 
   return (
     <div className="max-w-5xl space-y-6">
       <div>
-        <h2 className="font-display text-xl font-semibold uppercase tracking-[0.07em] text-ink">{t('assignments.admin.title')}</h2>
+        <h2 className="font-display text-xl font-semibold text-ink">{t('assignments.admin.title')}</h2>
         <p className="mt-1 text-sm text-ink-soft">{t('assignments.admin.intro')}</p>
         <Link
           to="/admin/assignments/status"
@@ -258,7 +258,7 @@ export function FormAssignments({ token }: FormAssignmentsProps) {
                       )}
                     </td>
                     <td className={tdClass}>
-                      <span className={`text-label uppercase tracking-wider ${a.isActive ? 'text-success' : 'text-ink-soft'}`}>
+                      <span className={`text-label ${a.isActive ? 'text-success' : 'text-ink-soft'}`}>
                         {a.isActive ? t('assignments.admin.active') : t('assignments.admin.ended')}
                       </span>
                     </td>
@@ -268,7 +268,7 @@ export function FormAssignments({ token }: FormAssignmentsProps) {
                           type="button"
                           onClick={() => handleStop(a.id)}
                           disabled={stoppingId === a.id}
-                          className="text-label uppercase tracking-wide text-danger hover:underline disabled:opacity-50"
+                          className="text-label text-danger hover:underline disabled:opacity-50"
                         >
                           {stoppingId === a.id ? t('assignments.admin.stopping') : t('assignments.admin.stop')}
                         </button>

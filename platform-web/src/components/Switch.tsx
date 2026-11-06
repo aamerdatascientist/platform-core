@@ -38,7 +38,7 @@ export function Switch({ checked, onChange, leftLabel, rightLabel, tone = 'dark'
     <button
       onClick={onChange}
       dir="ltr"
-      className="flex items-center gap-1.5 text-xs uppercase tracking-wide"
+      className="flex items-center gap-1.5 text-xs"
       aria-label={ariaLabel}
     >
       <span className={checked ? classes.inactive : classes.active}>{leftLabel}</span>

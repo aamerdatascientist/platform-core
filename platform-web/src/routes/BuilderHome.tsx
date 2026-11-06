@@ -61,7 +61,7 @@ export function BuilderHome({ token }: { token: string }) {
   return (
     <div className="max-w-3xl space-y-8">
       <div>
-        <h2 className="font-display text-xl font-semibold uppercase tracking-[0.07em] text-ink">{t('builderHome.title')}</h2>
+        <h2 className="font-display text-xl font-semibold text-ink">{t('builderHome.title')}</h2>
         <p className="text-sm text-ink-soft">{t('builderHome.subtitle')}</p>
       </div>
 
@@ -128,13 +128,13 @@ export function BuilderHome({ token }: { token: string }) {
       )}
 
       <div>
-        <h3 className="mb-3 text-label font-medium uppercase tracking-wider text-ink-soft">
+        <h3 className="mb-3 text-label font-medium text-ink-soft">
           {t('builderHome.existingForms')}
         </h3>
         {!forms ? (
           <div className="flex items-center gap-2">
             <LoadingSpinner size="sm" />
-            <span className="text-xs uppercase tracking-wide text-ink-soft">{t('common.loading')}</span>
+            <span className="text-xs text-ink-soft">{t('common.loading')}</span>
           </div>
         ) : forms.length === 0 ? (
           <p className="text-sm text-ink-soft">{t('builderHome.noForms')}</p>

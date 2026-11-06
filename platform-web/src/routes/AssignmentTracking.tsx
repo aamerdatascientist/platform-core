@@ -13,7 +13,7 @@ interface AssignmentTrackingProps {
 }
 
 const inputClass = 'w-full rounded border border-border bg-bg px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none';
-const thClass = 'whitespace-nowrap border-b border-border px-2 py-2 text-start text-label font-medium uppercase tracking-wider text-ink-soft';
+const thClass = 'whitespace-nowrap border-b border-border px-2 py-2 text-start text-label font-medium text-ink-soft';
 const tdClass = 'border-b border-border px-2 py-2 align-top';
 
 /**
@@ -73,7 +73,7 @@ export function AssignmentTracking({ token }: AssignmentTrackingProps) {
         <Link to="/admin/assignments" className="text-xs text-ink-soft hover:text-ink">
           {t('assignments.tracking.back')}
         </Link>
-        <h2 className="mt-1 font-display text-xl font-semibold uppercase tracking-[0.07em] text-ink">
+        <h2 className="mt-1 font-display text-xl font-semibold text-ink">
           {t('assignments.tracking.title')}
         </h2>
       </div>
@@ -134,13 +134,13 @@ export function AssignmentTracking({ token }: AssignmentTrackingProps) {
       </div>
 
       <section className="rounded border border-border bg-panel p-4 shadow-recessed sm:p-5">
-        <h3 className="mb-1 text-label font-medium uppercase tracking-wider text-ink-soft">{format.day(date)}</h3>
+        <h3 className="mb-1 text-label font-medium text-ink-soft">{format.day(date)}</h3>
         {error ? (
           <p className="text-sm text-danger">{error}</p>
         ) : !days ? (
           <div className="flex items-center gap-2">
             <LoadingSpinner size="sm" />
-            <span className="text-xs uppercase tracking-wide text-ink-soft">{t('common.loading')}</span>
+            <span className="text-xs text-ink-soft">{t('common.loading')}</span>
           </div>
         ) : days.length === 0 ? (
           <p className="text-sm text-ink-soft">{isFriday ? t('assignments.tracking.notWorkingDay') : t('assignments.admin.noDays')}</p>

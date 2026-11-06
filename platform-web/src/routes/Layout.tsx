@@ -37,7 +37,7 @@ export function Layout({ token }: LayoutProps) {
       <div className="fixed inset-x-0 top-0 z-20 flex items-center justify-between bg-sidebar px-3 py-3 lg:hidden">
         <div className="flex items-center gap-2">
           <Logo size="sm" />
-          <span className="font-display text-sm font-semibold uppercase tracking-[0.07em] text-sidebar-ink-strong">ASAS</span>
+          <span className="font-display text-sm font-semibold text-sidebar-ink-strong">ASAS</span>
         </div>
         <button
           onClick={() => setMobileMenuOpen(true)}
@@ -85,7 +85,7 @@ export function Layout({ token }: LayoutProps) {
         <div className="mb-3 flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
             <Logo size="sm" />
-            <span className="font-display text-sm font-semibold uppercase tracking-[0.07em] text-sidebar-ink-strong">ASAS</span>
+            <span className="font-display text-sm font-semibold text-sidebar-ink-strong">ASAS</span>
           </div>
         </div>
         <div className="rivet-strip mb-4" />

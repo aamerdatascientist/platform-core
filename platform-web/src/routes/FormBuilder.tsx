@@ -154,7 +154,7 @@ export function FormBuilder({ token }: { token: string }) {
     return (
       <div className="flex items-center gap-2">
         <LoadingSpinner size="sm" />
-        <span className="text-xs uppercase tracking-wide text-ink-soft">{t('common.loading')}</span>
+        <span className="text-xs text-ink-soft">{t('common.loading')}</span>
       </div>
     );
 
@@ -172,7 +172,7 @@ export function FormBuilder({ token }: { token: string }) {
     <div className="max-w-3xl space-y-8">
       <div>
         <div className="flex items-center gap-3">
-          <h2 className="font-display text-xl font-semibold uppercase tracking-[0.07em] text-ink">{formDefinition.name}</h2>
+          <h2 className="font-display text-xl font-semibold text-ink">{formDefinition.name}</h2>
           <StatusLed label={t(`formStatus.${formDefinition.status}`)} tone={isPublished ? 'success' : 'accent'} />
                   </div>
         <p className="mt-1 font-mono text-xs text-ink-soft">
@@ -181,7 +181,7 @@ export function FormBuilder({ token }: { token: string }) {
       </div>
 
       <div className="border border-border rounded bg-panel p-4 shadow-recessed">
-        <h3 className="mb-1 text-label font-medium uppercase tracking-wider text-ink-soft">{t('formBuilder.access')}</h3>
+        <h3 className="mb-1 text-label font-medium text-ink-soft">{t('formBuilder.access')}</h3>
         <p className="mb-3 text-sm text-ink-soft">
           {formDefinition.allowedRoleIds.length === 0 && formDefinition.allowedUserIds.length === 0
             ? t('formBuilder.accessOpenDescription')
@@ -232,7 +232,7 @@ export function FormBuilder({ token }: { token: string }) {
       )}
 
       <div>
-        <h3 className="mb-3 text-label font-medium uppercase tracking-wider text-ink-soft">
+        <h3 className="mb-3 text-label font-medium text-ink-soft">
           {t('formBuilder.fieldsCount', { count: activeFields.length })}
         </h3>
         <div className="space-y-1">
@@ -261,7 +261,7 @@ export function FormBuilder({ token }: { token: string }) {
       {(hasDraft || isPublished) && (
         <>
           <div>
-            <h3 className="mb-3 text-label font-medium uppercase tracking-wider text-ink-soft">
+            <h3 className="mb-3 text-label font-medium text-ink-soft">
               {t('formBuilder.addAField')}
             </h3>
             <AddFieldForm
@@ -293,7 +293,7 @@ export function FormBuilder({ token }: { token: string }) {
       {isPublished && (
         <button
           onClick={() => navigate(`/forms/${formId}`)}
-          className="text-xs uppercase tracking-wide text-ink-soft hover:text-ink"
+          className="text-xs text-ink-soft hover:text-ink"
         >
           {t('formBuilder.goFillOutForm')}
         </button>
@@ -304,7 +304,7 @@ export function FormBuilder({ token }: { token: string }) {
         {!confirmingDelete ? (
           <button
             onClick={() => setConfirmingDelete(true)}
-            className="text-label uppercase tracking-wide text-danger hover:opacity-70"
+            className="text-label text-danger hover:opacity-70"
           >
             {t('formBuilder.deleteThisForm')}
           </button>

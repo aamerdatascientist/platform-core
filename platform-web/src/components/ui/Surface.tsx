@@ -1,0 +1,205 @@
+import type { HTMLAttributes, KeyboardEvent, ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Button } from './Buttons';
+
+/** Card (HANDOFF §6): --panel, 1px --border, radius 20 (phone main) / 18 (phone secondary) / 16 (desktop). */
+export function Card({
+  kind = 'phone',
+  className = '',
+  children,
+  ...rest
+}: { kind?: 'phone' | 'phone-secondary' | 'desktop' } & HTMLAttributes<HTMLDivElement>) {
+  const radius = kind === 'phone' ? 'rounded-r-4xl' : kind === 'phone-secondary' ? 'rounded-r-3xl' : 'rounded-r-2xl';
+  return (
+    <div className={`border border-border bg-panel ${radius} ${className}`} {...rest}>
+      {children}
+    </div>
+  );
+}
+
+/** 14px/700 --ink-soft heading above a card (09, 08 day headings). */
+export function SectionHeading({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <h2 className={`text-[14px] font-bold text-ink-soft ${className}`}>{children}</h2>;
+}
+
+export type Tone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
+
+const toneClass: Record<Tone, string> = {
+  success: 'bg-success-soft text-success',
+  warning: 'bg-warning-soft text-warning',
+  danger: 'bg-danger-soft text-danger',
+  info: 'bg-accent-soft text-accent-strong',
+  neutral: 'bg-divider text-ink-soft',
+};
+
+/** Status pill: 12-13px/700, pill radius. */
+export function Pill({ tone = 'neutral', children, className = '', large = false }: { tone?: Tone; children: ReactNode; className?: string; large?: boolean }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1 whitespace-nowrap rounded-r-pill font-bold ${
+        large ? 'px-3 py-[5px] text-[13px]' : 'px-[9px] py-[3px] text-[12px]'
+      } ${toneClass[tone]} ${className}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** Info banner (21) and its warning variant (22). */
+export function InfoBanner({ tone = 'info', children, className = '' }: { tone?: 'info' | 'warning'; children: ReactNode; className?: string }) {
+  return (
+    <div
+      className={`rounded-r-lg px-[14px] py-[10px] text-[14px] ${
+        tone === 'info' ? 'bg-accent-soft text-accent-strong' : 'bg-warning-soft text-warning-strong'
+      } ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** Empty state: dashed box, a 14px/700 title, and a line saying what will fill it. */
+export function EmptyState({ title, body, className = '' }: { title: ReactNode; body?: ReactNode; className?: string }) {
+  return (
+    <div className={`flex flex-col items-center justify-center gap-1 rounded-r-lg border-[1.5px] border-dashed border-border px-4 py-8 text-center ${className}`}>
+      <p className="text-[14px] font-bold text-ink">{title}</p>
+      {body && <p className="text-[13px] text-ink-soft">{body}</p>}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ day cells (02, 23)
+
+export type DayState = 'filled' | 'missed' | 'due' | 'off';
+
+/**
+ * A day in the "last 2 weeks" strip and the assignments grid: filled = --success, not filled =
+ * --missed, due today = dashed --warning outline, Friday / outside the assignment = --off.
+ * Always has a text name (date + state) for screen readers and a hover title.
+ */
+export function DayCell({
+  state,
+  label,
+  size = 40,
+  onClick,
+}: {
+  state: DayState;
+  label: string;
+  size?: number;
+  onClick?: () => void;
+}) {
+  const style =
+    state === 'filled'
+      ? 'bg-success'
+      : state === 'missed'
+        ? 'bg-missed'
+        : state === 'due'
+          ? 'border-[1.5px] border-dashed border-warning bg-transparent'
+          : 'bg-off';
+  const common = `block shrink-0 rounded-[7px] ${style}`;
+  return onClick ? (
+    <button type="button" title={label} aria-label={label} onClick={onClick} className={`${common} hover:brightness-110`} style={{ width: size, height: size }} />
+  ) : (
+    <span role="img" title={label} aria-label={label} className={common} style={{ width: size, height: size }} />
+  );
+}
+
+/** The legend under every day strip / grid. */
+export function DayLegend({ showOff = false }: { showOff?: boolean }) {
+  const { t } = useTranslation();
+  const item = (state: DayState, text: string) => (
+    <span className="inline-flex items-center gap-1.5">
+      <DayCell state={state} label={text} size={14} />
+      <span>{text}</span>
+    </span>
+  );
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink-soft" aria-hidden="true">
+      {item('filled', t('assignments.status.filled'))}
+      {item('missed', t('assignments.status.missed'))}
+      {item('due', t('today.dueToday'))}
+      {showOff && item('off', t('assignmentsV2.legendOff'))}
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ tables (desktop)
+
+/** Table inside a card, scrolling sideways on its own when it must. */
+export function TableCard({ children, footer, className = '' }: { children: ReactNode; footer?: ReactNode; className?: string }) {
+  return (
+    <Card kind="desktop" className={`min-w-0 overflow-hidden ${className}`}>
+      <div className="overflow-x-auto">
+        <table className="w-full border-collapse text-[14px]">{children}</table>
+      </div>
+      {footer}
+    </Card>
+  );
+}
+
+export const thClass =
+  'whitespace-nowrap bg-table-head px-[10px] py-3 text-start text-[14px] font-bold text-ink-soft first:ps-[18px] last:pe-[18px]';
+export const tdClass = 'border-t border-divider px-[10px] py-3 align-middle text-ink first:ps-[18px] last:pe-[18px]';
+
+/** A whole-row-clickable, keyboard-focusable table row; selected = --accent-row + 3px bar. */
+export function ClickableRow({
+  selected,
+  onOpen,
+  children,
+  label,
+}: {
+  selected?: boolean;
+  onOpen: () => void;
+  children: ReactNode;
+  label?: string;
+}) {
+  return (
+    <tr
+      tabIndex={0}
+      aria-selected={selected}
+      aria-label={label}
+      onClick={onOpen}
+      onKeyDown={(e: KeyboardEvent<HTMLTableRowElement>) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
+      className={`cursor-pointer hover:bg-accent-row focus-visible:bg-accent-row ${
+        selected ? 'bg-accent-row [&>td:first-child]:shadow-[inset_-3px_0_0_var(--accent)] [&>td:first-child]:ltr:shadow-[inset_3px_0_0_var(--accent)]' : ''
+      }`}
+    >
+      {children}
+    </tr>
+  );
+}
+
+/** "1-9 of 46" on the start side, Previous/Next on the end side. */
+export function Pager({
+  from,
+  to,
+  total,
+  onPrevious,
+  onNext,
+}: {
+  from: number;
+  to: number;
+  total: number;
+  onPrevious?: () => void;
+  onNext?: () => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex items-center justify-between gap-3 border-t border-divider px-[18px] py-3 text-[14px] text-ink-soft">
+      <span>{t('submissionsTable.showing', { from: total === 0 ? 0 : from, to, total })}</span>
+      <div className="flex gap-2">
+        <Button variant="secondary" size="compact" disabled={!onPrevious} onClick={onPrevious}>
+          {t('submissionsTable.previous')}
+        </Button>
+        <Button variant="secondary" size="compact" disabled={!onNext} onClick={onNext}>
+          {t('submissionsTable.next')}
+        </Button>
+      </div>
+    </div>
+  );
+}
