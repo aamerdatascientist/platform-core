@@ -226,7 +226,7 @@ export function Segmented<T extends string>({
             aria-checked={on}
             tabIndex={on ? 0 : -1}
             onClick={() => onChange(option.value)}
-            className={`relative ${size === 'phone' ? 'h-[42px] text-[16px] before:-inset-y-px' : 'h-[36px] text-[14px] before:-inset-y-1'} min-w-0 rounded-ui-md px-2 before:absolute before:inset-x-0 before:content-[''] ${
+            className={`relative ${size === 'phone' ? 'h-[42px] text-[15px] before:-inset-y-px' : 'h-[36px] text-[14px] before:-inset-y-1'} min-w-0 rounded-[9px] px-2 before:absolute before:inset-x-0 before:content-[''] ${
               on ? 'bg-panel font-bold text-ink shadow-elev-1' : 'font-medium text-ink-soft hover:text-ink'
             }`}
           >

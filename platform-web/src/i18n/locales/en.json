@@ -25,7 +25,9 @@
     "empty": "—",
     "toggleLanguage": "Toggle language",
     "toggleMode": "Toggle light/dark mode",
-    "saving": "Saving…"
+    "saving": "Saving…",
+    "darkMode": "Dark mode",
+    "lightMode": "Light mode"
   },
   "signIn": {
     "subtitle": "Sign in to continue",
@@ -983,7 +985,9 @@
     "languageArabic": "العربية",
     "languageEnglish": "English",
     "telegramConnectedShort": "Connected — reminders come to you",
-    "signInHint": "Forgot your password? An administrator resets it for you from the Users page."
+    "signInHint": "Forgot your password? An administrator resets it for you from the Users page.",
+    "appearance": "Appearance",
+    "accountSection": "Account"
   },
   "roleName": {
     "Administrator": "Administrator",

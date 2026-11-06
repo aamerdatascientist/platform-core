@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { TelegramStatusDto } from '../types';
+import { Icon } from './icons';
+import { Button, Card } from './ui';
 
 /**
  * Settings > Reminders: the signed-in user connects their own Telegram. "Connect" asks the
@@ -13,15 +15,7 @@ import type { TelegramStatusDto } from '../types';
  * an administrator had just sent this person. To keep the new tab from being blocked as a
  * pop-up, the tab is opened empty inside the click and pointed at the link once it arrives.
  */
-export function TelegramConnect({
-  token,
-  sectionClass,
-  headingClass,
-}: {
-  token: string;
-  sectionClass: string;
-  headingClass: string;
-}) {
+export function TelegramConnect({ token }: { token: string }) {
   const { t } = useTranslation();
   const [status, setStatus] = useState<TelegramStatusDto | null>(null);
   const [busy, setBusy] = useState(false);
@@ -88,61 +82,40 @@ export function TelegramConnect({
 
   if (!status?.configured) return null;
 
-  const buttonClass = 'rounded px-4 py-2 text-sm font-medium disabled:opacity-50';
-
   return (
-    <section className={sectionClass} aria-labelledby="settings-notifications">
-      <h3 id="settings-notifications" className={headingClass}>
+    <section className="flex flex-col gap-2" aria-labelledby="settings-notifications">
+      <h2 id="settings-notifications" className="px-1 text-[14px] font-bold text-ink-soft">
         {t('settings.notifications')}
-      </h3>
-      <div className="space-y-3">
-        <div className="flex items-center justify-between gap-4">
-          <span className="text-sm text-ink">{t('settings.telegram')}</span>
-          <span className={`text-sm ${status.linked ? 'text-success' : 'text-ink-soft'}`}>
-            {status.linked ? t('settings.telegramConnected') : t('settings.telegramNotConnected')}
+      </h2>
+      <Card kind="phone-secondary" className="flex flex-col gap-3 px-4 py-[14px]">
+        <div className="flex items-center gap-3">
+          <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-ui-lg bg-accent-soft text-accent">
+            <Icon name="send" size={20} />
           </span>
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="text-[16px] font-bold text-ink">{t('settings.telegram')}</span>
+            <span className={`text-[14px] ${status.linked ? 'text-success' : 'text-ink-soft'}`}>
+              {status.linked ? t('settingsV2.telegramConnectedShort') : t('settings.telegramNotConnected')}
+            </span>
+          </div>
+          <Button variant="secondary" size="compact" onClick={handleConnect} disabled={busy} className="!text-[14px]">
+            {busy ? t('settings.telegramOpening') : status.linked ? t('settings.telegramReconnect') : t('settings.telegramConnect')}
+          </Button>
         </div>
-        {!status.linked && <p className="text-xs text-ink-soft">{t('settings.telegramExplain')}</p>}
-        {waiting && !status.linked && <p className="text-sm text-ink">{t('settings.telegramWaiting')}</p>}
-        {error && <p className="text-sm text-danger">{error}</p>}
-        <div className="flex flex-wrap gap-2">
-          {status.linked ? (
-            <>
-              <button
-                type="button"
-                onClick={handleConnect}
-                disabled={busy}
-                className={`${buttonClass} border border-border bg-panel text-ink hover:border-ink`}
-              >
-                {t('settings.telegramReconnect')}
-              </button>
-              <button
-                type="button"
-                onClick={handleDisconnect}
-                disabled={busy}
-                className={`${buttonClass} border border-danger bg-panel text-danger hover:bg-bg`}
-              >
-                {t('settings.telegramDisconnect')}
-              </button>
-            </>
-          ) : (
-            <>
-              <button type="button" onClick={handleConnect} disabled={busy} className={`${buttonClass} bg-accent text-accent-ink`}>
-                {busy ? t('settings.telegramOpening') : t('settings.telegramConnect')}
-              </button>
-              {waiting && (
-                <button
-                  type="button"
-                  onClick={refresh}
-                  className={`${buttonClass} border border-border bg-panel text-ink hover:border-ink`}
-                >
-                  {t('settings.telegramCheck')}
-                </button>
-              )}
-            </>
-          )}
-        </div>
-      </div>
+        {!status.linked && <p className="text-[13px] text-ink-soft">{t('settings.telegramExplain')}</p>}
+        {waiting && !status.linked && (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-[14px] text-ink">{t('settings.telegramWaiting')}</p>
+            <Button variant="link" onClick={refresh}>{t('settings.telegramCheck')}</Button>
+          </div>
+        )}
+        {status.linked && (
+          <Button variant="link" onClick={handleDisconnect} disabled={busy} className="self-start !px-0 !text-danger">
+            {t('settings.telegramDisconnect')}
+          </Button>
+        )}
+        {error && <p className="text-[14px] text-danger">{error}</p>}
+      </Card>
     </section>
   );
 }

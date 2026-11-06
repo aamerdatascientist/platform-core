@@ -1,58 +1,31 @@
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { getTokens, setTokens } from '../auth/tokenStore';
-import { ChangePasswordForm } from '../components/ChangePasswordForm';
-import { LanguageToggle } from '../components/LanguageToggle';
-import { ModeToggle } from '../components/ModeToggle';
+import { Icon } from '../components/icons';
+import { initial, useShell } from '../components/shell/ShellData';
 import { TelegramConnect } from '../components/TelegramConnect';
-import { buildDashboardUrl } from '../dashboardLink';
-import { isRtl } from '../i18n';
-import { getMode } from '../theme/mode';
-import type { CurrentUserDto } from '../types';
+import { Card, Pill, Segmented } from '../components/ui';
+import { getModePreference, onModeChanged, setModePreference } from '../theme/mode';
+import type { ModePreference } from '../theme/mode';
 
 interface SettingsProps {
   token: string;
 }
 
 /**
- * Everything that isn't filling in a form lives here (2026-10-21), so the sidebar holds only
- * the forms people enter data into, plus this page: your account (password, sign out), the
- * display language and light/dark mode, and - for administrators only - the dashboard, the
- * form builder and users & roles.
+ * Settings (screen 09): the person's profile; Display (language, and appearance with "Match
+ * phone" following the phone's own setting); Reminders (Telegram); Account (change password at
+ * /account, sign out); and, for administrators, the admin pages - on a phone this is how they
+ * reach them. On a desktop the same sections in one 720px column.
  */
 export function Settings({ token }: SettingsProps) {
   const { t, i18n } = useTranslation();
-  const [me, setMe] = useState<CurrentUserDto | null>(null);
-  const [dashboardKey, setDashboardKey] = useState<string | null>(null);
-  const isAdmin = me?.roles.includes('Administrator') ?? false;
-  const rtl = isRtl(i18n.language);
-
-  useEffect(() => {
-    api.auth.me(token).then(setMe).catch(() => setMe(null));
-  }, [token]);
-
-  // Fetched up front, not on click: the dashboard opens in a new tab, and a browser only
-  // allows that directly inside the click itself - waiting on a request first would get the
-  // new tab blocked as a pop-up. Null (public viewing switched off on the server) is fine;
-  // the tab then opens on the signed-in session instead.
-  useEffect(() => {
-    if (!isAdmin) return;
-    api.analytics
-      .executiveOverviewShareKey(token)
-      .then((result) => setDashboardKey(result.key))
-      .catch(() => setDashboardKey(null));
-  }, [token, isAdmin]);
-
-  /**
-   * Opens the Executive Overview in its own tab, as a full-window page. With a share key the
-   * tab needs nothing from this one. Without it, the tab relies on being opened by this
-   * window, which is why this is window.open and not a plain link.
-   */
-  function openDashboard() {
-    window.open(buildDashboardUrl({ shareKey: dashboardKey, language: i18n.language, mode: getMode() }), '_blank');
-  }
+  const { me, isAdmin, openDashboard, roleLabel } = useShell();
+  const [preference, setPreference] = useState<ModePreference>(getModePreference());
+  useEffect(() => onModeChanged(() => setPreference(getModePreference())), []);
 
   function handleSignOut() {
     const stored = getTokens();
@@ -61,131 +34,123 @@ export function Settings({ token }: SettingsProps) {
     setTokens(null);
   }
 
-  const sectionClass = 'rounded border border-border bg-panel p-4 shadow-recessed sm:p-5';
-  const headingClass = 'mb-4 text-label font-medium text-ink-soft';
-  const rowButtonClass =
-    'flex w-full items-center justify-between gap-3 rounded border border-border bg-bg px-4 py-3 text-start hover:border-accent';
+  const row = 'flex min-h-[54px] w-full items-center gap-3 px-4 text-start text-[16px] font-medium hover:bg-field-muted';
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <h2 className="font-display text-xl font-semibold text-ink">{t('settings.title')}</h2>
+    <div className="mx-auto flex max-w-[720px] flex-col gap-[18px]">
+      <h1 className="text-[26px] font-extrabold text-ink lg:text-[28px]">{t('settings.title')}</h1>
 
-      <section className={sectionClass} aria-labelledby="settings-account">
-        <h3 id="settings-account" className={headingClass}>
-          {t('settings.account')}
-        </h3>
-        {me && (
-          <div className="mb-5">
-            <p className="text-sm font-medium text-ink">{me.displayName}</p>
-            <p dir="ltr" className="text-xs text-ink-soft rtl:text-end">
+      {me && (
+        <Card kind="phone-secondary" className="flex items-center gap-3 px-4 py-[14px]">
+          <span aria-hidden="true" className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[19px] font-extrabold text-accent">
+            {initial(me.displayName)}
+          </span>
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="truncate text-[17px] font-bold text-ink">{me.displayName}</span>
+            <span dir="ltr" className="truncate text-[13px] text-ink-soft rtl:text-right">
               {me.email}
-            </p>
+            </span>
           </div>
-        )}
-        <h4 className="mb-2 text-sm font-medium text-ink">{t('account.title')}</h4>
-        <ChangePasswordForm token={token} />
-        <div className="mt-6 border-t border-border pt-4">
-          <button
-            type="button"
-            onClick={handleSignOut}
-            className="rounded border border-danger bg-panel px-4 py-2 text-sm text-danger hover:bg-bg"
-          >
-            {t('sidebar.signOut')}
+          {me.roles.slice(0, 1).map((r) => (
+            <Pill key={r} tone="info">
+              {roleLabel(r)}
+            </Pill>
+          ))}
+        </Card>
+      )}
+
+      <Section title={t('settings.display')}>
+        <Card kind="phone-secondary" className="flex flex-col gap-[14px] px-4 py-[14px]">
+          <div className="flex flex-col gap-2">
+            <span className="text-[16px] font-medium text-ink">{t('settings.language')}</span>
+            <Segmented
+              label={t('settings.language')}
+              value={i18n.language.startsWith('ar') ? 'ar' : 'en'}
+              onChange={(v) => void i18n.changeLanguage(v)}
+              options={[
+                { value: 'ar', label: t('settingsV2.languageArabic') },
+                { value: 'en', label: t('settingsV2.languageEnglish') },
+              ]}
+            />
+          </div>
+          <div className="flex flex-col gap-2">
+            <span className="text-[16px] font-medium text-ink">{t('settingsV2.appearance')}</span>
+            <Segmented
+              label={t('settingsV2.appearance')}
+              value={preference}
+              onChange={(v) => {
+                setPreference(v);
+                setModePreference(v);
+              }}
+              options={[
+                { value: 'light', label: t('settingsV2.appearanceLight') },
+                { value: 'dark', label: t('settingsV2.appearanceDark') },
+                { value: 'system', label: t('settingsV2.appearanceSystem') },
+              ]}
+            />
+          </div>
+        </Card>
+      </Section>
+
+      <TelegramConnect token={token} />
+
+      <Section title={t('settingsV2.accountSection')}>
+        <Card kind="phone-secondary" className="divide-y divide-divider overflow-hidden">
+          <Link to="/account" className={`${row} text-ink`}>
+            <Icon name="lock" size={20} className="text-ink-soft" />
+            <span className="flex-1">{t('sidebar.changePassword')}</span>
+            <Icon name="chevronForward" size={18} className="text-ink-soft" />
+          </Link>
+          <button type="button" onClick={handleSignOut} className={`${row} text-danger`}>
+            <Icon name="logout" size={20} />
+            <span className="flex-1">{t('sidebar.signOut')}</span>
           </button>
-        </div>
-      </section>
-
-      <TelegramConnect token={token} sectionClass={sectionClass} headingClass={headingClass} />
-
-      <section className={sectionClass} aria-labelledby="settings-display">
-        <h3 id="settings-display" className={headingClass}>
-          {t('settings.display')}
-        </h3>
-        <div className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-sm text-ink">{t('settings.language')}</span>
-            <LanguageToggle tone="light" />
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <span className="text-sm text-ink">{t('settings.appearance')}</span>
-            <ModeToggle tone="light" />
-          </div>
-        </div>
-      </section>
+        </Card>
+      </Section>
 
       {isAdmin && (
-        <section className={sectionClass} aria-labelledby="settings-admin">
-          <h3 id="settings-admin" className={headingClass}>
-            {t('settings.administration')}
-          </h3>
-          <div className="space-y-2">
-            <button type="button" onClick={openDashboard} className={rowButtonClass}>
-              <span>
-                <span className="block text-sm font-medium text-ink">{t('sidebar.executiveOverview')}</span>
-                <span className="block text-xs text-ink-soft">{t('settings.dashboardHint')}</span>
-              </span>
-              <RowIcon kind="external" rtl={rtl} />
-            </button>
-            <Link to="/builder" className={rowButtonClass}>
-              <span>
-                <span className="block text-sm font-medium text-ink">{t('settings.formBuilder')}</span>
-                <span className="block text-xs text-ink-soft">{t('settings.formBuilderHint')}</span>
-              </span>
-              <RowIcon kind="next" rtl={rtl} />
-            </Link>
-            <Link to="/admin/assignments" className={rowButtonClass}>
-              <span>
-                <span className="block text-sm font-medium text-ink">{t('settings.assignments')}</span>
-                <span className="block text-xs text-ink-soft">{t('settings.assignmentsHint')}</span>
-              </span>
-              <RowIcon kind="next" rtl={rtl} />
-            </Link>
-            <Link to="/admin/assignments/status" className={rowButtonClass}>
-              <span>
-                <span className="block text-sm font-medium text-ink">{t('assignments.tracking.title')}</span>
-                <span className="block text-xs text-ink-soft">{t('settings.trackingHint')}</span>
-              </span>
-              <RowIcon kind="next" rtl={rtl} />
-            </Link>
-            <Link to="/admin/reports" className={rowButtonClass}>
-              <span>
-                <span className="block text-sm font-medium text-ink">{t('reports.title')}</span>
-                <span className="block text-xs text-ink-soft">{t('settings.reportsHint')}</span>
-              </span>
-              <RowIcon kind="next" rtl={rtl} />
-            </Link>
-            <Link to="/admin/users" className={rowButtonClass}>
-              <span>
-                <span className="block text-sm font-medium text-ink">{t('userManagement.title')}</span>
-                <span className="block text-xs text-ink-soft">{t('settings.usersHint')}</span>
-              </span>
-              <RowIcon kind="next" rtl={rtl} />
-            </Link>
-          </div>
-        </section>
+        <Section title={t('settings.administration')}>
+          <Card kind="phone-secondary" className="divide-y divide-divider overflow-hidden">
+            <AdminRow onClick={openDashboard} title={t('sidebar.executiveOverview')} hint={t('settings.dashboardHint')} external />
+            <AdminRow to="/builder" title={t('settings.formBuilder')} hint={t('settings.formBuilderHint')} />
+            <AdminRow to="/admin/assignments" title={t('settings.assignments')} hint={t('settings.assignmentsHint')} />
+            <AdminRow to="/admin/assignments/status" title={t('assignments.tracking.title')} hint={t('settings.trackingHint')} />
+            <AdminRow to="/admin/reports" title={t('reports.title')} hint={t('settings.reportsHint')} />
+            <AdminRow to="/admin/users" title={t('userManagement.title')} hint={t('settings.usersHint')} />
+          </Card>
+        </Section>
       )}
     </div>
   );
 }
 
-/**
- * Row arrows drawn as SVG and flipped explicitly for Arabic: text glyphs (› ↗) get mirrored
- * by some browsers inside right-to-left text and not others, and a CSS rotate on an inline
- * span does nothing - the same problem the calendar's month arrows had. In Arabic the row's
- * arrow sits on the left, so "next" points left and "opens elsewhere" points up-left.
- */
-function RowIcon({ kind, rtl }: { kind: 'next' | 'external'; rtl: boolean }) {
-  const path =
-    kind === 'next'
-      ? rtl
-        ? 'M15 18l-6-6 6-6'
-        : 'M9 6l6 6-6 6'
-      : rtl
-        ? 'M17 17L7 7M7 15V7h8'
-        : 'M7 17L17 7M9 7h8v8';
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0 text-ink-soft">
-      <path d={path} />
-    </svg>
+    <section className="flex flex-col gap-2">
+      <h2 className="px-1 text-[14px] font-bold text-ink-soft">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+function AdminRow({ to, onClick, title, hint, external }: { to?: string; onClick?: () => void; title: string; hint: string; external?: boolean }) {
+  const body = (
+    <>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5 py-2">
+        <span className="text-[16px] font-medium text-ink">{title}</span>
+        <span className="text-[13px] text-ink-soft">{hint}</span>
+      </span>
+      <Icon name={external ? 'external' : 'chevronForward'} size={18} className="text-ink-soft" />
+    </>
+  );
+  const cls = 'flex min-h-[56px] w-full items-center gap-3 px-4 text-start hover:bg-field-muted';
+  return to ? (
+    <Link to={to} className={cls}>
+      {body}
+    </Link>
+  ) : (
+    <button type="button" onClick={onClick} className={cls}>
+      {body}
+    </button>
   );
 }

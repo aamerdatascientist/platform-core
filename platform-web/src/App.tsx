@@ -11,7 +11,7 @@ import { Layout } from './routes/Layout';
 import { AssignmentTracking } from './routes/AssignmentTracking';
 import { FormAssignments } from './routes/FormAssignments';
 import { StakeholderReports } from './routes/StakeholderReports';
-import { MyAssignments } from './routes/MyAssignments';
+import { Today } from './routes/Today';
 import { Settings } from './routes/Settings';
 import { SignIn } from './routes/SignIn';
 import { UserManagement } from './routes/UserManagement';
@@ -64,8 +64,7 @@ export default function App() {
   return (
     <Routes>
       <Route element={<Layout token={accessToken} />}>
-        {/* Today (screen 02) replaces this page in phase 4; until then the home page is My assignments. */}
-        <Route index element={<MyAssignments token={accessToken} />} />
+        <Route index element={<Today />} />
         <Route path="assignments" element={<Navigate to="/" replace />} />
         <Route path="forms" element={<FormsList />} />
         <Route path="forms/:formId" element={<FormView token={accessToken} />} />

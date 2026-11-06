@@ -25,7 +25,9 @@
     "empty": "—",
     "toggleLanguage": "تبديل اللغة",
     "toggleMode": "تبديل الوضع الليلي/النهاري",
-    "saving": "جارٍ الحفظ…"
+    "saving": "جارٍ الحفظ…",
+    "darkMode": "الوضع الداكن",
+    "lightMode": "الوضع الفاتح"
   },
   "signIn": {
     "subtitle": "سجّل الدخول للمتابعة",
@@ -1009,7 +1011,9 @@
     "languageArabic": "العربية",
     "languageEnglish": "English",
     "telegramConnectedShort": "مربوط — تصلك التذكيرات",
-    "signInHint": "نسيت كلمة المرور؟ يعيد المسؤول تعيينها لك من صفحة المستخدمين."
+    "signInHint": "نسيت كلمة المرور؟ يعيد المسؤول تعيينها لك من صفحة المستخدمين.",
+    "appearance": "المظهر",
+    "accountSection": "الحساب"
   },
   "roleName": {
     "Administrator": "مسؤول",

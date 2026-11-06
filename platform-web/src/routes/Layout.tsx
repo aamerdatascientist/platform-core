@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { CommandPalette, useCommandPaletteShortcut } from '../components/shell/CommandPalette';
+import { FULL_SCREEN_ATTRIBUTE } from '../components/shell/fullScreen';
 import { ShellProvider } from '../components/shell/ShellData';
 import { SideMenu } from '../components/shell/SideMenu';
 import { TabBar } from '../components/shell/TabBar';
@@ -23,9 +24,6 @@ export function Layout({ token }: LayoutProps) {
     </ShellProvider>
   );
 }
-
-/** Pages that bring their own top and bottom bars and hide the tab bar (filling a form, HANDOFF §5.1). */
-export const FULL_SCREEN_ATTRIBUTE = 'data-full-screen';
 
 function Shell() {
   const desktop = useIsDesktop();

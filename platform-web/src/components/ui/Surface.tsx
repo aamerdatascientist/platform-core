@@ -81,11 +81,16 @@ export function DayCell({
   state,
   label,
   size = 40,
+  height,
+  radius = 7,
   onClick,
 }: {
   state: DayState;
   label: string;
-  size?: number;
+  /** A number of px, or 'fill' to take the column's width (the 12-day strip on 02). */
+  size?: number | 'fill';
+  height?: number;
+  radius?: number;
   onClick?: () => void;
 }) {
   const style =
@@ -96,11 +101,12 @@ export function DayCell({
         : state === 'due'
           ? 'border-[1.5px] border-dashed border-warning bg-transparent'
           : 'bg-off';
-  const common = `block shrink-0 rounded-[7px] ${style}`;
+  const common = `block shrink-0 ${style}`;
+  const dims = { width: size === 'fill' ? '100%' : size, height: height ?? (size === 'fill' ? 26 : size), borderRadius: radius };
   return onClick ? (
-    <button type="button" title={label} aria-label={label} onClick={onClick} className={`${common} hover:brightness-110`} style={{ width: size, height: size }} />
+    <button type="button" title={label} aria-label={label} onClick={onClick} className={`${common} hover:brightness-110`} style={dims} />
   ) : (
-    <span role="img" title={label} aria-label={label} className={common} style={{ width: size, height: size }} />
+    <span role="img" title={label} aria-label={label} className={common} style={dims} />
   );
 }
 
@@ -109,12 +115,12 @@ export function DayLegend({ showOff = false }: { showOff?: boolean }) {
   const { t } = useTranslation();
   const item = (state: DayState, text: string) => (
     <span className="inline-flex items-center gap-1.5">
-      <DayCell state={state} label={text} size={14} />
+      <DayCell state={state} label={text} size={10} radius={3} />
       <span>{text}</span>
     </span>
   );
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[13px] text-ink-soft" aria-hidden="true">
+    <div className="flex flex-wrap items-center gap-x-[14px] gap-y-1 text-[13px] text-ink-soft" aria-hidden="true">
       {item('filled', t('assignments.status.filled'))}
       {item('missed', t('assignments.status.missed'))}
       {item('due', t('today.dueToday'))}

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { api, ApiError } from '../api/client';
 import { useErrorMessage } from '../hooks/useErrorMessage';
+import { SentScreen } from './SentScreen';
 import { DateField, todayIso } from './DateField';
 import { checkValue, isFieldVisible as fieldIsVisible, parseOptions, parseRules, recordToFormValues } from '../forms/fieldValues';
 import type { FieldProblem } from '../forms/fieldValues';
@@ -80,6 +81,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted, editRecord, o
   // Set when a submission has just been saved: the form is replaced by a confirmation until
   // the person chooses to submit another, so success is impossible to miss.
   const [submittedAt, setSubmittedAt] = useState<Date | null>(null);
+  const [sentSummary, setSentSummary] = useState<{ project: { label: string; value: string } | null; attachments: number }>({ project: null, attachments: 0 });
   const [attachmentFiles, setAttachmentFiles] = useState<Record<string, File>>({});
   const [lookupChoices, setLookupChoices] = useState<Record<string, LookupChoice[]>>({});
   const [dynamicDropdownOptions, setDynamicDropdownOptions] = useState<Record<string, string[]>>({});
@@ -309,6 +311,14 @@ export function FormRenderer({ token, formDefinition, onSubmitted, editRecord, o
         }
       }
 
+      // The Sent screen's summary (screen 07): the project, if the form has a project field,
+      // and how many files were attached.
+      const projectField = visibleFields.find((f) => f.fieldType === 'Lookup' && f.code === 'project');
+      const projectChoice = projectField ? lookupChoices[projectField.code]?.find((c) => c.id === values[projectField.code]) : undefined;
+      setSentSummary({
+        project: projectField && projectChoice ? { label: projectField.label, value: projectChoice.label } : null,
+        attachments: attachmentFieldsWithFiles.length,
+      });
       setValues(initialValues());
       setAttachmentFiles({});
       setSubmittedAt(new Date());
@@ -339,8 +349,11 @@ export function FormRenderer({ token, formDefinition, onSubmitted, editRecord, o
 
   if (submittedAt) {
     return (
-      <SubmittedNotice
+      <SentScreen
+        formName={formDefinition.name}
         submittedAt={submittedAt}
+        project={sentSummary.project}
+        attachments={sentSummary.attachments}
         warning={error}
         onAnother={() => {
           setSubmittedAt(null);
@@ -563,54 +576,3 @@ function FieldInput({
   );
 }
 
-/**
- * Shown in place of the form right after a successful submission. It takes the form's place
- * (rather than a small message by the button) so it can't be missed on a phone, where the
- * person is scrolled to the bottom of a long form; it is scrolled into view and announced to
- * screen readers. "Submit another" brings back an empty form.
- */
-function SubmittedNotice({
-  submittedAt,
-  warning,
-  onAnother,
-}: {
-  submittedAt: Date;
-  warning: string | null;
-  onAnother: () => void;
-}) {
-  const { t, i18n } = useTranslation();
-  const locale = i18n.language.startsWith('ar') ? 'ar-u-nu-latn' : i18n.language;
-  const time = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' }).format(submittedAt);
-  const innerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    innerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    innerRef.current?.focus();
-  }, []);
-
-  return (
-    <div
-      ref={innerRef}
-      role="status"
-      tabIndex={-1}
-      className="rounded border border-success bg-panel p-6 text-center shadow-recessed outline-none"
-    >
-      <div
-        aria-hidden="true"
-        className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-success text-3xl leading-none text-panel"
-      >
-        ✓
-      </div>
-      <h3 className="mt-3 font-display text-xl font-bold text-ink">{t('formRenderer.submittedTitle')}</h3>
-      <p className="mt-1 text-sm text-ink-soft">{t('formRenderer.submittedBody', { time })}</p>
-      {warning && <p className="mt-3 text-sm text-danger">{warning}</p>}
-      <button
-        type="button"
-        onClick={onAnother}
-        className="mt-5 w-full rounded bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink hover:opacity-90 sm:w-auto"
-      >
-        {t('formRenderer.submitAnother')}
-      </button>
-    </div>
-  );
-}
