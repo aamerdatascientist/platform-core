@@ -16,7 +16,7 @@ import { Button, InfoBanner, useIsDesktop } from './ui';
 import { lastChoice, recentChoices, rememberChoice } from '../forms/lookupMemory';
 import { clearDraft, loadDraft, loadDraftFiles, saveDraft, saveDraftFiles } from '../forms/draftStore';
 import { useLocalized } from '../forms/localized';
-import { checkValue, isFieldVisible as fieldIsVisible, parseOptions, recordToFormValues } from '../forms/fieldValues';
+import { checkValue, isFieldVisible as fieldIsVisible, parseAllowedValues, parseOptions, recordToFormValues } from '../forms/fieldValues';
 import type { FieldProblem } from '../forms/fieldValues';
 import type { FieldDefinitionDto, FormDefinitionDto } from '../types';
 
@@ -30,6 +30,9 @@ interface FormRendererProps {
    *  saving replaces them. Attachments aren't edited here - they have their own panel. */
   editRecord?: { id: string; values: Record<string, unknown> };
   onCancelEdit?: () => void;
+  /** Builder live preview (screen 21): the phone layout inside a frame, showing one step, with
+   *  the selected field outlined. Nothing is saved, sent or kept as a draft. */
+  preview?: { stepId: string | null; highlightFieldId: string | null };
 }
 
 interface LookupChoice {
@@ -72,7 +75,7 @@ function toLatinDigits(text: string): string {
  * The label is the target form's first ShortText field; there is still no designated
  * "display field" on FormDefinition (see CLAUDE.md's known gaps).
  */
-export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange, editRecord, onCancelEdit }: FormRendererProps) {
+export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange, editRecord, onCancelEdit, preview }: FormRendererProps) {
   const { t } = useTranslation();
   const isEditing = !!editRecord;
   const activeFields = useMemo(
@@ -269,7 +272,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
 
   // Resume a draft once the person is known (the shell loads them a moment after the page).
   useEffect(() => {
-    if (editRecord || !userId || draftChecked.current || !formDefinition.publishedVersion) return;
+    if (editRecord || preview || !userId || draftChecked.current || !formDefinition.publishedVersion) return;
     draftChecked.current = true;
     const draft = loadDraft(userId, formDefinition.id, formDefinition.publishedVersion.id);
     if (draft) {
@@ -286,7 +289,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
   // Autosave 500ms after the last change - only after the person changed something, so just
   // opening a form never creates a draft.
   useEffect(() => {
-    if (editRecord || submittedAt || !dirty.current || !formDefinition.publishedVersion) return;
+    if (editRecord || preview || submittedAt || !dirty.current || !formDefinition.publishedVersion) return;
     const versionId = formDefinition.publishedVersion.id;
     const timer = window.setTimeout(() => {
       const ok = saveDraft(userId, formDefinition.id, { versionId, values, step: current, savedAt: new Date().toISOString() });
@@ -298,6 +301,26 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
     }, 500);
     return () => window.clearTimeout(timer);
   }, [values, attachmentFiles, current, userId, editRecord, submittedAt, formDefinition.id, formDefinition.publishedVersion]);
+
+  // Preview: show the step of the field being edited, and make that field visible by answering
+  // its condition (the builder shows it the way someone filling the form would see it).
+  const previewStep = preview ? Math.max(0, steps.findIndex((st) => st.id === preview.stepId)) : null;
+  useEffect(() => {
+    if (!preview?.highlightFieldId) return;
+    const field = activeFields.find((f) => f.id === preview.highlightFieldId);
+    const controller = field?.visibleWhenFieldCode;
+    const allowed = field ? parseAllowedValues(field.visibleWhenValuesJson) : [];
+    if (controller && allowed.length > 0 && !allowed.includes(values[controller] ?? '')) setValues((v) => ({ ...v, [controller]: allowed[0] }));
+    // Scroll only the phone frame (scaled), never the builder page around it.
+    window.setTimeout(() => {
+      const el = document.getElementById(`field-${preview.highlightFieldId}`);
+      const box = el?.closest<HTMLElement>('[data-preview-scroll]');
+      if (!el || !box) return;
+      const scale = box.getBoundingClientRect().height / box.clientHeight || 1;
+      box.scrollTop += (el.getBoundingClientRect().top - box.getBoundingClientRect().top) / scale - box.clientHeight / 3;
+    }, 80);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preview?.highlightFieldId, activeFields]);
 
   // Bring a field with a problem into view once its step is showing.
   useEffect(() => {
@@ -410,6 +433,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (preview) return;
     setError(null);
     // Enter in a text box on an earlier step means "Next", not "Send".
     if (!(desktop || isEditing) && current < steps.length - 1) {
@@ -538,7 +562,12 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
   const fieldsById = new Map(activeFields.map((f) => [f.code, f]));
 
   const control = (field: FieldDefinitionDto, inCard = false) => (
-    <div key={field.id} id={`field-${field.id}`} onBlur={() => onFieldBlur(field)}>
+    <div
+      key={field.id}
+      id={`field-${field.id}`}
+      onBlur={() => onFieldBlur(field)}
+      className={preview?.highlightFieldId === field.id ? 'rounded-ui-xs outline-dashed outline-2 outline-offset-4 outline-warning' : undefined}
+    >
       <FieldControl
         field={field}
         value={values[field.code] ?? ''}
@@ -730,7 +759,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
       </Button>
     ) : null;
 
-  if (desktop || isEditing) {
+  if ((desktop || isEditing) && !preview) {
     // Desktop Fill (screen 20, "Fill" tab): one column, one card per step with the step title
     // as its heading, and a sticky footer holding Send - no step-by-step paging. Also used to
     // correct a record.
@@ -757,14 +786,16 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
   // Phone (03-06, 11): the form takes the whole screen - a step header, one step's fields, and
   // a footer that stays at the bottom: "Next: {step}" on step 1, Previous + Next in between,
   // and the success Send on the last step, which also shows the review. No tab bar.
-  const last = current === steps.length - 1;
-  const step = steps[current];
+  const shownStep = previewStep ?? current;
+  const last = shownStep === steps.length - 1;
+  const step = steps[shownStep];
+  const Shell = preview ? PreviewShell : FullScreen;
   return (
-    <FullScreen>
-      <form onSubmit={handleSubmit} noValidate className="-mx-5 -mt-5 flex min-h-[100dvh] flex-col bg-bg">
+    <Shell>
+      <form onSubmit={handleSubmit} noValidate className={preview ? 'flex min-h-full flex-col bg-bg' : '-mx-5 -mt-5 flex min-h-[100dvh] flex-col bg-bg'}>
         <StepHeader
           title={formName(formDefinition)}
-          step={current + 1}
+          step={shownStep + 1}
           total={steps.length}
           stepTitle={step.title}
           draftSaved={draftSaved}
@@ -782,20 +813,25 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
             sendButton('phone')
           ) : (
             <div className="flex w-full gap-[10px]">
-              {current > 0 && (
+              {shownStep > 0 && (
                 <Button variant="secondary" size="phone" onClick={() => goToStep(current - 1)} className="w-[96px] shrink-0 !text-[17px]">
                   {t('steps.previous')}
                 </Button>
               )}
               <Button type="button" size="phone" block onClick={next} iconEnd={<Icon name="chevronForward" size={18} />}>
-                {t('steps.next', { title: steps[current + 1].title })}
+                {t('steps.next', { title: steps[shownStep + 1].title })}
               </Button>
             </div>
           )}
         </StepFooter>
       </form>
-    </FullScreen>
+    </Shell>
   );
+}
+
+/** The builder preview needs no full-screen takeover - it lives inside a phone frame. */
+function PreviewShell({ children }: { children: ReactNode }) {
+  return <>{children}</>;
 }
 
 /** Hides the phone tab bar while mounted (filling a form brings its own bars). */

@@ -1,4 +1,5 @@
 import type {
+  FormStepDto,
   AssignmentDayDto,
   CurrentUserDto,
   FormAssignmentDto,
@@ -191,6 +192,9 @@ export const api = {
         filterByFieldCode?: string | null;
         dynamicOptionsSourceFormDefinitionId?: string | null;
         dynamicOptionsSourceFieldCode?: string | null;
+        /** English label and step (redesign §9.1/§9.2). */
+        labelEn?: string | null;
+        stepId?: string | null;
       },
     ) => request<{ id: string }>(`/api/forms/${formId}/fields`, { method: 'POST', body: JSON.stringify(input) }, token),
 
@@ -203,12 +207,39 @@ export const api = {
 
     // --- Safe field edits: metadata only, no confirmation needed even on a published form ---
 
-    updateFieldLabel: (token: string, formId: string, fieldId: string, label: string) =>
+    /** labelEn: undefined leaves the English label as it is, '' clears it. */
+    updateFieldLabel: (token: string, formId: string, fieldId: string, label: string, labelEn?: string) =>
       request<void>(
         `/api/forms/${formId}/fields/${fieldId}/label`,
-        { method: 'PUT', body: JSON.stringify({ label }) },
+        { method: 'PUT', body: JSON.stringify({ label, labelEn: labelEn ?? null }) },
         token,
       ),
+
+    // --- Redesign §9.1/§9.2: names in both languages and filling steps (all Safe) ---
+
+    updateName: (token: string, formId: string, name: string, nameEn: string) =>
+      request<void>(`/api/forms/${formId}/name`, { method: 'PUT', body: JSON.stringify({ name, nameEn }) }, token),
+
+    /** Relabel (and reorder) a static dropdown's options; the set of values must stay the same. */
+    updateOptionLabels: (token: string, formId: string, fieldId: string, options: { value: string; label: string; labelEn: string | null }[]) =>
+      request<void>(`/api/forms/${formId}/fields/${fieldId}/option-labels`, { method: 'PUT', body: JSON.stringify({ options }) }, token),
+
+    addStep: (token: string, formId: string, titleAr: string, titleEn: string) =>
+      request<FormStepDto>(`/api/forms/${formId}/steps`, { method: 'POST', body: JSON.stringify({ titleAr, titleEn }) }, token),
+
+    updateStep: (token: string, formId: string, stepId: string, titleAr: string, titleEn: string) =>
+      request<void>(`/api/forms/${formId}/steps/${stepId}`, { method: 'PUT', body: JSON.stringify({ titleAr, titleEn }) }, token),
+
+    reorderSteps: (token: string, formId: string, stepIds: string[]) =>
+      request<void>(`/api/forms/${formId}/steps/order`, { method: 'PUT', body: JSON.stringify({ stepIds }) }, token),
+
+    /** Its fields move to the previous step (the next one when it was first). */
+    deleteStep: (token: string, formId: string, stepId: string) =>
+      request<void>(`/api/forms/${formId}/steps/${stepId}`, { method: 'DELETE' }, token),
+
+    /** null = the first step. */
+    setFieldStep: (token: string, formId: string, fieldId: string, stepId: string | null) =>
+      request<void>(`/api/forms/${formId}/fields/${fieldId}/step`, { method: 'PUT', body: JSON.stringify({ stepId }) }, token),
 
     /** Pass both as null/undefined to clear the condition (always visible again). */
     updateFieldVisibility: (

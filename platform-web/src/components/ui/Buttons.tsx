@@ -253,3 +253,27 @@ function moveFocus(e: React.KeyboardEvent<HTMLElement>, current: number, count: 
     group.querySelectorAll<HTMLElement>('[role="radio"]')[next]?.focus();
   });
 }
+
+/**
+ * On/off switch (21, Rules: "Required"): a 46x28 pill track, --accent when on, with a 22px
+ * white knob that sits at the inline-end when on. role="switch" with aria-checked; the label
+ * is the visible text next to it (pass its id), and the whole row is the tap target.
+ */
+export function Switch({ checked, onChange, labelledBy, disabled }: { checked: boolean; onChange: (next: boolean) => void; labelledBy?: string; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-labelledby={labelledBy}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className={`relative h-[28px] w-[46px] shrink-0 rounded-ui-pill transition-colors disabled:opacity-50 ${checked ? 'bg-accent' : 'bg-border'}`}
+    >
+      <span
+        aria-hidden="true"
+        className={`absolute top-[3px] h-[22px] w-[22px] rounded-full bg-white shadow-elev-1 transition-[inset-inline-start] ${checked ? 'start-[21px]' : 'start-[3px]'}`}
+      />
+    </button>
+  );
+}

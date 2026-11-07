@@ -132,7 +132,7 @@ feature's three):
    as `VisibleWhenFieldCode`/`FilterByFieldCode`. Same "easy to miss, no error if you do" risk.
 
 **Known gap**: no admin UI yet to configure this from the Form Builder screen
-(`AddFieldForm.tsx`/`FieldEditorRow.tsx`; the lookup-filter panel exists, this one doesn't) -
+(`AddFieldForm.tsx`/`components/builder/FieldSettings.tsx`; the lookup-filter card exists, this one doesn't) -
 the two Stock Module forms were created directly via the API (`scripts/seed-stock-inflow-outflow-forms.ps1`), which is
 why this shipped without one. Worth adding a panel mirroring the existing lookup-filter one
 (pick a form, then pick a field on it) before the next form that needs this is built by hand
