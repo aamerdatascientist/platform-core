@@ -32,6 +32,10 @@
 html,
 body {
   overflow-x: hidden;
+  /* clip, where supported: hides the same overflow without making body a scroll container -
+     with hidden on both html and body, body scrolls itself and position: sticky (the form's
+     step header and Send footer) never sticks to the screen. */
+  overflow-x: clip;
   overscroll-behavior-x: none;
   touch-action: pan-y;
 }

@@ -1,13 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { api, ApiError } from '../api/client';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import { SentScreen } from './SentScreen';
-import { DateField, todayIso } from './DateField';
-import { checkValue, isFieldVisible as fieldIsVisible, parseOptions, parseRules, recordToFormValues } from '../forms/fieldValues';
+import { todayIso } from './DateField';
+import { FieldControl } from './form/FieldControl';
+import { StepFooter, StepHeader } from './form/StepChrome';
+import { Icon } from './icons';
+import { FULL_SCREEN_ATTRIBUTE } from './shell/fullScreen';
+import { useOptionalShell } from './shell/ShellData';
+import { Button, useIsDesktop } from './ui';
+import { lastChoice, recentChoices, rememberChoice } from '../forms/lookupMemory';
+import { checkValue, isFieldVisible as fieldIsVisible, parseOptions, recordToFormValues } from '../forms/fieldValues';
 import type { FieldProblem } from '../forms/fieldValues';
-import type { DropdownOption, FieldDefinitionDto, FormDefinitionDto } from '../types';
+import type { FieldDefinitionDto, FormDefinitionDto } from '../types';
 
 interface FormRendererProps {
   token: string;
@@ -84,7 +93,16 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
   // the person chooses to submit another, so success is impossible to miss.
   const [submittedAt, setSubmittedAt] = useState<Date | null>(null);
   const [sentSummary, setSentSummary] = useState<{ project: { label: string; value: string } | null; attachments: number }>({ project: null, attachments: 0 });
-  const [attachmentFiles, setAttachmentFiles] = useState<Record<string, File>>({});
+  const [attachmentFiles, setAttachmentFiles] = useState<Record<string, File[]>>({});
+  // Errors show on Send, then for each field again when the person leaves it (HANDOFF §6:
+  // never while typing the first time).
+  const [attempted, setAttempted] = useState(false);
+  // Lookups pre-filled from the person's last choice, shown as "Your last choice".
+  const [preselected, setPreselected] = useState<Record<string, string>>({});
+  const shell = useOptionalShell();
+  const userId = shell?.me?.id ?? null;
+  const desktop = useIsDesktop();
+  const navigate = useNavigate();
   const [lookupChoices, setLookupChoices] = useState<Record<string, LookupChoice[]>>({});
   const [dynamicDropdownOptions, setDynamicDropdownOptions] = useState<Record<string, string[]>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -185,11 +203,46 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
     });
   }
 
-  function setAttachmentFile(code: string, file: File | null) {
-    setAttachmentFiles((prev) => {
+  function setFieldFiles(code: string, files: File[]) {
+    setAttachmentFiles((prev) => ({ ...prev, [code]: files }));
+    setFieldErrors((prev) => {
+      if (!(code in prev)) return prev;
       const next = { ...prev };
-      if (file) next[code] = file;
-      else delete next[code];
+      delete next[code];
+      return next;
+    });
+  }
+
+  // A Lookup with a remembered last choice starts on it (HANDOFF §9.7); not when editing a record.
+  useEffect(() => {
+    if (editRecord || !userId) return;
+    const updates: Record<string, string> = {};
+    for (const f of activeFields) {
+      if (f.fieldType !== 'Lookup' || values[f.code] || preselected[f.code] !== undefined) continue;
+      const last = lastChoice(userId, f.id);
+      if (last && lookupChoices[f.code]?.some((c) => c.id === last)) updates[f.code] = last;
+    }
+    if (Object.keys(updates).length === 0) return;
+    setPreselected((p) => ({ ...p, ...updates }));
+    setValues((v) => ({ ...updates, ...v }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lookupChoices, userId]);
+
+  /** The problem with one field's current answer, or null. Same rules as on Send. */
+  function problemFor(f: FieldDefinitionDto): FieldError | null {
+    const isMissing = f.fieldType === 'Attachment' ? !(attachmentFiles[f.code]?.length) : !(values[f.code] ?? '').trim();
+    if (isMissing) return f.isRequired ? REQUIRED : null;
+    if (f.fieldType === 'Attachment') return null;
+    return checkValue(f, values[f.code]) ?? null;
+  }
+
+  function onFieldBlur(f: FieldDefinitionDto) {
+    if (!attempted) return;
+    const problem = problemFor(f);
+    setFieldErrors((prev) => {
+      const next = { ...prev };
+      if (problem) next[f.code] = problem;
+      else delete next[f.code];
       return next;
     });
   }
@@ -246,23 +299,22 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
     e.preventDefault();
     setError(null);
 
+    setAttempted(true);
     const problems: Record<string, FieldError> = {};
     visibleFields.forEach((f) => {
       // Blank or spaces-only counts as not answered, as it does on the server.
-      const isMissing = f.fieldType === 'Attachment' ? !attachmentFiles[f.code] : !(values[f.code] ?? '').trim();
-      if (isMissing) {
-        if (f.isRequired) problems[f.code] = REQUIRED;
-        return;
-      }
-      if (f.fieldType === 'Attachment') return;
-      const problem = checkValue(f, values[f.code]);
+      const problem = problemFor(f);
       if (problem) problems[f.code] = problem;
     });
     if (Object.keys(problems).length > 0) {
       setFieldErrors(problems);
       // Bring the first problem into view - on a phone it is usually far above the button.
       const first = visibleFields.find((f) => problems[f.code]);
-      if (first) document.getElementById(`field-${first.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (first) {
+        const box = document.getElementById(`field-${first.id}`);
+        box?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        box?.querySelector<HTMLElement>('input, textarea, button, [role=radio]')?.focus({ preventScroll: true });
+      }
       return;
     }
     setFieldErrors({});
@@ -292,18 +344,16 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
 
       const { id: recordId } = await api.submissions.submit(token, formDefinition.id, payload);
 
-      const attachmentFieldsWithFiles = visibleFields.filter(
-        (f) => f.fieldType === 'Attachment' && attachmentFiles[f.code],
-      );
+      const uploads = visibleFields
+        .filter((f) => f.fieldType === 'Attachment')
+        .flatMap((f) => (attachmentFiles[f.code] ?? []).map((file) => ({ field: f, file })));
 
-      if (attachmentFieldsWithFiles.length > 0) {
+      if (uploads.length > 0) {
         const results = await Promise.allSettled(
-          attachmentFieldsWithFiles.map((f) =>
-            api.files.upload(token, formDefinition.id, recordId, f.code, attachmentFiles[f.code]),
-          ),
+          uploads.map((u) => api.files.upload(token, formDefinition.id, recordId, u.field.code, u.file)),
         );
         const failedLabels = results
-          .map((r, i) => (r.status === 'rejected' ? attachmentFieldsWithFiles[i].label : null))
+          .map((r, i) => (r.status === 'rejected' ? uploads[i].file.name : null))
           .filter((label): label is string => label !== null);
 
         if (failedLabels.length > 0) {
@@ -322,8 +372,14 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
       const projectChoice = projectField ? lookupChoices[projectField.code]?.find((c) => c.id === values[projectField.code]) : undefined;
       setSentSummary({
         project: projectField && projectChoice ? { label: projectField.label, value: projectChoice.label } : null,
-        attachments: attachmentFieldsWithFiles.length,
+        attachments: uploads.length,
       });
+      // Remember the choices made, for "Recent" and "Your last choice" next time.
+      visibleFields
+        .filter((f) => f.fieldType === 'Lookup' || f.fieldType === 'Dropdown')
+        .forEach((f) => values[f.code] && rememberChoice(userId, f.id, values[f.code]));
+      setAttempted(false);
+      setPreselected({});
       setValues(initialValues());
       setAttachmentFiles({});
       setSubmittedAt(new Date());
@@ -368,216 +424,166 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
     );
   }
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-      {visibleFields.map((field) => (
-        <FieldInput
-          key={field.id}
-          field={field}
-          value={values[field.code] ?? ''}
-          onChange={(v) => setValue(field.code, v)}
-          selectedFileName={attachmentFiles[field.code]?.name}
-          onFileChange={(file) => setAttachmentFile(field.code, file)}
-          error={fieldErrors[field.code]}
-          options={parseOptions(field.optionsJson)}
-          dynamicOptions={dynamicDropdownOptions[field.code]}
-          lookupChoices={lookupChoices[field.code]}
-          // Only set for a filtered Lookup whose filter-source field has no value yet - lets
-          // FieldInput show "pick X first" instead of a plain, unexplained empty dropdown.
-          filterWaitingOnLabel={
-            field.filterByFieldCode && !values[field.filterByFieldCode]
-              ? activeFields.find((f) => f.code === field.filterByFieldCode)?.label ?? field.filterByFieldCode
-              : undefined
-          }
-          isFiltered={!!field.filterByFieldCode}
-        />
-      ))}
+  // ---------------------------------------------------------------- rendering (HANDOFF §6-§8)
 
+  const errorText = (code: string) => {
+    const e = fieldErrors[code];
+    return e ? ('text' in e ? e.text : t(e.key, e.params)) : null;
+  };
+  const fieldsById = new Map(activeFields.map((f) => [f.code, f]));
+
+  const control = (field: FieldDefinitionDto, inCard = false) => (
+    <div key={field.id} id={`field-${field.id}`} onBlur={() => onFieldBlur(field)}>
+      <FieldControl
+        field={field}
+        value={values[field.code] ?? ''}
+        onChange={(v) => {
+          setValue(field.code, field.fieldType === 'Number' || field.fieldType === 'Decimal' ? toLatinDigits(v) : v);
+          if (preselected[field.code] !== undefined && v !== preselected[field.code]) setPreselected((p) => ({ ...p, [field.code]: '' }));
+        }}
+        files={attachmentFiles[field.code] ?? []}
+        onFiles={(files) => setFieldFiles(field.code, files)}
+        error={errorText(field.code)}
+        options={parseOptions(field.optionsJson)}
+        dynamicOptions={dynamicDropdownOptions[field.code]}
+        lookupChoices={lookupChoices[field.code]}
+        filterWaitingOnLabel={
+          field.filterByFieldCode && !values[field.filterByFieldCode]
+            ? fieldsById.get(field.filterByFieldCode)?.label ?? field.filterByFieldCode
+            : undefined
+        }
+        isFiltered={!!field.filterByFieldCode}
+        recent={recentChoices(userId, field.id)}
+        isLastChoice={!!preselected[field.code] && preselected[field.code] === values[field.code]}
+        inCard={inCard}
+      />
+    </div>
+  );
+
+  // Fields shown because of another answer sit right under it (05): under a yes/no, indented
+  // with a 3px accent bar; under a type/phase selector, in a card headed "Shown because you
+  // chose: ...". Consecutive dependents of the same selector share one card.
+  const blocks: ReactNode[] = [];
+  for (let i = 0; i < visibleFields.length; i++) {
+    const field = visibleFields[i];
+    const controller = field.visibleWhenFieldCode ? fieldsById.get(field.visibleWhenFieldCode) : undefined;
+    if (!controller) {
+      blocks.push(control(field));
+      continue;
+    }
+    if (controller.fieldType === 'Dropdown') {
+      const group = [field];
+      while (i + 1 < visibleFields.length && visibleFields[i + 1].visibleWhenFieldCode === controller.code) group.push(visibleFields[++i]);
+      const chosen = parseOptions(controller.optionsJson).find((o) => o.value === values[controller.code])?.label ?? values[controller.code];
+      blocks.push(
+        <div key={`cond-${field.id}`} className="flex animate-[reveal_180ms_ease-out] flex-col gap-2 overflow-hidden rounded-ui-2xl border border-border bg-panel p-[14px]">
+          <span className="self-start rounded-ui-pill bg-accent-soft px-[10px] py-1 text-[12px] font-bold text-accent-strong">
+            {t('steps.shownBecause', { value: chosen })}
+          </span>
+          <div className="flex flex-col gap-[22px]">{group.map((f) => control(f, true))}</div>
+        </div>,
+      );
+    } else {
+      blocks.push(
+        <div key={`cond-${field.id}`} className="mt-1 animate-[reveal_180ms_ease-out] overflow-hidden border-s-[3px] border-accent ps-3">
+          {control(field)}
+        </div>,
+      );
+    }
+  }
+
+  const sendLabel = isEditing
+    ? submitting
+      ? t('formRenderer.saving')
+      : t('formRenderer.saveChanges')
+    : submitting
+      ? t('steps.sending')
+      : t('steps.send');
+
+  const messages = (
+    <>
       {isEditing && formDefinition.publishedVersion?.fields.some((f) => f.isActive && f.fieldType === 'Attachment') && (
-        <p className="text-xs text-ink-soft">{t('formRenderer.attachmentsNotEditedHere')}</p>
+        <p className="text-[13px] text-ink-soft">{t('formRenderer.attachmentsNotEditedHere')}</p>
       )}
-
       {Object.keys(fieldErrors).length > 0 && (
-        <p className="text-sm text-danger" role="alert">
+        <p className="flex items-center gap-1.5 text-[14px] text-danger" role="alert">
+          <Icon name="alert" size={16} />
           {t('formRenderer.fixHighlighted')}
         </p>
       )}
-      {error && <p className="text-sm text-danger">{error}</p>}
-
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full bg-accent rounded px-4 py-2 text-sm font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          {isEditing
-            ? submitting
-              ? t('formRenderer.saving')
-              : t('formRenderer.saveChanges')
-            : submitting
-              ? t('formRenderer.submitting')
-              : t('formRenderer.submit')}
-        </button>
-        {isEditing && onCancelEdit && (
-          <button
-            type="button"
-            onClick={onCancelEdit}
-            disabled={submitting}
-            className="w-full rounded border border-border bg-panel px-4 py-2 text-sm text-ink hover:bg-bg sm:w-auto"
-          >
-            {t('common.cancel')}
-          </button>
-        )}
-      </div>
-    </form>
+      {error && <p className="text-[14px] text-danger">{error}</p>}
+    </>
   );
-}
 
-function FieldInput({
-  field,
-  value,
-  onChange,
-  selectedFileName,
-  onFileChange,
-  error,
-  options,
-  dynamicOptions,
-  lookupChoices,
-  filterWaitingOnLabel,
-  isFiltered,
-}: {
-  field: FieldDefinitionDto;
-  value: string;
-  onChange: (v: string) => void;
-  selectedFileName?: string;
-  onFileChange: (file: File | null) => void;
-  error?: FieldError;
-  options: DropdownOption[];
-  /** Live distinct values from another form's field - set only for a Dropdown with
-   *  dynamicOptionsSourceFormDefinitionId/FieldCode. Undefined while still loading. */
-  dynamicOptions?: string[];
-  lookupChoices?: LookupChoice[];
-  filterWaitingOnLabel?: string;
-  /** A cascading Lookup (e.g. Zone narrowed by Project) - changes the "no choices" hint. */
-  isFiltered?: boolean;
-}) {
-  const { t } = useTranslation();
-  const inputId = `field-${field.id}`;
-  const errorId = `${inputId}-error`;
-  const baseClass = `w-full border rounded bg-bg px-3 py-2 text-sm focus:border-accent focus:outline-none ${
-    error ? 'border-danger' : 'border-border'
-  }`;
-  const a11y = { id: inputId, 'aria-invalid': error ? true : undefined, 'aria-describedby': error ? errorId : undefined };
-  const rules = parseRules(field.validationRulesJson);
-  const noChoices = field.fieldType === 'Lookup' && !filterWaitingOnLabel && lookupChoices !== undefined && lookupChoices.length === 0;
+  const sendButton = (size: 'phone' | 'desktop') => (
+    <Button
+      type="submit"
+      variant={isEditing ? 'primary' : 'success'}
+      size={size}
+      block
+      disabled={submitting}
+      icon={isEditing ? undefined : <Icon name="send" size={20} />}
+    >
+      {sendLabel}
+    </Button>
+  );
+  const cancelButton = (size: 'phone' | 'desktop') =>
+    isEditing && onCancelEdit ? (
+      <Button variant="secondary" size={size} onClick={onCancelEdit} disabled={submitting} className="w-[96px] shrink-0">
+        {t('common.cancel')}
+      </Button>
+    ) : null;
 
-  return (
-    <div>
-      <label htmlFor={inputId} className="mb-1 block text-sm font-medium text-ink">
-        {field.label}
-        {field.isRequired && <span className="text-danger"> *</span>}
-      </label>
+  // Until steps exist (phase 6), every form is one step titled with the form's name.
+  const stepTitle = formDefinition.name;
 
-      {field.fieldType === 'Attachment' ? (
-        <div>
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/heic,image/webp,application/pdf"
-            onChange={(e) => onFileChange(e.target.files?.[0] ?? null)}
-            className="text-sm"
-          />
-          {selectedFileName && (
-            <p className="mt-1 text-xs text-ink-soft">{t('formRenderer.selected', { name: selectedFileName })}</p>
-          )}
+  if (desktop || isEditing) {
+    // Desktop Fill (screen 20, "Fill" tab): one column, one card per step with the step title
+    // as its heading, and a sticky footer holding Send. Also used to correct a record.
+    return (
+      <form onSubmit={handleSubmit} noValidate className="flex max-w-[720px] flex-col gap-4">
+        <section className="flex flex-col gap-[22px] rounded-ui-2xl border border-border bg-panel p-5">
+          <h2 className="text-[18px] font-bold text-ink">
+            <bdi>{stepTitle}</bdi>
+          </h2>
+          {blocks}
+        </section>
+        {messages}
+        <div className="sticky bottom-0 z-10 -mx-1 flex gap-2 bg-bg px-1 py-3">
+          {cancelButton('desktop')}
+          {sendButton('desktop')}
         </div>
-      ) : field.fieldType === 'LongText' ? (
-        <textarea {...a11y} className={baseClass} rows={3} value={value} onChange={(e) => onChange(e.target.value)} />
-      ) : field.fieldType === 'Boolean' ? (
-        <select {...a11y} className={baseClass} value={value} onChange={(e) => onChange(e.target.value)}>
-          <option value="">{t('common.select')}</option>
-          <option value="true">{t('common.yes')}</option>
-          <option value="false">{t('common.no')}</option>
-        </select>
-      ) : field.fieldType === 'Dropdown' && field.dynamicOptionsSourceFormDefinitionId ? (
-        <select {...a11y} className={baseClass} value={value} onChange={(e) => onChange(e.target.value)}>
-          <option value="">{dynamicOptions ? t('common.select') : t('formRenderer.loadingOptions')}</option>
-          {(dynamicOptions ?? []).map((v) => (
-            <option key={v} value={v}>
-              {v}
-            </option>
-          ))}
-        </select>
-      ) : field.fieldType === 'Dropdown' ? (
-        <select {...a11y} className={baseClass} value={value} onChange={(e) => onChange(e.target.value)}>
-          <option value="">{t('common.select')}</option>
-          {options.map((o) => (
-            <option key={o.value} value={o.value}>
-              {o.label}
-            </option>
-          ))}
-        </select>
-      ) : field.fieldType === 'Lookup' ? (
-        <select
-          {...a11y}
-          className={baseClass}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          disabled={!!filterWaitingOnLabel || noChoices}
-        >
-          <option value="">
-            {filterWaitingOnLabel
-              ? t('formRenderer.chooseFilterSourceFirst', { label: filterWaitingOnLabel })
-              : noChoices
-                ? t('formRenderer.noChoices')
-                : lookupChoices
-                  ? t('common.select')
-                  : t('formRenderer.loadingOptions')}
-          </option>
-          {(lookupChoices ?? []).map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.label}
-            </option>
-          ))}
-        </select>
-      ) : field.fieldType === 'DateTime' ? (
-        <DateField
-          id={inputId}
-          value={value}
-          onChange={onChange}
-          required={field.isRequired}
-          className={baseClass}
-          maxDate={rules.noFutureDates ? todayIso() : undefined}
-        />
-      ) : field.fieldType === 'Number' || field.fieldType === 'Decimal' ? (
-        // A text box with a numeric keypad rather than <input type="number">: the number box
-        // accepts "1e3" and "+5", silently turns bad input into an empty value, and shows its
-        // own English-only messages. checkValue() validates the text instead.
-        <input
-          {...a11y}
-          type="text"
-          inputMode={field.fieldType === 'Decimal' ? 'decimal' : 'numeric'}
-          autoComplete="off"
-          dir="ltr"
-          className={`${baseClass} text-start`}
-          value={value}
-          onChange={(e) => onChange(toLatinDigits(e.target.value))}
-        />
-      ) : (
-        <input {...a11y} type="text" className={baseClass} value={value} onChange={(e) => onChange(e.target.value)} />
-      )}
+      </form>
+    );
+  }
 
-      {noChoices && (
-        <p className="mt-1 text-xs text-ink-soft">
-          {isFiltered ? t('formRenderer.noChoicesForFilter') : t('formRenderer.noChoicesHint')}
-        </p>
-      )}
-
-      {error && (
-        <p id={errorId} className="mt-1 text-xs text-danger">
-          {'text' in error ? error.text : t(error.key, error.params)}
-        </p>
-      )}
-    </div>
+  // Phone (03-06, 11): the form takes the whole screen - a step header, the fields, and a
+  // footer with Send that stays at the bottom. No tab bar while filling.
+  return (
+    <FullScreen>
+      <form onSubmit={handleSubmit} noValidate className="-mx-5 -mt-5 flex min-h-[100dvh] flex-col bg-bg">
+        <StepHeader
+          title={formDefinition.name}
+          step={1}
+          total={1}
+          stepTitle={stepTitle}
+          onClose={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}
+        />
+        <div className="flex flex-1 flex-col gap-[22px] p-5">
+          {blocks}
+          {messages}
+        </div>
+        <StepFooter>{sendButton('phone')}</StepFooter>
+      </form>
+    </FullScreen>
   );
 }
 
+/** Hides the phone tab bar while mounted (filling a form brings its own bars). */
+function FullScreen({ children }: { children: ReactNode }) {
+  useEffect(() => {
+    document.documentElement.setAttribute(FULL_SCREEN_ATTRIBUTE, '');
+    return () => document.documentElement.removeAttribute(FULL_SCREEN_ATTRIBUTE);
+  }, []);
+  return <>{children}</>;
+}

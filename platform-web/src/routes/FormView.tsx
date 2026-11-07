@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useIsDesktop } from '../components/ui';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { api } from '../api/client';
@@ -39,6 +40,7 @@ export function FormView({ token }: FormViewProps) {
   const [deleting, setDeleting] = useState(false);
   const [recordNotice, setRecordNotice] = useState<string | null>(null);
   const [sentShown, setSentShown] = useState(false);
+  const desktop = useIsDesktop();
   const [recordError, setRecordError] = useErrorMessage();
   const [error, setError] = useErrorMessage();
   // The form itself couldn't be opened (no access, deleted, server down, offline): the whole
@@ -181,6 +183,12 @@ export function FormView({ token }: FormViewProps) {
     );
 
   const attachmentFields = formDefinition.publishedVersion?.fields.filter((f) => f.isActive && f.fieldType === 'Attachment') ?? [];
+
+  // On a phone the form is the whole page (its step header carries the title, HANDOFF 03-06);
+  // the records list is a desktop page (screen 20).
+  if (!desktop) {
+    return <FormRenderer token={token} formDefinition={formDefinition} onSubmitted={() => formId && isAdmin && loadSubmissions(formId)} onSentChange={setSentShown} />;
+  }
 
   if (!isAdmin) {
     return (

@@ -80,6 +80,11 @@ export function ShellProvider({ token, children }: { token: string; children: Re
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;
 }
 
+/** The shell data when inside the app shell, or null (e.g. a preview rendered elsewhere). */
+export function useOptionalShell(): ShellData | null {
+  return useContext(ShellContext);
+}
+
 export function useShell(): ShellData {
   const value = useContext(ShellContext);
   if (!value) throw new Error('useShell must be used inside ShellProvider');
