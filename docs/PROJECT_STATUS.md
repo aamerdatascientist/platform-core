@@ -3,7 +3,40 @@
 Update this file at the end of every session - what changed, what's next. Keep CLAUDE.md
 itself stable; this is where the narrative goes.
 
-## Current state - 2026-11-06 (read this first)
+## Current state - 2026-11-07 (read this first): Asas v2.0 complete on staging
+
+**Everything is in `docs/releases/ASAS-v2.0.md`** - what v2.0 contains, all ten redesign phases, the
+six migrations, the API changes, how it was tested and the production release checklist.
+
+- **Production** (`main`, `https://asasksa.co`) is unchanged since 2026-11-03 (`8544610`) = v1.x.
+- **Staging** (`feature/redesign` = `staging`, `https://staging.asasksa.co`) runs v2.0: the new
+  features (stricter lookups, form assignments, Telegram + WhatsApp reminders, stakeholder PDF reports
+  with Claude's analysis) and the full redesign (handoff `docs/redesign/HANDOFF.md`, phases 1-10 built
+  2026-11-06/07 - log of schema/API changes per phase in `docs/redesign/PLAN.md`).
+- Staging's database has all six v2.0 migrations (backups taken before each of the last two:
+  `asas-staging-backup-2026-11-07-before-form-steps.dump`, `...-before-receipts.dump`); the daily
+  progress report is split into three steps there.
+- **2026-11-07, after phase 10, from the owner's checks on staging:** Form assignments page gave a 500
+  (date overflow in the tracker, `40898d2`, regression tests added); "Assign a form" card narrower than
+  the page on a phone (`ea1b7b4`); Meta approved the three WhatsApp templates, so WhatsApp was switched
+  on (`9cb19c9`); the owner confirmed WhatsApp works on staging.
+- **WhatsApp number:** staging uses Meta's free test number (only 5 confirmed recipients, added in
+  Meta > API Setup > "To"). The owner is getting a business number (a SIM or company number registered
+  in WhatsApp Manager, same WhatsApp account as the approved templates); then only
+  `WhatsApp__PhoneNumberId` changes. Steps in `docs/STAGING.md` "WhatsApp".
+- Tests: backend 260 (242 run on the Mac; 18 need Docker); browser suites 1,181 checks, all passing
+  locally and against the live staging site.
+
+### Open items - in priority order (2026-11-07)
+
+1. **Production release of v2.0** - only on the owner's word; checklist in `docs/releases/ASAS-v2.0.md` §7.
+2. **WhatsApp business number** (needed before production WhatsApp; staging works on the test number).
+3. **Rotate the Railway Postgres password and the Blob Storage account key** (overdue).
+4. **Expected completion is temporary** (project 119) until the client plans the stages after structure.
+5. Older gaps unchanged (see "Open items (2026-11-05)" below, item 5).
+6. Delete the session's database connection files (`pgpass.conf`, `*.conn`) when testing is done.
+
+## State on 2026-11-06
 
 ### 2026-11-06 - stakeholder reports with Claude analysis (staging)
 
@@ -133,6 +166,9 @@ filled. Each user has a mobile number (Users page > WhatsApp, with "Send a test 
 **Nothing is sent until the Meta setup is done** - steps in `docs/STAGING.md` "WhatsApp".
 
 ### Production release checklist (assignments + WhatsApp + lookup rules), when the owner says so
+
+> **Replaced 2026-11-07** by the v2.0 checklist in `docs/releases/ASAS-v2.0.md` §7 (six migrations
+> now, not two; branch `feature/redesign`, not `chore/dotnet-10`). Kept below for history.
 
 1. Back up production (`dump.sh`-style `pg_dump -Fc`, or `scripts/db/backup-db.ps1`).
 2. Apply migrations `20261103115509_AddFormAssignments` and `20261103124525_AddWhatsAppNotifications`

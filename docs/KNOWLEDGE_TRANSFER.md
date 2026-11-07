@@ -1,9 +1,14 @@
-# Knowledge transfer - Asas / platform-core (as of 2026-11-05)
+# Knowledge transfer - Asas / platform-core (as of 2026-11-07)
 
 Hand this file to a new Claude Code session. It summarises everything worked on with the owner
 (Aamer) from 2026-11-02 to 2026-11-05, plus the standing context needed to continue safely.
 Read it together with `CLAUDE.md` (stable architecture + gotchas), `docs/PROJECT_STATUS.md`
 (narrative, newest at the top) and `docs/STAGING.md` (environments). No secrets are in this file.
+
+> **Update 2026-11-07 - Asas v2.0.** Since this file was first written (2026-11-05), everything held
+> back from production plus the full redesign (ten phases) was built on staging. The complete record
+> - features, phases, migrations, API, tests, production checklist - is **`docs/releases/ASAS-v2.0.md`**.
+> Sections 3, 7, 8, 9 and 11 below are updated for it; section 12 is new.
 
 ---
 
@@ -36,27 +41,25 @@ Read it together with `CLAUDE.md` (stable architecture + gotchas), `docs/PROJECT
 - React + TypeScript (Vite, Tailwind 3.4), English/Arabic (RTL) via react-i18next, light/dark.
 - Azure App Service (East Asia) for the API, Azure Static Web Apps for the site, Railway Postgres
   (Singapore) for the databases, Azure Blob Storage for attachments.
-- Repo: `C:\Users\ShahAamer(Ascend)\platform-core`, GitHub `aamerdatascientist/platform-core`.
+- Repo: GitHub `aamerdatascientist/platform-core`. Since 2026-11-05 the owner works on a **Mac**:
+  `~/Desktop/platform-core/staging` (working clone) and `~/Desktop/platform-core/production` (`main`),
+  plus a dated offline backup clone next to them. (Earlier: `C:\Users\ShahAamer(Ascend)\platform-core`.)
 
 ## 3. Branches and deploys - IMPORTANT, they have diverged
 
-| Branch | Deploys to | Head (2026-11-05) | Contents |
+| Branch | Deploys to | Head (2026-11-07) | Contents |
 | --- | --- | --- | --- |
-| `main` | production (`nexus-platform-api` + `nexus-platform-web`) | `8544610` | everything up to 2026-10-26 + the 6 dashboard commits (cherry-picked) |
-| `chore/dotnet-10` (working branch, local only) | - | `43dd17b` + docs commit | everything |
-| `staging` | staging (`asas-api-staging` + `asas-web-staging`) | `43dd17b` | = working branch |
-| `release/dashboard-2026-11-03` | - | `8544610` | the cherry-pick branch that became `main` |
+| `main` | production (`nexus-platform-api` + `nexus-platform-web`) | `8544610` | v1.x: everything up to 2026-10-26 + the 6 dashboard commits (cherry-picked 2026-11-03) |
+| `feature/redesign` (working branch) | - | latest | **Asas v2.0**: all of `main`'s changes plus the held-back features and the redesign |
+| `staging` | staging (`asas-api-staging` + `asas-web-staging`) | = `feature/redesign` | v2.0 |
+| `feature/stakeholder-reports`, `feature/telegram-notifications`, `chore/dotnet-10` | - | older | earlier working branches, all contained in `feature/redesign` |
 
-- Deploy staging: `git push origin HEAD:staging` (both GitHub workflows run, ~2-3 min).
-- Deploy production: push to `main` - **only when the owner says so**.
-- Held back from production (on the working branch / staging only):
-  - `4446b91`, `3e3f3eb` (2026-10-26) - Lookups must exist and belong to the chosen project;
-    optional `unique` / `uniqueWithin` text rule.
-  - `dadb038`, `59d5ade` - form assignments + tracking page.
-  - `43dd17b` - WhatsApp notifications.
-- To release them: back up production, **apply the two new migrations to production first**
-  (`20261103115509_AddFormAssignments`, `20261103124525_AddWhatsAppNotifications`; the API never
-  migrates on startup), then merge `chore/dotnet-10` into `main`.
+- Deploy staging: `git push origin feature/redesign` then `git push origin feature/redesign:staging`
+  (both GitHub workflows run, ~3-5 min; watch with `gh run list --branch staging`).
+- Deploy production: **only when the owner says so**, by the checklist in
+  `docs/releases/ASAS-v2.0.md` §7: back up, apply the **six** v2.0 migrations to production first (the
+  API never migrates on startup), merge `feature/redesign` into `main`, seed the daily report's steps,
+  set the production settings, check.
 - To release only part: branch from `origin/main`, cherry-pick, build + test, push to `main`
   (what was done 2026-11-03).
 
@@ -65,7 +68,10 @@ Read it together with `CLAUDE.md` (stable architecture + gotchas), `docs/PROJECT
 - Production: Railway service `Postgres`, project `abundant-flow`, Singapore.
 - Staging: Railway service `Postgres-staging`, same project, Singapore. Separate database -
   never point staging at production.
-- From the owner's Windows machine, Claude Code reaches both directly with
+- On the Mac: PostgreSQL 18 client tools in the home folder; the session scratchpad keeps
+  `staging.conn` + `pgpass.conf` and a `q.sh staging -c/-f` wrapper (passwords never printed). For
+  read-only checks the API can run locally against the staging database with a throwaway JWT secret.
+- From the owner's Windows machine (until 2026-11-05), Claude Code reached both directly with
   `C:\Program Files\PostgreSQL\18\bin\psql.exe` / `pg_dump.exe` (`PGSSLMODE=require`,
   `PGCLIENTENCODING=UTF8`). Previous sessions kept connection details in the session scratchpad:
   `prod.conn` / `staging.conn` (host, port, db, user - one per line) + `pgpass.conf` (passwords),
@@ -142,7 +148,7 @@ Read it together with `CLAUDE.md` (stable architecture + gotchas), `docs/PROJECT
 - Weather chart hides a condition with < 5 reports (`MinimumReportsPerWeather`); the owner asked
   why rain disappeared and said "no need" to change it.
 
-## 7. Form assignments - staging only
+## 7. Form assignments - staging (v2.0)
 
 Owner's request: assign users to fill forms; a page listing assigned users, form, filled or not,
 time assigned and time filled. Choices: **recurring daily**, plus a **"My assignments" page**.
@@ -161,14 +167,15 @@ Then: move "filled or not" to its own page with **one date filter, default today
   `assignment.noFormAccess`; skips overlapping; start >= today) and `StopFormAssignment`.
 - API `api/form-assignments`: `GET mine` (anyone signed in); admin: `GET /`, `GET days`,
   `POST /`, `POST {id}/stop`.
-- Pages: `/assignments` (`routes/MyAssignments.tsx`, sidebar `ChecklistIcon`),
-  `/admin/assignments` (`routes/FormAssignments.tsx`), `/admin/assignments/status`
-  (`routes/AssignmentTracking.tsx`; Friday shows "day off" note). Settings page links both.
-  Shared `components/AssignmentStatus.tsx`. Translations under `assignments.*` (en/ar).
+- Pages since the redesign: **Today** (`routes/Today.tsx`, `/`; `/assignments` redirects there) shows
+  each person's due forms and last two weeks; `/admin/assignments` (`routes/FormAssignments.tsx`) is one
+  page with today's summary, "Remind those who haven't filled" (once a day), the 14/30/60-day grid
+  and the assign panel; `/admin/assignments/status` redirects to it. (The old `MyAssignments.tsx`
+  and `AssignmentTracking.tsx` were removed.)
 - Verified by the owner on staging: Qasim assigned, "due today" on his phone (assignment then
   stopped 2026-11-03).
 
-## 8. WhatsApp notifications - staging only, OFF until configured
+## 8. WhatsApp notifications - live on staging since 2026-11-07
 
 Owner asked for notifications that are fast, cheap, not email; asked for costs of the options
 (SMS, WhatsApp, web push, Telegram ...), chose **WhatsApp** "as we can then add an agent later".
@@ -193,15 +200,22 @@ Owner asked for notifications that are fast, cheap, not email; asked for costs o
   System User token, then `WhatsApp__PhoneNumberId`, `WhatsApp__AccessToken`,
   `WhatsApp__AppUrl=https://staging.asasksa.co` on `asas-api-staging`; then save a number on the
   Users page and press "Send a test message". The owner said "let's circle back on this later".
-- Not tested against Meta yet. Unit tests cover phone normalisation and reminder slots.
+- **2026-11-07:** Meta approved `form_assigned`, `form_reminder` and `stakeholder_report`; the app's
+  switch `WHATSAPP_READY` (`platform-web/src/config/whatsapp.ts`) is on; the owner confirmed messages
+  arrive. Staging uses Meta's test number (recipients added in Meta's "To" list, 5 max). Next: a
+  business number (steps in `docs/STAGING.md` "Moving to a business number"). Telegram (added
+  2026-11-05) runs alongside; a person gets each message on every channel linked for them.
+- Settings now live under `Notifications__AppUrl` / `Notifications__ReminderTimes__N` (not `WhatsApp__...`).
 
 ## 9. Tests and build
 
 - Tests live in `tests/Platform.Infrastructure.IntegrationTests` (unit + handler tests, and
   Postgres tests that need Docker). Docker doesn't work on the owner's machine, so run:
   `dotnet test tests/Platform.Infrastructure.IntegrationTests --filter "FullyQualifiedName!~DynamicSchemaServiceTests&FullyQualifiedName!~Postgres"`
-  -> 133 pass on the working branch, 116 on `main`.
-- Frontend: `cd platform-web && npx tsc -b && npx vite build`.
+  -> on 2026-11-07: 242 pass on `feature/redesign` (260 in all; the 18 Postgres ones need Docker).
+- Browser suites (Playwright, session scratchpad): 1,181 checks over every v2.0 screen, run against
+  a stand-in API and the live staging site.
+- Frontend: `cd platform-web && npm run build` (Arabic/English key parity, type check, build).
 
 ## 10. Session timeline (owner's requests, in order)
 
@@ -218,17 +232,29 @@ Owner asked for notifications that are fast, cheap, not email; asked for costs o
   keeping the two real entries; set production's expected date (yes); leave the floor 04 entry.
 - 11-05: update all docs and write this file.
 
-## 11. Open items (priority order)
+## 11. Open items (priority order, 2026-11-07)
 
-1. Owner reviews assignments + WhatsApp on staging; then the production release (section 3).
-2. WhatsApp Meta setup (section 8) - waiting on the owner.
+1. **Production release of Asas v2.0** - waiting on the owner; checklist `docs/releases/ASAS-v2.0.md` §7.
+2. **WhatsApp business number** before production WhatsApp (staging works on the test number).
 3. Rotate the Railway Postgres password and the Blob Storage key (overdue since go-live).
 4. Replace the temporary expected completion once the client plans the stages after structure;
    extend `OverviewProgressPlan` with them.
-5. Possible fix: make `WhatsApp:ReminderTimes` replace, not add to, the defaults.
-6. Older gaps (see `docs/PROJECT_STATUS.md`): `find-not-null-columns.sql` on production; expected
-   completion after start rule; stock outflow over stock in; records page-size cap; site photo
-   enforced only by the page; renaming/deleting a field others' visibility depends on; first-admin
-   bootstrap; builder panel for dynamic dropdown sources; workflow designer UI.
-7. Housekeeping: the old session scratchpad held `pgpass.conf` / `*.conn` with database passwords
-   - delete them when no longer needed.
+5. Older gaps (see `docs/PROJECT_STATUS.md`): `find-not-null-columns.sql` on production; expected
+   completion after start rule; stock outflow over stock in; renaming/deleting a field others'
+   visibility depends on; first-admin bootstrap; builder panel for dynamic dropdown sources;
+   workflow designer UI.
+6. Housekeeping: the session scratchpad holds `pgpass.conf` / `staging.conn` with database
+   passwords - delete them when no longer needed.
+
+## 12. 2026-11-06 / 07 - stakeholder reports and the redesign (Asas v2.0)
+
+- 11-06: stakeholder PDF reports with Claude's analysis (Gotenberg + a Claude relay on Railway,
+  $15/month cap). The owner approved the redesign handoff ("build it exactly as shown") and its
+  phase 1 plan with eight decisions (listed in `docs/releases/ASAS-v2.0.md` §3, phase 1).
+- 11-07: the owner said "do the rest of the phases yourself" - build, test locally, fix, deploy to
+  staging, test live, fix, deploy, next phase; staging deploys without asking, production still
+  only on his word. Phases 6-10 were done that way, plus a sign-in fix (iPhone "couldn't reach the
+  server"), WhatsApp controls shown as "not set up yet" until Meta approved the templates, then
+  switched on; a 500 on Form assignments (date overflow) and a narrow card on phones were fixed.
+- 11-07: the owner asked to document everything as Asas v2.0 before production, push to staging
+  and refresh the offline backup clone.

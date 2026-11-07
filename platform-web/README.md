@@ -8,47 +8,37 @@ is what's actually running at **https://asasksa.co**. See the root `README.md` a
 `CLAUDE.md`/`docs/PROJECT_STATUS.md` (one level up) for the full project picture — this
 file just covers getting the frontend running.
 
-## What's here
+## What's here (Asas v2.0 - the redesign, `docs/redesign/HANDOFF.md`; release notes `docs/releases/ASAS-v2.0.md`)
 
-- Real routing (React Router) with a sidebar nav (`FormPicker.tsx`) grouping live forms
-  by module, driven entirely by `GET /api/forms` — no hardcoded form IDs anywhere. The
-  sidebar holds only the forms plus **Settings** (`routes/Settings.tsx`): account, change
-  password (`ChangePasswordForm.tsx`), sign out, language, light/dark, and for
-  administrators the dashboard, form builder and users & roles.
-- `FormRenderer.tsx` — renders a submission form for **any** published form, driven
-  entirely by its field metadata. No per-form code exists anywhere in this app; that's
-  the actual point of a low-code platform's frontend. Handles every `FieldType`
-  (short/long text, number, decimal, boolean, date/time, dropdown — including
-  dynamic-sourced dropdowns, lookup — including filtered/cascading lookups, attachment),
-  plus conditional field visibility. The shared field logic is in `forms/fieldValues.ts`:
-  `isFieldVisible`/`parseAllowedValues` (must keep agreeing with the backend's
-  `SubmissionValueValidator`, see CLAUDE.md), `checkValue` (the same value rules the server
-  enforces, so messages are translated), and Saudi-calendar date helpers. Dates use the
-  app's own `DateField.tsx`, not the browser's date input. The same component edits an
-  existing record for administrators (`editRecord` prop).
-- `FormBuilder.tsx` / `BuilderHome.tsx` / `AddFieldForm.tsx` / `FieldEditorRow.tsx` — the
-  real visual Form Builder: create a form, add fields, publish, and live-edit a
-  published form's fields (relabel, reorder, add, rename code, change type, archive,
-  permanently delete), the **Rules** panel (required, min/max, pattern, no future dates),
-  the lookup-filter panel, plus the Access panel for role/user-based restriction.
-  `resolveEditableFields` picks draft-vs-published the same way the backend's
-  `FormEditTargetResolver` does — these two have to keep agreeing, see CLAUDE.md.
-- `RequireAdmin.tsx` — route guard redirecting non-admins away from `/builder` and
-  `/admin/users`.
-- `UserManagement.tsx` — create accounts, assign/edit roles, deactivate/reactivate users,
-  reset a forgotten password.
-- `SubmissionsTable.tsx` + `FormView.tsx` — administrators' paged records list with edit and
-  delete; non-administrators see the form only.
-- Full refresh-token handling — sessions don't silently die 30 minutes after login. Tokens
-  are kept in localStorage and shared by tabs (`auth/tokenStore.ts`).
-- File Management — upload/list/view/delete attachments, including attaching inline
-  while filling out a form.
-- Workflow status/approval UI — role-gated action buttons on a submission's Workflow
-  panel.
-- Full bilingual Arabic/English UI (`react-i18next`), RTL layout throughout, persisted
-  language choice.
-- Dark/light mode toggle ("Structural steel" visual design) alongside the language
-  toggle, both built on a shared `Switch.tsx` component.
+- **Two shells** (`routes/Layout.tsx`, `components/shell/`): below 1024px a phone layout with a
+  bottom tab bar (`TabBar.tsx`: Today, Forms, My entries, Settings); from 1024px a 264px side menu
+  (`SideMenu.tsx`: Today, forms by module, Administration for admins) and a Ctrl/⌘K command palette.
+  `ShellData.tsx` loads the person, their forms and today's assignments once.
+- **Shared components** in `components/ui/` (buttons, chips, yes/no, segmented, stepper, date quick
+  pick, lookup row, sheet/dialog/drawer with focus trap, cards, pills, tables, empty / loading /
+  error states) and `components/icons.tsx`. Colours, radii and type are tokens in `index.css`
+  (copied from the handoff's `tokens.css`) - never raw hex values in components.
+- **Pages** (`routes/`): `SignIn`, `Today` (home), `FormsList`, `FormView` (phone: stepped filling;
+  desktop: Fill | Records tabs), `MyEntries` + `EntryDetail`, `Settings` + `Account`, and for
+  administrators `FormBuilder` + `BuilderHome`, `UserManagement`, `FormAssignments`,
+  `StakeholderReports`, `ExecutiveOverview` (standalone 16:9 page).
+- `components/FormRenderer.tsx` renders **any** published form from its field metadata - one
+  control per field type (`components/form/`), steps, drafts (`forms/draftStore.ts`), review, the
+  lookup sheet, conditional blocks. Shared logic in `forms/fieldValues.ts` (visibility and value
+  rules that must keep agreeing with the backend's `SubmissionValueValidator` - see CLAUDE.md),
+  `forms/localized.ts` (English/Arabic names with fallback), `forms/recordAnswers.ts` (one way to
+  show a stored answer).
+- **Offline queue**: `forms/offlineQueue.ts` (IndexedDB) and `components/shell/OfflineQueue.tsx` -
+  entries made without signal are kept and sent later with an idempotency key.
+- Builder: `components/builder/` (fields by step, settings panel, live phone preview).
+  `resolveEditableFields` must keep agreeing with the backend's `FormEditTargetResolver`.
+- WhatsApp switch: `config/whatsapp.ts` (`WHATSAPP_READY`, on since 2026-11-07).
+- Refresh-token handling (`api/client.ts`, single-flight; safe requests retried once on a dropped
+  connection), tokens in localStorage shared by tabs (`auth/tokenStore.ts`).
+- Arabic/English (`react-i18next`; `npm run build` fails on any key-parity gap via
+  `scripts/check-i18n.mjs`), RTL throughout, light/dark/"Match phone" (`public/boot.js` sets it
+  before first paint).
+- `/dev/ui` (development builds only) shows every shared component.
 
 ## Things that break silently if forgotten
 
@@ -58,6 +48,10 @@ file just covers getting the frontend running.
   `public/boot.js`.
 - Arrows and chevrons are SVG, flipped explicitly for Arabic — text glyphs (‹ › ↗) mirror
   inconsistently across browsers in right-to-left text.
+- `html, body` use `overflow-x: clip`, not `hidden` - `hidden` makes the body a scroll container
+  and breaks every `position: sticky` (step header, Send footer).
+- On a phone every tappable element gets a 44×44 hit area from `index.css`; keep new controls
+  inside that rule rather than shrinking it.
 
 ## Getting it running
 

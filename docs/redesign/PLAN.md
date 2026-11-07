@@ -1,5 +1,9 @@
 # Redesign build plan — phase 1 (audit), 2026-11-06
 
+> **Status 2026-11-07: all ten phases done and on staging** (part of Asas v2.0 - full record and
+> production checklist in `docs/releases/ASAS-v2.0.md`). This file keeps the original audit (sections
+> 1-5) and the exact schema/API change per phase (section 6).
+
 Branch `feature/redesign`, cut from `feature/stakeholder-reports` (what staging runs). Handoff
 copied to `docs/redesign/` as instructed. All 18 PNGs and HANDOFF.md read in full.
 
@@ -93,3 +97,9 @@ Migration `AddFormStepsAndEnglishLabels` (adds `FormDefinitions.NameEn`, `FieldD
 - Reduced motion: the loading mark stands still (its animation ends on a faded frame, so cutting it short hid it).
 - Phone (< 1024px): every button/link/radio/tab/switch gets an invisible ::after hit area of at least 44×44 (drawn sizes unchanged); inputs/selects are at least 44px tall; the assignments grid uses 44px cells there and scrolls sideways; "Stop" is always visible (no hover on a phone).
 - Data in the other language is isolated (`<bdi>`): chip/segment labels, the field name in "Choose …", the records date header, role descriptions; language names carry their own `lang`/`dir`.
+
+### After phase 10 — fixes from the owner's checks on staging (2026-11-07)
+**No schema change.**
+- `GET api/form-assignments` returned 500: `GetFormAssignmentsQuery` passed an open range up to `DateOnly.MaxValue - 1` and phase 9's "+1 + 3 late days" overflowed. The list now reads up to today and `FormAssignmentTracker.AddDaysClamped` caps the date. Two regression tests run the real handler.
+- "Assign a form" card full width below 1024px (its 380px cap applies from desktop width only).
+- WhatsApp switched on (`WHATSAPP_READY = true`) after Meta approved the templates; "Connect" placeholders replaced by status lines (messages go to the number on the account).

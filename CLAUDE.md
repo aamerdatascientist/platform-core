@@ -9,6 +9,10 @@ or ask before re-deriving decisions below from scratch.
 for the latest hand-over: branches, data, held-back features). That file changes
 often; this one shouldn't. Read it before starting work each session.
 
+**Versions:** production runs **v1.x**. **Asas v2.0** (new features + the full redesign, ten phases)
+is complete on staging and waits for the owner's word - everything in it, the six migrations and the
+production release checklist are in **`docs/releases/ASAS-v2.0.md`**.
+
 ## Core architectural decision - do not relitigate without discussion
 
 Dynamic form data is stored as **real SQL tables**, one per `FormDefinition` (schema-per-
@@ -265,7 +269,7 @@ stage is still a fixed 1760x990 canvas - tile text uses `line-clamp-2`, never `s
 `Extensions = '{"backfill":"2026-11-02"}'` (generator `scripts/data/backfill-project-119.mjs`).
 Real data starts 2026-11-02. Never treat those rows as client input; delete by that tag if asked.
 
-## Form assignments + WhatsApp reminders - added 2026-11-03, **staging only** until released
+## Form assignments + WhatsApp reminders - added 2026-11-03, staging (Asas v2.0, not yet in production)
 
 - `FormAssignment` (static schema, `AuditableEntity`): `FormDefinitionId`, `UserId`, `StartDate`,
   `EndDate?` (`DateOnly`, Saudi calendar), `Note`. Recurring **daily**: due once per working day
@@ -279,8 +283,14 @@ Real data starts 2026-11-02. Never treat those rows as client input; delete by t
   (`FormAccessChecker.HasAccess`), and skips users with an overlapping assignment.
 - API `api/form-assignments`: `GET mine` (any signed-in user); administrators: `GET /`,
   `GET days?from&to&userId&formId` (max 366 days), `POST /`, `POST {id}/stop`.
-- Pages: `/assignments` (My assignments, sidebar), `/admin/assignments`,
-  `/admin/assignments/status` (one day, default today).
+- Pages (since the v2.0 redesign): **Today** at `/` shows each person's assignments (`/assignments`
+  redirects there); `/admin/assignments` is one page - today's summary with "Remind those who haven't
+  filled" (`POST remind-pending`, kind `manual`, once a day), the 14/30/60-day grid and the assign
+  panel (`/admin/assignments/status` redirects there).
+- **Ranges:** `FormAssignmentTracker.LoadAsync` reads stamps up to `to + 1 + LateSendDays` (entries
+  sent late from the offline queue count for the day they were entered). Callers asking for an
+  open-ended range must not pass `DateOnly.MaxValue` blindly - use `AddDaysClamped` (a 500 on the
+  assignments list on 2026-11-07 came from exactly this).
 - **WhatsApp** (Meta Cloud API, `WhatsAppSender`, `HttpClient` to
   `graph.facebook.com/{ApiVersion}/{PhoneNumberId}/messages`): template messages only.
   `AssignmentNotifier` sends `form_assigned` on assignment and `form_reminder` from
@@ -293,8 +303,13 @@ Real data starts 2026-11-02. Never treat those rows as client input; delete by t
   the app anyway). `User.PhoneNumber` is stored as international digits without `+`
   (`PhoneNumbers.Normalize`: 05XXXXXXXX -> 9665XXXXXXXX).
 - Migrations `AddFormAssignments`, `AddWhatsAppNotifications` - applied to staging only.
+- **WhatsApp status (2026-11-07):** Meta approved `form_assigned`, `form_reminder` and
+  `stakeholder_report` (Arabic); the client switch `platform-web/src/config/whatsapp.ts`
+  `WHATSAPP_READY` is `true` (set it to `false` to grey every WhatsApp control out with a
+  "not set up yet" note). Staging sends from Meta's **test number** (5 confirmed recipients, added in
+  Meta's API Setup "To" list); production needs a business number - `docs/STAGING.md` "WhatsApp".
 
-### Telegram notifications - added 2026-11-05 (the channel in use; WhatsApp stays built but off)
+### Telegram notifications - added 2026-11-05 (both channels are on since WhatsApp went live 2026-11-07)
 
 - `AssignmentNotifier` sends each message on **every channel that is configured on the server
   and linked for the user**: `telegram` (`User.TelegramChatId`) and `whatsapp`
@@ -324,7 +339,7 @@ Real data starts 2026-11-02. Never treat those rows as client input; delete by t
   load, since that would replace a link an admin just sent.
 - Migration `AddTelegramNotifications`. Settings `Telegram__BotToken`, `Telegram__BotUsername`.
 
-## Stakeholder reports (PDF + Claude analysis on WhatsApp) - added 2026-11-06, staging
+## Stakeholder reports (PDF + Claude analysis on WhatsApp) - added 2026-11-06, staging (Asas v2.0)
 
 - Owner's choices: one stakeholder gets every project; daily (Sat-Thu), weekly (Thursday) and
   monthly (last day) at 18:00 Saudi; design "D" (dashboard charts + written analysis); WhatsApp
@@ -359,8 +374,12 @@ Real data starts 2026-11-02. Never treat those rows as client input; delete by t
 
 ## Releasing to production - `main` and the working branch have diverged (2026-11-03)
 
-Production is `main`; the working branch is `chore/dotnet-10`, which is also what `staging`
-runs. On 2026-11-03 only the dashboard commits went to production, by cherry-pick
+**Now (2026-11-07):** the working branch is **`feature/redesign`** (= `staging`); it holds all of
+Asas v2.0. Release it with the checklist in `docs/releases/ASAS-v2.0.md` section 7 (backup, six
+migrations, merge into `main`, seed the daily report's steps, production settings, check).
+
+History: production is `main`; the working branch used to be `chore/dotnet-10`, which was also what `staging`
+ran. On 2026-11-03 only the dashboard commits went to production, by cherry-pick
 (`release/dashboard-2026-11-03`), so `main` is no longer an ancestor of the working branch. To
 release only part of the working branch again, do the same: a branch from `origin/main`,
 cherry-pick, test, push to `main`. To release everything, merge. **Before any release that
@@ -407,8 +426,8 @@ deploys the API to `asas-api-staging` and the site to `asas-web-staging` at
 still the production deploy.
 The staging site is built with `--mode staging`, so it reads `platform-web/.env.staging`.
 Both API origins are in the one CSP `connect-src` - **a third environment, or a changed API
-URL, needs adding there too**. Staging's database is ahead of production's (two extra
-migrations since 2026-11-03) and its form data was replaced with a copy of production's plus the
+URL, needs adding there too**. Staging's database is ahead of production's (six extra
+migrations - the Asas v2.0 list in `docs/releases/ASAS-v2.0.md`) and its form data was replaced with a copy of production's plus the
 project 119 backfill on 2026-11-02, so it lacks production's real reports from 2026-11-03 on. Staging shares production's App Service plan and storage
 account; it keeps its uploads apart through `Files:ContainerName` (`attachments-staging`;
 default `attachments`). Its database is separate - never point staging at the production
@@ -492,6 +511,11 @@ database.
   since the Postgres migration completed (see `docs/PROJECT_STATUS.md`) - don't
   reintroduce it as a reference point, and don't assume any Azure SQL-specific gotcha
   below this point still applies to the live database.
+- **Since 2026-11-05 the owner works on a Mac** (clones `~/Desktop/platform-core/{staging,production}`,
+  .NET in `~/.dotnet`, Node in `~/.local/node/bin`, no admin rights). Git needs
+  `DEVELOPER_DIR=/Library/Developer/CommandLineTools` until the Xcode licence is accepted, and the
+  system `python3` triggers the same licence prompt. zsh doesn't word-split `$var` (pass arguments
+  explicitly). Docker isn't available, so the 18 `DynamicSchemaServiceTests` can't run there.
 - **Claude Code running on Aamer's own Windows machine is different from the cloud sandbox:**
   it CAN reach both Railway databases directly with the PostgreSQL 18 client tools
   (`C:\Program Files\PostgreSQL\18\bin\psql.exe` / `pg_dump.exe`, `PGSSLMODE=require`). The
@@ -880,6 +904,14 @@ code does not retroactively fix a column already created the wrong way - that ne
 for `Data_StockOutflow.reason_other`. Check any *new* form built field-by-field before its
 first publish (rather than incrementally after) for a conditionally-required field before
 this bites a third time.
+
+**Date arithmetic on an open-ended range overflows.** `DateOnly.MaxValue.AddDays(n)` (and the
+`DateTime` equivalent) throws `ArgumentOutOfRangeException`. Hit 2026-11-07: a query asked the
+assignment tracker for "every day up to `DateOnly.MaxValue - 1`", phase 9 then added 4 days for
+late-sent entries, and the Form assignments page returned 500 on staging - unit tests with stubbed
+data never reached that line. **Fix/convention:** cap open ranges at what's meaningful (today), and
+clamp when adding to a caller's date (`FormAssignmentTracker.AddDaysClamped`). Test new handlers
+with a form that has a data table, not only with stubs.
 
 ## The one rule that's mattered most
 

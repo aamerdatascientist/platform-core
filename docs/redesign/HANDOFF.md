@@ -1,6 +1,9 @@
 # Asas redesign — build handoff for Claude Code
 
 Approved by Aamer on 2026-11-06 ("looks good — build it exactly as shown").
+
+> **Built:** all phases in section 11 are done and on staging as of 2026-11-07 (Asas v2.0). What was built,
+> per phase, and the production checklist: `docs/releases/ASAS-v2.0.md`. This spec itself is unchanged.
 Design canvas (for humans): https://claude.ai/artifact/GDpsLin6hZF8Mi8u5yjfFC
 
 This folder is everything needed to rebuild the Asas web app (`platform-web`, React + Vite + TypeScript, i18next, RTL-aware) to match the approved mockup, on phone and desktop, Arabic and English, light and dark.

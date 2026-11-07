@@ -183,7 +183,16 @@ with a «تعبئة النموذج» button to the form. Each is a `Notification
 and the tracking page's "Reminders" column counts them. A user linked to Telegram **and** with
 a WhatsApp number (once WhatsApp is configured) gets each message on both.
 
-## WhatsApp (form assignment notifications) - built, switched off until these are done
+## WhatsApp (form assignment notifications) - live on staging since 2026-11-07
+
+**Status 2026-11-07:** Meta approved all three templates (`form_assigned`, `form_reminder`,
+`stakeholder_report`, Arabic); `WhatsApp__PhoneNumberId` and `WhatsApp__AccessToken` are set on
+`asas-api-staging`; the app's switch (`platform-web/src/config/whatsapp.ts`, `WHATSAPP_READY`) is on;
+the owner confirmed messages arrive. Staging still sends from **Meta's test number**, so each
+recipient must be added and confirmed under WhatsApp > API Setup > "To" (5 at most) **and** saved on
+the person in the app (Users > person > WhatsApp number > Test message).
+
+The steps below are how it was set up; "Moving to a business number" after them is the next step.
 
 The code is on staging (commit `43dd17b`); without the settings below it sends nothing. Since
 2026-11-05 the link base and reminder times are the shared `Notifications__AppUrl` /
@@ -217,6 +226,23 @@ The code is on staging (commit `43dd17b`); without the settings below it sends n
 Staging users are copies of real people - only save numbers of people who agreed to test.
 Production later needs business verification, a real number not already on the WhatsApp app,
 an approved display name and a payment method (~0.04 SAR per utility message).
+
+### Moving to a business number (needed for production; owner asked 2026-11-07)
+
+Meta doesn't sell numbers - you register one you own:
+1. Get a number not in use on WhatsApp or WhatsApp Business: a new prepaid SIM (STC, Mobily, Zain)
+   or a company number (a landline works; Meta can verify by voice call). The phone is only needed
+   once, for the code.
+2. WhatsApp Manager > **Phone numbers > Add phone number**, in the **same WhatsApp account** that
+   holds the approved templates (templates belong to the account, so they carry over). Enter the
+   display name (e.g. "Asas", reviewed by Meta) and verify by SMS or call.
+3. Add a payment method to the WhatsApp account (business-number messages are charged per message;
+   check Meta's current Saudi rates). For higher daily limits complete business verification in
+   Meta Business Settings.
+4. Copy the new number's **Phone number ID** (API Setup) into `WhatsApp__PhoneNumberId` - staging first,
+   later `nexus-platform-api`. The access token stays if it's the same account.
+5. Users > a person > **Test message**. With a business number nobody needs adding in Meta; saving
+   the number in the app is enough.
 
 ## Stakeholder reports (PDF on WhatsApp) - added 2026-11-06
 
