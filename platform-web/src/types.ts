@@ -435,3 +435,48 @@ export interface ReportsOverviewDto {
   recipients: ReportRecipientDto[];
   runs: ReportRunDto[];
 }
+
+// ---------------------------------------------------------------- redesign phase 7 (§9.3, §9.4)
+
+/** A submitted record with who sent it and when; values keyed by field code, typed as stored. */
+export interface RecordItemDto {
+  id: string;
+  formId: string;
+  createdAtUtc: string;
+  createdByUserId: string;
+  createdByName: string | null;
+  values: Record<string, unknown>;
+  /** Lookup field code -> the chosen row's label. */
+  lookupLabels: Record<string, string>;
+  attachmentCount: number;
+}
+
+export interface RecordsPageDto {
+  items: RecordItemDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface RecordDetailDto {
+  record: RecordItemDto;
+  attachments: FileMetadataDto[];
+}
+
+export interface MyEntriesPageDto {
+  items: RecordItemDto[];
+  nextBefore: string | null;
+}
+
+export interface RecordQuery {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  /** yyyy-mm-dd (Saudi days); the end day is included. */
+  from?: string;
+  to?: string;
+  /** A DateTime field the range applies to; without it, when the record was sent. */
+  dateField?: string;
+  /** Field code -> value (equality). */
+  filters?: Record<string, string>;
+}

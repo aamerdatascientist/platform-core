@@ -18,6 +18,7 @@ import { UserManagement } from './routes/UserManagement';
 import { Account } from './routes/Account';
 import { FormsList } from './routes/FormsList';
 import { MyEntries } from './routes/MyEntries';
+import { EntryDetail } from './routes/EntryDetail';
 import { RequireAdmin } from './components/RequireAdmin';
 import { DevGallery } from './routes/DevGallery';
 
@@ -68,7 +69,8 @@ export default function App() {
         <Route path="assignments" element={<Navigate to="/" replace />} />
         <Route path="forms" element={<FormsList />} />
         <Route path="forms/:formId" element={<FormView token={accessToken} />} />
-        <Route path="entries" element={<MyEntries />} />
+        <Route path="entries" element={<MyEntries token={accessToken} />} />
+        <Route path="entries/:formId/:recordId" element={<EntryDetail token={accessToken} />} />
         <Route path="settings" element={<Settings token={accessToken} />} />
         <Route path="account" element={<Account token={accessToken} />} />
         <Route element={<RequireAdmin token={accessToken} />}>

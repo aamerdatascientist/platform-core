@@ -880,7 +880,8 @@
     "attachmentsCount": "Attachments ({{count}})",
     "addAttachment": "+ Add",
     "closeDrawer": "Close details",
-    "sentBy": "Sent by"
+    "sentBy": "Sent by",
+    "noMatch": "No records match these filters."
   },
   "builderV2": {
     "statusFields_one": "{{status}} · 1 field",

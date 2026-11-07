@@ -891,7 +891,8 @@
     "attachmentsCount": "المرفقات ({{count}})",
     "addAttachment": "+ إضافة",
     "closeDrawer": "إغلاق التفاصيل",
-    "sentBy": "بواسطة"
+    "sentBy": "بواسطة",
+    "noMatch": "لا توجد سجلات تطابق هذه التصفية."
   },
   "builderV2": {
     "statusFields_zero": "{{status}} · بلا حقول",

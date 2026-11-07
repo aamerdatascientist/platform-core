@@ -1,4 +1,8 @@
 import type {
+  MyEntriesPageDto,
+  RecordDetailDto,
+  RecordQuery,
+  RecordsPageDto,
   FormStepDto,
   AssignmentDayDto,
   CurrentUserDto,
@@ -411,6 +415,29 @@ export const api = {
     /** Administrators: remove a record (soft delete - recoverable from the database). */
     delete: (token: string, formId: string, recordId: string) =>
       request<void>(`/api/forms/${formId}/submissions/${recordId}`, { method: 'DELETE' }, token),
+
+    /** Records tab (administrators, §9.4): filters run on the server; items carry sender, time, Lookup labels. */
+    search: (token: string, formId: string, query: RecordQuery) => {
+      const params = new URLSearchParams({ page: String(query.page ?? 1), pageSize: String(query.pageSize ?? 25) });
+      if (query.q?.trim()) params.set('q', query.q.trim());
+      if (query.from) params.set('from', query.from);
+      if (query.to) params.set('to', query.to);
+      if (query.dateField) params.set('dateField', query.dateField);
+      for (const [code, value] of Object.entries(query.filters ?? {})) if (value !== '' && value !== undefined) params.append('f', `${code}:${value}`);
+      return request<RecordsPageDto>(`/api/forms/${formId}/submissions?${params}`, {}, token);
+    },
+
+    /** One record with its attachments - its sender or an administrator (§9.3). */
+    get: (token: string, formId: string, recordId: string) =>
+      request<RecordDetailDto>(`/api/forms/${formId}/submissions/${recordId}`, {}, token),
+
+    /** My entries (§9.3): the caller's own records, newest first; pass the last page's nextBefore. */
+    mine: (token: string, options: { formId?: string | null; before?: string | null; pageSize?: number } = {}) => {
+      const params = new URLSearchParams({ pageSize: String(options.pageSize ?? 20) });
+      if (options.formId) params.set('formId', options.formId);
+      if (options.before) params.set('before', options.before);
+      return request<MyEntriesPageDto>(`/api/submissions/mine?${params}`, {}, token);
+    },
   },
 
   analytics: {
