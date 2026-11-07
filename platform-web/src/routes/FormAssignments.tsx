@@ -326,7 +326,7 @@ function AssignPanel({
   }
 
   return (
-    <aside ref={panelRef} aria-label={t('assignments.admin.newTitle')} className="flex max-w-[380px] flex-[1_1_320px] scroll-mt-6 flex-col gap-[14px] rounded-ui-2xl border border-border bg-panel p-[18px]">
+    <aside ref={panelRef} aria-label={t('assignments.admin.newTitle')} className="flex w-full flex-[1_1_320px] scroll-mt-6 lg:w-auto lg:max-w-[380px] flex-col gap-[14px] rounded-ui-2xl border border-border bg-panel p-[18px]">
       <h2 className="text-[17px] font-extrabold text-ink">{t('assignments.admin.newTitle')}</h2>
       <label className="flex flex-col gap-1.5 text-[14px] font-bold text-ink">
         {t('assignments.admin.formLabel')}
