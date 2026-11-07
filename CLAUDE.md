@@ -232,7 +232,9 @@ Don't add a second anonymous data endpoint by copying this one without the same 
 "Administration", and the app has two shells - below 1024px a phone shell with a bottom tab bar (Today,
 Forms, My entries, Settings), from 1024px a 264px side menu with Ctrl/Cmd+K search
 (`routes/Layout.tsx`, `components/shell/`). Settings still lists the admin pages on a phone. The redesign
-spec is `docs/redesign/HANDOFF.md`; shared components are in `components/ui/`. Superseded:
+spec is `docs/redesign/HANDOFF.md`; shared components are in `components/ui/` (pages that load data use
+`LoadingState` / `ErrorState` with Try again, and `EmptyState` - not a bare spinner or red line; on a phone
+`index.css` gives every tappable element a 44×44 hit area). Superseded:
 ~~Since 2026-10-21 the sidebar holds only the forms plus one Settings link.~~ Everything else -
 account and password, sign out, language, light/dark, and the admin-only dashboard / form
 builder / users & roles - is on `/settings` (`routes/Settings.tsx`); `/account` redirects there.

@@ -60,7 +60,7 @@ export function PhonePreview({
             onClick={() => setLang(l)}
             className={`h-[32px] rounded-[8px] border px-[10px] text-[13px] ${lang === l ? 'border-accent bg-accent-soft font-bold text-accent-strong' : 'border-border bg-panel text-ink'}`}
           >
-            {l === 'ar' ? t('builderV2.previewAr') : t('builderV2.previewEn')}
+            <span lang={l} dir={l === 'ar' ? 'rtl' : 'ltr'}>{l === 'ar' ? t('builderV2.previewAr') : t('builderV2.previewEn')}</span>
           </button>
         ))}
       </div>

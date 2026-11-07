@@ -9,7 +9,7 @@ import { Thumbnail } from '../../routes/EntryDetail';
 import type { FieldDefinitionDto, FormDefinitionDto, RecordDetailDto, RecordItemDto } from '../../types';
 import { Icon } from '../icons';
 import { useOptionalShell } from '../shell/ShellData';
-import { Button, ClickableRow, Drawer, EmptyState, Pager, TableCard, tdClass, thClass } from '../ui';
+import { Button, ClickableRow, Drawer, EmptyState, ErrorState, LoadingState, Pager, TableCard, tdClass, thClass } from '../ui';
 import { WorkflowPanel } from '../WorkflowPanel';
 
 const PAGE_SIZE = 25;
@@ -85,6 +85,7 @@ export function RecordsTab({
   const [last30, setLast30] = useState(true);
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<{ items: RecordItemDto[]; total: number } | null>(null);
+  const [retry, setRetry] = useState(0);
   const [projects, setProjects] = useState<{ id: string; label: string }[]>([]);
   const [columnsOpen, setColumnsOpen] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -126,7 +127,7 @@ export function RecordsTab({
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, form.id, page, query, project, phase, delay, last30, refreshKey]);
+  }, [token, form.id, page, query, project, phase, delay, last30, refreshKey, retry]);
 
   // The tab's count is the whole form, not the filtered list.
   useEffect(() => {
@@ -220,11 +221,13 @@ export function RecordsTab({
         </div>
       </div>
 
-      {error && <p className="text-[14px] text-danger">{error}</p>}
-
       <div className="flex flex-wrap items-start gap-4">
         <div className="min-w-0 flex-[999_1_520px]">
-          {result && result.items.length === 0 ? (
+          {error ? (
+            <ErrorState message={error} onRetry={() => (setError(null), setRetry((n) => n + 1))} />
+          ) : !result ? (
+            <LoadingState />
+          ) : result.items.length === 0 ? (
             <EmptyState title={t('records.noMatch')} />
           ) : (
             <TableCard
@@ -241,7 +244,7 @@ export function RecordsTab({
             >
               <thead>
                 <tr>
-                  <th className={thClass}>{dateField ? fieldLabel(dateField) : t('records.sentBy')}</th>
+                  <th className={thClass}>{dateField ? <bdi>{fieldLabel(dateField)}</bdi> : t('records.sentBy')}</th>
                   {shownColumns.map((f) => (
                     <th key={f.id} className={thClass}>
                       <bdi>{fieldLabel(f)}</bdi>

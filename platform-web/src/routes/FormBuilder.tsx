@@ -8,8 +8,7 @@ import type { BuilderStep } from '../components/builder/FieldList';
 import { builderInput, FieldSettings } from '../components/builder/FieldSettings';
 import { PhonePreview } from '../components/builder/PhonePreview';
 import { Icon } from '../components/icons';
-import { LoadingSpinner } from '../components/LoadingSpinner';
-import { Button, EmptyState, InfoBanner, Sheet } from '../components/ui';
+import { Button, EmptyState, ErrorState, InfoBanner, LoadingState, Sheet } from '../components/ui';
 import { useLocalized } from '../forms/localized';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { FieldDefinitionDto, FormDefinitionDto, FormSummaryDto, FormVersionDto, RoleDto, UserSummaryDto } from '../types';
@@ -196,14 +195,8 @@ export function FormBuilder({ token }: { token: string }) {
     }
   }
 
-  if (error && !form) return <p className="text-[14px] text-danger">{error}</p>;
-  if (!form || !formId)
-    return (
-      <div className="flex items-center gap-2">
-        <LoadingSpinner size="sm" />
-        <span className="text-[14px] text-ink-soft">{t('common.loading')}</span>
-      </div>
-    );
+  if (error && !form) return <ErrorState message={error} onRetry={() => (setError(null), void load())} />;
+  if (!form || !formId) return <LoadingState />;
 
   const isPublished = form.status === 'Published';
   const selected = fields.find((f) => f.id === selectedId) ?? null;

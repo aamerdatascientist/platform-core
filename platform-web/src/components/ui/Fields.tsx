@@ -224,7 +224,7 @@ export function LookupRow({
   id: string;
   value: string | null;
   sub?: string | null;
-  placeholder: string;
+  placeholder: ReactNode;
   onOpen: () => void;
   disabled?: boolean;
   invalid?: boolean;

@@ -5,11 +5,10 @@ import { api } from '../api/client';
 import { statusKindOf, type StatusKind } from '../api/errorMessage';
 import { FormRenderer } from '../components/FormRenderer';
 import { Icon } from '../components/icons';
-import { LoadingSpinner } from '../components/LoadingSpinner';
 import { RecordsTab } from '../components/records/RecordsTab';
 import { useOptionalShell } from '../components/shell/ShellData';
 import { StatusPage } from '../components/StatusPage';
-import { InfoBanner, useIsDesktop } from '../components/ui';
+import { ErrorState, InfoBanner, LoadingState, useIsDesktop } from '../components/ui';
 import { useLocalized } from '../forms/localized';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { FormDefinitionDto, RecordItemDto } from '../types';
@@ -38,6 +37,7 @@ export function FormView({ token }: { token: string }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [count, setCount] = useState<number | null>(null);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     if (!formId) return;
@@ -55,11 +55,11 @@ export function FormView({ token }: { token: string }) {
         else setError({ err, fallbackKey: 'formView.loadError' });
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [formId, token]);
+  }, [formId, token, retry]);
 
   if (loadFailure) return <StatusPage kind={loadFailure} />;
-  if (error) return <p className="text-[14px] text-danger">{error}</p>;
-  if (!form || !shell?.me) return <LoadingSpinner />;
+  if (error) return <ErrorState message={error} onRetry={() => setRetry((n) => n + 1)} />;
+  if (!form || !shell?.me) return <LoadingState />;
 
   if (!desktop) return <FormRenderer token={token} formDefinition={form} onSubmitted={() => setRefreshKey((k) => k + 1)} onSentChange={setSentShown} />;
 

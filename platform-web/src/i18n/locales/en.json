@@ -27,7 +27,8 @@
     "toggleMode": "Toggle light/dark mode",
     "saving": "Saving…",
     "darkMode": "Dark mode",
-    "lightMode": "Light mode"
+    "lightMode": "Light mode",
+    "tryAgain": "Try again"
   },
   "signIn": {
     "subtitle": "Sign in to continue",
@@ -997,7 +998,8 @@
     "last60": "Last 60 days",
     "rowEnded": "Ended",
     "openEntry": "Open the entry",
-    "dayList": "Who was due on {{date}}"
+    "dayList": "Who was due on {{date}}",
+    "emptyBody": "Assign a form to someone and their days appear here."
   },
   "reportsV2": {
     "intro": "A PDF report with a written analysis reaches each recipient on WhatsApp at {{time}} Saudi time.",

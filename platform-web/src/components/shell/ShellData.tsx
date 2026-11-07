@@ -19,6 +19,8 @@ interface ShellData {
   forms: FormSummaryDto[] | null;
   formsError: unknown;
   mine: MyAssignmentsDto | null;
+  /** Why the person or their assignments couldn't be loaded (Today shows it with Try again). */
+  loadError: unknown;
   /** Assignments due today and not filled yet. */
   dueTodayCount: number;
   refresh: () => void;
@@ -36,18 +38,20 @@ export function ShellProvider({ token, children }: { token: string; children: Re
   const [forms, setForms] = useState<FormSummaryDto[] | null>(null);
   const [formsError, setFormsError] = useState<unknown>(null);
   const [mine, setMine] = useState<MyAssignmentsDto | null>(null);
+  const [loadError, setLoadError] = useState<unknown>(null);
   const [dashboardKey, setDashboardKey] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   const isAdmin = me?.roles.includes('Administrator') ?? false;
 
   useEffect(() => {
     let cancelled = false;
-    api.auth.me(token).then((m) => !cancelled && setMe(m)).catch(() => {});
+    setLoadError(null);
+    api.auth.me(token).then((m) => !cancelled && setMe(m)).catch((err) => !cancelled && setLoadError(err));
     api.forms
       .list(token)
       .then((f) => !cancelled && (setForms(f), setFormsError(null)))
       .catch((err) => !cancelled && setFormsError(err));
-    api.assignments.mine(token).then((m) => !cancelled && setMine(m)).catch(() => {});
+    api.assignments.mine(token).then((m) => !cancelled && setMine(m)).catch((err) => !cancelled && setLoadError(err));
     return () => {
       cancelled = true;
     };
@@ -74,8 +78,8 @@ export function ShellProvider({ token, children }: { token: string; children: Re
   );
 
   const value = useMemo<ShellData>(
-    () => ({ token, me, isAdmin, forms, formsError, mine, dueTodayCount, refresh, openDashboard, roleLabel }),
-    [token, me, isAdmin, forms, formsError, mine, dueTodayCount, refresh, openDashboard, roleLabel],
+    () => ({ token, me, isAdmin, forms, formsError, mine, loadError, dueTodayCount, refresh, openDashboard, roleLabel }),
+    [token, me, isAdmin, forms, formsError, mine, loadError, dueTodayCount, refresh, openDashboard, roleLabel],
   );
   return <ShellContext.Provider value={value}>{children}</ShellContext.Provider>;
 }

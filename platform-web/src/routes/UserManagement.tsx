@@ -2,9 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import { builderInput } from '../components/builder/FieldSettings';
-import { LoadingSpinner } from '../components/LoadingSpinner';
 import { initial, useShell } from '../components/shell/ShellData';
-import { Button, ClickableRow, Drawer, Segmented, Sheet, TableCard, tdClass, thClass } from '../components/ui';
+import { Button, ClickableRow, Drawer, ErrorState, LoadingState, Segmented, Sheet, TableCard, tdClass, thClass } from '../components/ui';
 import { UserTelegramPanel } from '../components/UserTelegramPanel';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import { useWhatsAppGate } from '../config/whatsapp';
@@ -53,7 +52,7 @@ export function UserManagement({ token }: { token: string }) {
     );
   }, [users, q, filter]);
 
-  if (!users || !roles) return error ? <p className="text-[14px] text-danger">{error}</p> : <LoadingSpinner />;
+  if (!users || !roles) return error ? <ErrorState message={error} onRetry={() => (setError(null), void load())} /> : <LoadingState />;
   const active = users.filter((u) => u.isActive).length;
   const user = users.find((u) => u.id === selected) ?? null;
 
@@ -97,7 +96,7 @@ export function UserManagement({ token }: { token: string }) {
                 <span className="whitespace-nowrap text-[13px] text-ink-soft">{t('usersV2.usersCount', { count })}</span>
               </div>
               <span className="text-[13px] text-ink-soft">
-                {[r.description, r.isSystemRole ? t('userManagement.system') : null].filter(Boolean).join(' · ') || '—'}
+                <bdi>{[r.description, r.isSystemRole ? t('userManagement.system') : null].filter(Boolean).join(' · ') || '—'}</bdi>
               </span>
             </div>
           );
@@ -106,7 +105,7 @@ export function UserManagement({ token }: { token: string }) {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-2">
-        <label className="flex h-[40px] min-w-[240px] items-center gap-2 rounded-ui-lg border border-border bg-panel px-3">
+        <label className="flex h-[44px] min-w-[240px] items-center lg:h-[40px] gap-2 rounded-ui-lg border border-border bg-panel px-3">
           <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('usersV2.searchUsers')} aria-label={t('usersV2.searchUsers')} className="min-w-0 flex-1 bg-transparent text-[15px] text-ink placeholder:text-ink-soft focus:outline-none" />
         </label>
         <div className="w-[360px] max-w-full">

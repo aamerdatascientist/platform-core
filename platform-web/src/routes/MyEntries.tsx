@@ -2,10 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
-import { LoadingSpinner } from '../components/LoadingSpinner';
 import { WaitingList } from '../components/OfflineSavedScreen';
 import { useShell } from '../components/shell/ShellData';
-import { Button, EmptyState } from '../components/ui';
+import { Button, EmptyState, ErrorState, LoadingState } from '../components/ui';
 import { saudiTodayIso } from '../forms/fieldValues';
 import { useLocalized } from '../forms/localized';
 import { dayLabel, entrySummary, entryTags, localeFor, sentDay, sentTime } from '../forms/recordAnswers';
@@ -84,11 +83,12 @@ export function MyEntries({ token }: { token: string }) {
   // Infinite scroll: the next 20 when the end of the list comes into view.
   useEffect(() => {
     const el = sentinel.current;
-    if (!el || !next || loading) return;
+    // Not after a failure: the sentinel is still in view, so it would retry in a loop.
+    if (!el || !next || loading || error) return;
     const observer = new IntersectionObserver((entries) => entries[0]?.isIntersecting && void load(false), { rootMargin: '200px' });
     observer.observe(el);
     return () => observer.disconnect();
-  }, [next, loading, load]);
+  }, [next, loading, load, error]);
 
   const today = saudiTodayIso();
   const dayTitle = (day: string) => {
@@ -130,10 +130,11 @@ export function MyEntries({ token }: { token: string }) {
         </div>
       )}
 
-      {error && <p className="text-[14px] text-danger">{error}</p>}
       {items === null ? (
-        <LoadingSpinner />
-      ) : items.length === 0 && !error ? (
+        <LoadingState />
+      ) : items.length === 0 && error ? (
+        <ErrorState message={error} onRetry={() => (setItems(null), void load(true))} />
+      ) : items.length === 0 ? (
         <EmptyState title={t('entries.empty')} />
       ) : (
         groups.map(([day, list]) => (
@@ -168,12 +169,13 @@ export function MyEntries({ token }: { token: string }) {
         ))
       )}
       <div ref={sentinel} />
-      {next && !loading && (
+      {error && items !== null && items.length > 0 && <ErrorState message={error} onRetry={() => void load(false)} />}
+      {next && !loading && !error && (
         <Button variant="secondary" size="desktop" onClick={() => void load(false)} className="self-center">
           {t('entries.loadMore')}
         </Button>
       )}
-      {loading && items !== null && <LoadingSpinner size="sm" />}
+      {loading && items !== null && <LoadingState size="sm" className="!py-3" />}
     </div>
   );
 }

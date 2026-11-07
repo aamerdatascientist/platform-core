@@ -3,8 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { builderInput } from '../components/builder/FieldSettings';
-import { LoadingSpinner } from '../components/LoadingSpinner';
-import { Button, ClickableRow, EmptyState, Sheet, TableCard, tdClass, thClass } from '../components/ui';
+import { Button, ClickableRow, EmptyState, ErrorState, LoadingState, Sheet, TableCard, tdClass, thClass } from '../components/ui';
 import { useLocalized } from '../forms/localized';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { FormSummaryDto } from '../types';
@@ -30,11 +29,12 @@ export function BuilderHome({ token }: { token: string }) {
   const [moduleName, setModuleName] = useState('');
   const [error, setError] = useErrorMessage();
   const [submitting, setSubmitting] = useState(false);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     api.forms.list(token).then(setForms).catch((err) => setError({ err, fallbackKey: 'formBuilder.loadError' }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, retry]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -68,7 +68,7 @@ export function BuilderHome({ token }: { token: string }) {
       </div>
 
       {!forms ? (
-        error ? <p className="text-[14px] text-danger">{error}</p> : <LoadingSpinner />
+        error ? <ErrorState message={error} onRetry={() => (setError(null), setRetry((n) => n + 1))} /> : <LoadingState />
       ) : forms.length === 0 ? (
         <EmptyState title={t('builderHome.noForms')} />
       ) : (

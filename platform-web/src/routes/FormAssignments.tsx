@@ -4,9 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
 import { builderInput } from '../components/builder/FieldSettings';
 import { DateButton } from '../components/DateField';
-import { LoadingSpinner } from '../components/LoadingSpinner';
 import { useShell } from '../components/shell/ShellData';
-import { Button, DayCell, DayLegend, Sheet } from '../components/ui';
+import { Button, DayCell, DayLegend, EmptyState, ErrorState, LoadingState, Sheet, useIsDesktop } from '../components/ui';
+import { apiErrorMessage } from '../api/errorMessage';
 import type { DayState } from '../components/ui';
 import { saudiTodayIso } from '../forms/fieldValues';
 import { useLocalized } from '../forms/localized';
@@ -31,6 +31,7 @@ export function FormAssignments({ token }: { token: string }) {
   const { formName } = useLocalized();
   const { forms } = useShell();
   const navigate = useNavigate();
+  const desktop = useIsDesktop();
   const locale = localeFor(i18n.language);
   const today = saudiTodayIso();
 
@@ -38,6 +39,8 @@ export function FormAssignments({ token }: { token: string }) {
   const [users, setUsers] = useState<UserSummaryDto[]>([]);
   const [days, setDays] = useState<AssignmentDayDto[]>([]);
   const [todayDays, setTodayDays] = useState<AssignmentDayDto[]>([]);
+  // The day cells couldn't load: say so, rather than drawing every day as blank.
+  const [daysError, setDaysError] = useState<unknown>(null);
   const [rangeDays, setRangeDays] = useState(14);
   const [formFilter, setFormFilter] = useState('');
   const [showEnded, setShowEnded] = useState(false);
@@ -56,8 +59,9 @@ export function FormAssignments({ token }: { token: string }) {
         setUsers(u.filter((x) => x.isActive));
       })
       .catch((err) => setError({ err, fallbackKey: 'assignments.admin.loadError' }));
-    api.assignments.days(token, { from, to: today }).then(setDays).catch(() => setDays([]));
-    api.assignments.days(token, { from: today, to: today }).then(setTodayDays).catch(() => setTodayDays([]));
+    setDaysError(null);
+    api.assignments.days(token, { from, to: today }).then(setDays).catch((err) => (setDays([]), setDaysError(err)));
+    api.assignments.days(token, { from: today, to: today }).then(setTodayDays).catch((err) => (setTodayDays([]), setDaysError(err)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, from, today, tick]);
 
@@ -105,9 +109,11 @@ export function FormAssignments({ token }: { token: string }) {
     }
   }
 
-  if (!assignments) return error ? <p className="text-[14px] text-danger">{error}</p> : <LoadingSpinner />;
+  if (!assignments) return error ? <ErrorState message={error} onRetry={() => (setError(null), setTick((x) => x + 1))} /> : <LoadingState />;
 
-  const grid = `210px repeat(${dates.length}, minmax(0, 1fr)) 92px`;
+  // On a phone the cells are 44px tap targets and the grid scrolls sideways inside its card.
+  const cellW = desktop ? 30 : 48;
+  const grid = `210px repeat(${dates.length}, ${desktop ? 'minmax(0, 1fr)' : '44px'}) 92px`;
   return (
     <div className="flex flex-col gap-[18px]">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -173,12 +179,15 @@ export function FormAssignments({ token }: { token: string }) {
                 </label>
               </div>
             </div>
+            {daysError ? (
+              <ErrorState message={apiErrorMessage(daysError, t, 'assignments.admin.loadError')} onRetry={() => setTick((x) => x + 1)} />
+            ) : (
             <div className="overflow-x-auto">
-              <div className="flex min-w-[760px] flex-col gap-1.5" style={{ minWidth: Math.max(760, 210 + 92 + dates.length * 30) }}>
+              <div className="flex min-w-[760px] flex-col gap-1.5" style={{ minWidth: Math.max(760, 210 + 92 + dates.length * cellW) }}>
                 <div className="grid items-end gap-1 text-center text-[11px] text-ink-soft" style={{ gridTemplateColumns: grid }}>
                   <span />
                   {dates.map((d) => (
-                    <button key={d} type="button" onClick={() => setDayOpen(d)} className="flex flex-col leading-[1.3] hover:text-ink" aria-label={t('assignmentsV2.dayList', { date: dayLabel(d, locale) })}>
+                    <button key={d} type="button" onClick={() => setDayOpen(d)} className="flex min-h-[44px] flex-col justify-end leading-[1.3] hover:text-ink lg:min-h-0" aria-label={t('assignmentsV2.dayList', { date: dayLabel(d, locale) })}>
                       <span className="font-bold">{new Intl.DateTimeFormat(locale, { weekday: 'narrow', timeZone: 'UTC' }).format(new Date(`${d}T00:00:00Z`))}</span>
                       <span>{Number(d.slice(8))}</span>
                     </button>
@@ -198,8 +207,8 @@ export function FormAssignments({ token }: { token: string }) {
                           <bdi className="truncate">{nameOf(a.formId, a.formName)}</bdi>
                           {!a.isActive && <span>· {t('assignmentsV2.rowEnded')}</span>}
                           {a.isActive && (
-                            // The existing "Stop" (ends the assignment today), shown on hover or keyboard focus.
-                            <button type="button" onClick={() => void stop(a.id)} className="shrink-0 text-danger opacity-0 hover:underline focus:opacity-100 group-hover:opacity-100">
+                            // The existing "Stop" (ends the assignment today): always shown on a phone (no hover), on hover or keyboard focus on desktop.
+                            <button type="button" onClick={() => void stop(a.id)} className="shrink-0 text-danger hover:underline focus:opacity-100 group-hover:opacity-100 lg:opacity-0">
                               {t('assignments.admin.stop')}
                             </button>
                           )}
@@ -216,7 +225,7 @@ export function FormAssignments({ token }: { token: string }) {
                             key={d}
                             state={state}
                             size="fill"
-                            height={30}
+                            height={desktop ? 30 : 44}
                             label={label}
                             onClick={day?.recordId ? () => navigate(`/entries/${a.formId}/${day.recordId}`) : undefined}
                           />
@@ -228,9 +237,10 @@ export function FormAssignments({ token }: { token: string }) {
                     </div>
                   );
                 })}
-                {rows.length === 0 && <p className="py-4 text-[14px] text-ink-soft">{t('assignments.admin.noAssignments')}</p>}
+                {rows.length === 0 && <EmptyState title={t('assignments.admin.noAssignments')} body={t('assignmentsV2.emptyBody')} />}
               </div>
             </div>
+            )}
             <DayLegend showOff />
           </section>
         </div>

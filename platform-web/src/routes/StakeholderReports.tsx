@@ -4,9 +4,8 @@ import { api } from '../api/client';
 import { builderInput } from '../components/builder/FieldSettings';
 import { DateButton, todayIso } from '../components/DateField';
 import { Icon } from '../components/icons';
-import { LoadingSpinner } from '../components/LoadingSpinner';
 import { initial } from '../components/shell/ShellData';
-import { Button, Segmented, Sheet, TableCard, tdClass, thClass } from '../components/ui';
+import { Button, ErrorState, LoadingState, Segmented, Sheet, TableCard, tdClass, thClass } from '../components/ui';
 import { dayLabel, localeFor } from '../forms/recordAnswers';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import { useWhatsAppGate } from '../config/whatsapp';
@@ -65,7 +64,7 @@ export function StakeholderReports({ token }: { token: string }) {
     void load();
   }, [load]);
 
-  if (!overview) return error ? <p className="text-[14px] text-danger">{error}</p> : <LoadingSpinner />;
+  if (!overview) return error ? <ErrorState message={error} onRetry={() => (setError(null), void load())} /> : <LoadingState />;
   const [h, m] = overview.sendTime.split(':').map(Number);
   const time = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }).format(new Date(Date.UTC(2026, 0, 1, h, m || 0)));
   const share = overview.monthlyBudgetUsd > 0 ? Math.min(1, overview.spentThisMonthUsd / overview.monthlyBudgetUsd) : 0;

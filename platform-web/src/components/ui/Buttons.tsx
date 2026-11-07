@@ -133,7 +133,7 @@ export function ChipGroup<T extends string>({
             className={`inline-flex h-[46px] items-center gap-1.5 rounded-ui-pill border-[1.5px] text-[16px] ${compact ? 'px-4' : 'px-[18px]'} ${on ? choiceOn : choiceOff} ${invalid && !on ? '!border-danger' : ''}`}
           >
             {on && <Icon name="check" size={16} strokeWidth={2.6} />}
-            {option.label}
+            <bdi>{option.label}</bdi>
           </button>
         );
       })}
@@ -231,7 +231,7 @@ export function Segmented<T extends string>({
               on ? 'bg-panel font-bold text-ink shadow-elev-1' : 'font-medium text-ink-soft hover:text-ink'
             }`}
           >
-            <span className="block truncate">{option.label}</span>
+            <bdi className="block truncate">{option.label}</bdi>
           </button>
         );
       })}

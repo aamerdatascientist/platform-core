@@ -1,5 +1,7 @@
 import type { HTMLAttributes, KeyboardEvent, ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Icon } from '../icons';
+import { LoadingSpinner } from '../LoadingSpinner';
 import { Button } from './Buttons';
 
 /** Card (HANDOFF §6): --panel, 1px --border, radius 20 (phone main) / 18 (phone secondary) / 16 (desktop). */
@@ -206,6 +208,41 @@ export function Pager({
           {t('submissionsTable.next')}
         </Button>
       </div>
+    </div>
+  );
+}
+
+// ------------------------------------------------------------------ loading / load failed (phase 10)
+
+/** A page or panel still loading: the animated mark, centred, announced as "Loading…". */
+export function LoadingState({ size = 'md', className = '' }: { size?: 'sm' | 'md' | 'lg'; className?: string }) {
+  const { t } = useTranslation();
+  return (
+    <div role="status" className={`flex items-center justify-center py-10 ${className}`}>
+      <LoadingSpinner size={size} />
+      <span className="sr-only">{t('common.loading')}</span>
+    </div>
+  );
+}
+
+/**
+ * Something didn't load: the empty-state box with an alert mark, what went wrong, and
+ * "Try again" (when the page can retry). Used in place of a bare red line so every screen
+ * fails the same way and can recover without a reload.
+ */
+export function ErrorState({ message, onRetry, className = '' }: { message: ReactNode; onRetry?: () => void; className?: string }) {
+  const { t } = useTranslation();
+  return (
+    <div role="alert" className={`flex flex-col items-center justify-center gap-3 rounded-ui-lg border-[1.5px] border-dashed border-border px-4 py-8 text-center ${className}`}>
+      <span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-full bg-danger-soft text-danger">
+        <Icon name="alert" size={20} />
+      </span>
+      <p className="max-w-[420px] text-[14px] font-bold text-ink">{message}</p>
+      {onRetry && (
+        <Button size="compact" variant="secondary" onClick={onRetry}>
+          {t('common.tryAgain')}
+        </Button>
+      )}
     </div>
   );
 }

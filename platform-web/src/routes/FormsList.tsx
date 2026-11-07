@@ -1,9 +1,8 @@
 import { useTranslation } from 'react-i18next';
 import { Link, Navigate } from 'react-router-dom';
 import { Icon } from '../components/icons';
-import { LoadingSpinner } from '../components/LoadingSpinner';
 import { useFormsByModule, useShell } from '../components/shell/ShellData';
-import { Card, EmptyState, SectionHeading } from '../components/ui';
+import { Card, EmptyState, ErrorState, LoadingState, SectionHeading } from '../components/ui';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import { useEffect } from 'react';
 import { useLocalized } from '../forms/localized';
@@ -15,7 +14,7 @@ import { useLocalized } from '../forms/localized';
  */
 export function FormsList() {
   const { t } = useTranslation();
-  const { forms, formsError } = useShell();
+  const { forms, formsError, refresh } = useShell();
   const groups = useFormsByModule();
   const { formName } = useLocalized();
   const [error, setError] = useErrorMessage();
@@ -24,8 +23,8 @@ export function FormsList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formsError]);
 
-  if (error) return <p className="text-[15px] text-danger">{error}</p>;
-  if (!forms) return <LoadingSpinner />;
+  if (error && !forms) return <ErrorState message={error} onRetry={refresh} />;
+  if (!forms) return <LoadingState />;
 
   const all = groups.flatMap((g) => g.forms);
   if (all.length === 1) return <Navigate to={`/forms/${all[0].id}`} replace />;

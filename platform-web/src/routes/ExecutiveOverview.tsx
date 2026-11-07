@@ -66,13 +66,19 @@ function Stage({ children }: { children: ReactNode }) {
   );
 }
 
-function Message({ title, body }: { title: string; body?: string }) {
+function Message({ title, body, onRetry }: { title: string; body?: string; onRetry?: () => void }) {
+  const { t } = useTranslation();
   return (
     <Stage>
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
         <Logo size="lg" />
         <h1 className="font-display text-2xl font-semibold text-ink">{title}</h1>
         {body && <p className="max-w-xl text-base text-ink-soft">{body}</p>}
+        {onRetry && (
+          <button type="button" onClick={onRetry} className={HEADER_BUTTON_CLASS}>
+            {t('common.tryAgain')}
+          </button>
+        )}
       </div>
     </Stage>
   );
@@ -164,7 +170,7 @@ export function ExecutiveOverview({ token }: { token: string | null }) {
     return <Message title={t('executiveOverview.share.invalidTitle')} body={t('executiveOverview.share.invalidBody')} />;
   }
   if (!data) {
-    if (failure === 'error') return <Message title={t('executiveOverview.loadError')} />;
+    if (failure === 'error') return <Message title={t('executiveOverview.loadError')} onRetry={() => (setFailure(null), setRefreshTick((n) => n + 1))} />;
     return (
       <Stage>
         <div className="flex h-full items-center justify-center gap-3">

@@ -2,9 +2,9 @@ import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Icon } from '../components/icons';
-import { LoadingSpinner } from '../components/LoadingSpinner';
 import { initial, useFormsByModule, useShell } from '../components/shell/ShellData';
-import { Card, DayCell, DayLegend, Pill } from '../components/ui';
+import { Card, DayCell, DayLegend, ErrorState, LoadingState, Pill } from '../components/ui';
+import { apiErrorMessage } from '../api/errorMessage';
 import type { DayState } from '../components/ui';
 import type { AssignmentDayDto } from '../types';
 import { useLocalized } from '../forms/localized';
@@ -17,7 +17,7 @@ import { useLocalized } from '../forms/localized';
  */
 export function Today() {
   const { t, i18n } = useTranslation();
-  const { me, mine, refresh } = useShell();
+  const { me, mine, loadError, refresh } = useShell();
   const groups = useFormsByModule();
   const { formName } = useLocalized();
   const locale = i18n.language.startsWith('ar') ? 'ar-u-nu-latn' : i18n.language;
@@ -38,7 +38,11 @@ export function Today() {
     return map;
   }, [groups]);
 
-  if (!mine || !me) return <LoadingSpinner />;
+  if (!mine || !me) {
+    // Kept data stays on screen through a failed refresh; with nothing loaded, say so and offer a retry.
+    if (loadError) return <ErrorState className="mx-auto max-w-[720px]" message={apiErrorMessage(loadError, t, 'assignments.mine.loadError')} onRetry={refresh} />;
+    return <LoadingState />;
+  }
 
   const todays = mine.days.filter((d) => d.date === mine.today);
   const due = todays.filter((d) => d.status === 'pending');

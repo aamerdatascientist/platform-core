@@ -5,9 +5,8 @@ import { api } from '../api/client';
 import { statusKindOf } from '../api/errorMessage';
 import type { StatusKind } from '../api/errorMessage';
 import { Icon } from '../components/icons';
-import { LoadingSpinner } from '../components/LoadingSpinner';
 import { StatusPage } from '../components/StatusPage';
-import { IconButton } from '../components/ui';
+import { IconButton, LoadingState } from '../components/ui';
 import { useLocalized } from '../forms/localized';
 import { answerText, dayLabel, localeFor, sentDay, sentTime, shownFields } from '../forms/recordAnswers';
 import type { FileMetadataDto, FormDefinitionDto, RecordDetailDto } from '../types';
@@ -51,7 +50,7 @@ export function EntryDetail({ token }: { token: string }) {
   }, [form, detail, t, i18n.language, locale, formName, fieldLabel, stepTitle]);
 
   if (failure) return <StatusPage kind={failure} />;
-  if (!form || !detail) return <LoadingSpinner />;
+  if (!form || !detail) return <LoadingState />;
 
   const day = dayLabel(sentDay(detail.record), locale);
   return (

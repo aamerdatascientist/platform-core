@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Icon } from '../icons';
 import { Sheet } from '../ui';
@@ -20,6 +21,7 @@ export function LookupSheet({
   open,
   onClose,
   title,
+  titleText,
   choices,
   value,
   recent,
@@ -27,7 +29,9 @@ export function LookupSheet({
 }: {
   open: boolean;
   onClose: () => void;
-  title: string;
+  title: ReactNode;
+  /** The title as plain text, for the list's accessible name. */
+  titleText: string;
   choices: Choice[];
   value: string;
   recent: string[];
@@ -108,7 +112,7 @@ export function LookupSheet({
       {matches.length === 0 ? (
         <p className="py-6 text-center text-[15px] text-ink-soft">{t('lookup.noResults', { q: query })}</p>
       ) : (
-        <ul role="listbox" aria-label={title}>
+        <ul role="listbox" aria-label={titleText}>
           {matches.map((c) => row(c, 'all'))}
         </ul>
       )}

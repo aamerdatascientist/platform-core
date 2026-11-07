@@ -10,6 +10,21 @@ import { LookupSheet } from './LookupSheet';
 import type { Choice } from './LookupSheet';
 
 /** A short dropdown becomes chips: at most 6 options, every label at most 24 characters (HANDOFF §7). */
+
+/** Marks where a data value (a field label, possibly in the other language) sits in a UI sentence. */
+const DATA_MARK = '\u2063';
+/** The sentence with the data value isolated in its own <bdi>, so Arabic labels read right on the English UI. */
+function withData(sentence: string, data: string) {
+  const [before, after = ''] = sentence.split(DATA_MARK);
+  return (
+    <>
+      {before}
+      <bdi>{data}</bdi>
+      {after}
+    </>
+  );
+}
+
 export function chipsFit(options: { label: string }[]) {
   return options.length > 0 && options.length <= 6 && options.every((o) => o.label.length <= 24);
 }
@@ -150,7 +165,7 @@ export function FieldControl({
                 ? t('formRenderer.loadingOptions')
                 : noChoices
                   ? t('formRenderer.noChoices')
-                  : t('lookup.choose', { label });
+                  : withData(t('lookup.choose', { label: DATA_MARK }), label);
             return (
               <>
                 <div className={inCard ? '[&>button]:!min-h-[52px] [&>button]:!rounded-ui-lg [&>button]:!bg-field-muted' : ''}>
@@ -169,7 +184,8 @@ export function FieldControl({
                 <LookupSheet
                   open={sheetOpen}
                   onClose={() => setSheetOpen(false)}
-                  title={t('lookup.choose', { label })}
+                  title={withData(t('lookup.choose', { label: DATA_MARK }), label)}
+                  titleText={t('lookup.choose', { label })}
                   choices={choices ?? []}
                   value={value}
                   recent={recent}

@@ -289,6 +289,27 @@ html {
   outline-offset: 2px;
 }
 
+/* Phone: nothing tappable under 44x44 (§4, acceptance checklist). Controls keep the size they are
+   drawn at; an invisible ::after centred on each one takes the taps around it. Fields can't carry a
+   pseudo-element, so below desktop width they get the 44px height itself. */
+@media (max-width: 1023.98px) {
+  :where(button, a[href], [role='button'], [role='radio'], [role='tab'], [role='switch'], summary, label:has(> input[type='checkbox'])) {
+    position: relative;
+  }
+  :where(button, a[href], [role='button'], [role='radio'], [role='tab'], [role='switch'], summary, label:has(> input[type='checkbox']))::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+  :where(input:not([type='checkbox'], [type='radio'], [type='hidden'], [type='file']), select) {
+    min-height: 44px;
+  }
+}
+
 /* Motion is decoration: none of it under reduced motion (redesign §4). */
 @media (prefers-reduced-motion: reduce) {
   *,
