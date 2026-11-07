@@ -13,6 +13,8 @@ interface FormRendererProps {
   token: string;
   formDefinition: FormDefinitionDto;
   onSubmitted?: () => void;
+  /** True while the Sent screen (07) replaces the form, so the page can hide its own title. */
+  onSentChange?: (shown: boolean) => void;
   /** Set to correct an existing record (administrators): the form opens with its values and
    *  saving replaces them. Attachments aren't edited here - they have their own panel. */
   editRecord?: { id: string; values: Record<string, unknown> };
@@ -59,7 +61,7 @@ function toLatinDigits(text: string): string {
  * The label is the target form's first ShortText field; there is still no designated
  * "display field" on FormDefinition (see CLAUDE.md's known gaps).
  */
-export function FormRenderer({ token, formDefinition, onSubmitted, editRecord, onCancelEdit }: FormRendererProps) {
+export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange, editRecord, onCancelEdit }: FormRendererProps) {
   const { t } = useTranslation();
   const isEditing = !!editRecord;
   const activeFields = useMemo(
@@ -86,6 +88,9 @@ export function FormRenderer({ token, formDefinition, onSubmitted, editRecord, o
   const [lookupChoices, setLookupChoices] = useState<Record<string, LookupChoice[]>>({});
   const [dynamicDropdownOptions, setDynamicDropdownOptions] = useState<Record<string, string[]>>({});
   const [submitting, setSubmitting] = useState(false);
+  useEffect(() => {
+    onSentChange?.(submittedAt !== null);
+  }, [submittedAt, onSentChange]);
   const [error, setError] = useErrorMessage();
   const [fieldErrors, setFieldErrors] = useState<Record<string, FieldError>>({});
 

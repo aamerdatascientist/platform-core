@@ -38,6 +38,7 @@ export function FormView({ token }: FormViewProps) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [recordNotice, setRecordNotice] = useState<string | null>(null);
+  const [sentShown, setSentShown] = useState(false);
   const [recordError, setRecordError] = useErrorMessage();
   const [error, setError] = useErrorMessage();
   // The form itself couldn't be opened (no access, deleted, server down, offline): the whole
@@ -184,16 +185,17 @@ export function FormView({ token }: FormViewProps) {
   if (!isAdmin) {
     return (
       <div className="max-w-3xl space-y-8">
-        <h2 className="font-display text-xl font-semibold text-ink">{formDefinition.name}</h2>
-        <FormRenderer token={token} formDefinition={formDefinition} onSubmitted={() => {}} />
+        {!sentShown && <h2 className="font-display text-xl font-semibold text-ink">{formDefinition.name}</h2>}
+        <FormRenderer token={token} formDefinition={formDefinition} onSubmitted={() => {}} onSentChange={setSentShown} />
       </div>
     );
   }
 
   return (
-    <div className="grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
+    // While the Sent screen (07) shows, the title, records and side panel are hidden around it.
+    <div className={sentShown ? 'max-w-6xl' : 'grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]'}>
       <div className="space-y-8">
-        <h2 className="font-display text-xl font-semibold text-ink">{formDefinition.name}</h2>
+        {!sentShown && <h2 className="font-display text-xl font-semibold text-ink">{formDefinition.name}</h2>}
 
         {editingRecord ? (
           <section className="rounded border border-accent p-4">
@@ -216,10 +218,11 @@ export function FormView({ token }: FormViewProps) {
             token={token}
             formDefinition={formDefinition}
             onSubmitted={() => formId && loadSubmissions(formId)}
+            onSentChange={setSentShown}
           />
         )}
 
-        <div>
+        <div hidden={sentShown}>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-label font-medium text-ink-soft">
               {t('formView.recordsHeading')}
@@ -259,7 +262,7 @@ export function FormView({ token }: FormViewProps) {
         </div>
       </div>
 
-      <div className="space-y-4 lg:sticky lg:top-8 lg:self-start">
+      <div hidden={sentShown} className="space-y-4 lg:sticky lg:top-8 lg:self-start">
         {recordNotice && (
           <p role="status" className="rounded border border-success p-3 text-sm text-ink">
             {recordNotice}
