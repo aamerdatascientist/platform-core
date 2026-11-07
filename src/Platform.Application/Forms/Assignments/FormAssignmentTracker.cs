@@ -90,6 +90,13 @@ public static class FormAssignmentTracker
     /// Assignments (optionally one user's / one form's) that overlap [from, to], with names
     /// resolved, plus the submissions needed to judge their days in that range.
     /// </summary>
+    /// <summary>
+    /// <paramref name="day"/> plus <paramref name="days"/>, stopping at the last representable day
+    /// instead of throwing (callers pass open-ended ranges such as "up to DateOnly.MaxValue").
+    /// </summary>
+    public static DateOnly AddDaysClamped(DateOnly day, int days) =>
+        day.DayNumber > DateOnly.MaxValue.DayNumber - days ? DateOnly.MaxValue : day.AddDays(days);
+
     public static async Task<(IReadOnlyList<AssignmentInfo> Assignments, IReadOnlyList<(Guid FormId, SubmissionStamp Stamp)> Stamps)> LoadAsync(
         IApplicationDbContext db, IDynamicDataRepository dynamicData,
         Guid? userId, Guid? formId, DateOnly from, DateOnly to, CancellationToken cancellationToken)
@@ -129,7 +136,7 @@ public static class FormAssignmentTracker
             // the day it was entered (owner decision 8) - so read 3 days past the range too.
             var rows = await dynamicData.GetSubmissionStampsAsync(
                 table, group.Select(a => a.UserId).Distinct().ToList(),
-                SaudiDayStartUtc(start), SaudiDayStartUtc(to.AddDays(1 + LateSendDays)), cancellationToken);
+                SaudiDayStartUtc(start), SaudiDayStartUtc(AddDaysClamped(to, 1 + LateSendDays)), cancellationToken);
             stamps.AddRange(rows.Select(r => (group.Key, r)));
         }
 

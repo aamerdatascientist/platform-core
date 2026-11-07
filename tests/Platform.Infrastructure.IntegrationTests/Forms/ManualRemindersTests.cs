@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Platform.Application.Common.Interfaces;
 using Platform.Application.Forms.Assignments;
 using Platform.Application.Forms.Assignments.Queries.GetAssignmentDays;
+using Platform.Application.Forms.Assignments.Queries.GetFormAssignments;
 using Platform.Application.Notifications;
 using Platform.Domain.Forms;
 using Platform.Domain.Forms.Enums;
@@ -117,5 +118,25 @@ public class ManualRemindersTests
         days.Single(d => d.UserId == w.Filled.Id).RecordId.Should().Be(w.Repo.Records["Data_Daily"][0].Id);
         days.Single(d => d.UserId == w.Linked.Id).LastRemindedAtUtc.Should().NotBeNull();
         days.Single(d => d.UserId == w.Unlinked.Id).LastRemindedAtUtc.Should().BeNull();
+    }
+
+    // Regression (2026-11-07): the list reads every assignment's whole history; reading 3 days past
+    // an open-ended range overflowed DateOnly and the Form assignments page got a 500.
+    [Fact]
+    public async Task TheAssignmentsList_LoadsWithSubmissionsPresent()
+    {
+        var w = await CreateAsync();
+        var list = await new GetFormAssignmentsQueryHandler(w.Db, w.Repo).Handle(new GetFormAssignmentsQuery(), default);
+        list.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public async Task AnOpenEndedRange_DoesNotOverflow()
+    {
+        var w = await CreateAsync();
+        var act = () => FormAssignmentTracker.LoadAsync(w.Db, w.Repo, null, null, DateOnly.MinValue, DateOnly.MaxValue, default);
+        await act.Should().NotThrowAsync();
+        FormAssignmentTracker.AddDaysClamped(DateOnly.MaxValue.AddDays(-1), 4).Should().Be(DateOnly.MaxValue);
+        FormAssignmentTracker.AddDaysClamped(new DateOnly(2026, 11, 7), 4).Should().Be(new DateOnly(2026, 11, 11));
     }
 }

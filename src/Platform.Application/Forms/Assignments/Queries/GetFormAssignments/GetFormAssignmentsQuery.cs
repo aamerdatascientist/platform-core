@@ -31,7 +31,7 @@ public class GetFormAssignmentsQueryHandler : IRequestHandler<GetFormAssignments
     {
         var today = FormAssignmentTracker.SaudiToday(DateTime.UtcNow);
         var (assignments, stamps) = await FormAssignmentTracker.LoadAsync(
-            _db, _dynamicData, null, null, DateOnly.MinValue, DateOnly.MaxValue.AddDays(-1), cancellationToken);
+            _db, _dynamicData, null, null, DateOnly.MinValue, today, cancellationToken); // days after today count nothing
         var earliest = assignments.Count == 0 ? today : assignments.Min(a => a.StartDate);
         var days = FormAssignmentTracker.BuildDays(assignments, stamps, earliest, today, today)
             .Where(d => d.Status != FormAssignmentTracker.Pending)
