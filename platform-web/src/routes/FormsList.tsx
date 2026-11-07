@@ -37,7 +37,7 @@ export function FormsList() {
           <SectionHeading>{group.label}</SectionHeading>
           <Card className="divide-y divide-divider overflow-hidden">
             {group.forms.map((form) => (
-              <Link key={form.id} to={`/forms/${form.id}`} className="flex min-h-[56px] items-center gap-3 px-5 text-[17px] text-ink hover:bg-field-muted">
+              <Link key={form.id} to={`/forms/${form.id}`} className="flex min-h-[56px] items-center gap-3 px-[18px] text-[16px] font-medium text-ink hover:bg-field-muted">
                 <span className="flex-1"><bdi>{form.name}</bdi></span>
                 <Icon name="chevronForward" size={18} className="text-ink-soft" />
               </Link>

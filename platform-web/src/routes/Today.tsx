@@ -39,7 +39,8 @@ export function Today() {
   const assignedToday = new Set(todays.map((d) => d.formId));
   const otherForms = groups.flatMap((g) => g.forms).filter((f) => !assignedToday.has(f.id));
 
-  const hour = Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hourCycle: 'h23', timeZone: 'Asia/Riyadh' }).format(new Date()));
+  // Greeting by the phone's own clock (HANDOFF 02: morning before 12:00, afternoon 12-17, evening after).
+  const hour = new Date().getHours();
   const greetingKey = hour < 12 ? 'today.greetingMorning' : hour < 17 ? 'today.greetingAfternoon' : 'today.greetingEvening';
   const dateLine = new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${mine.today}T00:00:00Z`));
   const time = (utc: string) => new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Riyadh' }).format(new Date(utc));
@@ -97,12 +98,6 @@ export function Today() {
               </Link>
             </Card>
           ))}
-          {due.length === 0 && (
-            <p className="flex items-center gap-2 rounded-ui-lg bg-success-soft px-4 py-3 text-[15px] text-success-strong">
-              <Icon name="home" size={20} />
-              {t('today.allDone')}
-            </p>
-          )}
         </section>
       ) : (
         <Card className="p-[18px] text-[16px] text-ink-soft">{t('assignments.mine.noneToday')}</Card>
@@ -110,12 +105,20 @@ export function Today() {
 
       {mine.days.length > 0 && <LastTwoWeeks days={mine.days} today={mine.today} locale={locale} />}
 
+      {/* When everything due today is filled: the note sits right above Other forms (HANDOFF 02). */}
+      {todays.length > 0 && due.length === 0 && (
+        <p className="flex items-center gap-2 rounded-ui-lg bg-success-soft px-4 py-3 text-[15px] text-success-strong">
+          <Icon name="home" size={20} />
+          {t('today.allDone')}
+        </p>
+      )}
+
       {otherForms.length > 0 && (
         <section className="flex flex-col gap-[10px]">
           <h2 className="text-[17px] font-bold text-ink">{t('today.otherForms')}</h2>
           <Card className="divide-y divide-divider overflow-hidden">
             {otherForms.map((f) => (
-              <Link key={f.id} to={`/forms/${f.id}`} className="flex min-h-[56px] items-center gap-3 px-[18px] text-[17px] text-ink hover:bg-field-muted">
+              <Link key={f.id} to={`/forms/${f.id}`} className="flex min-h-[56px] items-center gap-3 px-[18px] text-[16px] font-medium text-ink hover:bg-field-muted">
                 <span className="flex-1"><bdi>{f.name}</bdi></span>
                 <Icon name="chevronForward" size={18} className="text-ink-soft" />
               </Link>

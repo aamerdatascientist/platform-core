@@ -52,7 +52,7 @@ export function Settings({ token }: SettingsProps) {
             </span>
           </div>
           {me.roles.slice(0, 1).map((r) => (
-            <Pill key={r} tone="info">
+            <Pill key={r} tone="info" className="!px-[10px] !py-1">
               {roleLabel(r)}
             </Pill>
           ))}

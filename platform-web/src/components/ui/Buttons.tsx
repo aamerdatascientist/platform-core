@@ -42,7 +42,8 @@ export function Button({
   icon?: ReactNode;
   iconEnd?: ReactNode;
 } & ButtonHTMLAttributes<HTMLButtonElement>) {
-  const desktopBorder = size !== 'phone' && (variant === 'secondary' || variant === 'danger') ? '!border' : '';
+  // Desktop buttons have a 1px border; phone-sized and compact ones keep the 1.5px one (09, 07).
+  const desktopBorder = size === 'desktop' && (variant === 'secondary' || variant === 'danger') ? '!border' : '';
   return (
     <button
       type={type}
@@ -226,7 +227,7 @@ export function Segmented<T extends string>({
             aria-checked={on}
             tabIndex={on ? 0 : -1}
             onClick={() => onChange(option.value)}
-            className={`relative ${size === 'phone' ? 'h-[42px] text-[15px] before:-inset-y-px' : 'h-[36px] text-[14px] before:-inset-y-1'} min-w-0 rounded-[9px] px-2 before:absolute before:inset-x-0 before:content-[''] ${
+            className={`relative ${size === 'phone' ? 'h-[42px] text-[15px] max-[374px]:text-[3.65vw] before:-inset-y-px' : 'h-[36px] text-[14px] before:-inset-y-1'} min-w-0 rounded-[9px] px-1 before:absolute before:inset-x-0 before:content-[''] ${
               on ? 'bg-panel font-bold text-ink shadow-elev-1' : 'font-medium text-ink-soft hover:text-ink'
             }`}
           >

@@ -98,7 +98,7 @@ export function TelegramConnect({ token }: { token: string }) {
               {status.linked ? t('settingsV2.telegramConnectedShort') : t('settings.telegramNotConnected')}
             </span>
           </div>
-          <Button variant="secondary" size="compact" onClick={handleConnect} disabled={busy} className="!text-[14px]">
+          <Button variant="secondary" size="compact" onClick={handleConnect} disabled={busy} className="!rounded-ui-lg !text-[14px]">
             {busy ? t('settings.telegramOpening') : status.linked ? t('settings.telegramReconnect') : t('settings.telegramConnect')}
           </Button>
         </div>

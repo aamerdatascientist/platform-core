@@ -37,7 +37,7 @@ export function Pill({ tone = 'neutral', children, className = '', large = false
   return (
     <span
       className={`inline-flex items-center gap-1 whitespace-nowrap rounded-ui-pill font-bold ${
-        large ? 'px-3 py-[5px] text-[13px]' : 'px-[9px] py-[3px] text-[12px]'
+        large ? 'px-[10px] py-[5px] text-[13px]' : 'px-[9px] py-[3px] text-[12px]'
       } ${toneClass[tone]} ${className}`}
     >
       {children}
@@ -199,10 +199,10 @@ export function Pager({
     <div className="flex items-center justify-between gap-3 border-t border-divider px-[18px] py-3 text-[14px] text-ink-soft">
       <span>{t('submissionsTable.showing', { from: total === 0 ? 0 : from, to, total })}</span>
       <div className="flex gap-2">
-        <Button variant="secondary" size="compact" disabled={!onPrevious} onClick={onPrevious}>
+        <Button variant="secondary" size="compact" className="!border" disabled={!onPrevious} onClick={onPrevious}>
           {t('submissionsTable.previous')}
         </Button>
-        <Button variant="secondary" size="compact" disabled={!onNext} onClick={onNext}>
+        <Button variant="secondary" size="compact" className="!border" disabled={!onNext} onClick={onNext}>
           {t('submissionsTable.next')}
         </Button>
       </div>
