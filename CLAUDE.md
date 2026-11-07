@@ -138,6 +138,27 @@ why this shipped without one. Worth adding a panel mirroring the existing lookup
 (pick a form, then pick a field on it) before the next form that needs this is built by hand
 through the builder instead of a script.
 
+### Steps and English labels (redesign §9.1/§9.2) - added 2026-11-07, staging
+
+- `FormStep` (per `FormVersion`: `TitleAr`, `TitleEn?`, `DisplayOrder`) + `FieldDefinition.StepId?`
+  (SET NULL) and `LabelEn?`, `FormDefinition.NameEn?`; option `labelEn` lives inside `OptionsJson`.
+  Migration `AddFormStepsAndEnglishLabels` (applied to staging only). **Presentation only**: no column,
+  no `Data_*` table, no `Report_*` view depends on them - the views keep aliasing columns from the
+  Arabic `Label`, so `LabelEn` never needs a view refresh.
+- All edits are Safe (metadata) and go through `ResolveFieldEditTarget`: `PUT api/forms/{id}/name`,
+  `PUT .../fields/{fieldId}/label` (`labelEn`: null = unchanged, "" = clear), `PUT .../option-labels`
+  (relabel/reorder only - the set of values must not change), `POST/PUT/DELETE .../steps`,
+  `PUT .../steps/order`, `PUT .../fields/{fieldId}/step`. Deleting a step moves its fields to the
+  previous step (next one if it was first). New steps are `_db.FormSteps.Add`ed explicitly (EF gotcha).
+- **Keep in sync:** `FormVersion.CreateDraftFrom` copies the steps (new ids) and re-points each copied
+  field's `StepId`, and every loader that can start a version must `Include(v => v.Steps)`
+  (`StartNewFormVersionCommand`, `FormEditLoading.LoadFormForEditAsync`). Forget either and a new
+  version silently flattens into one step.
+- Frontend: `forms/localized.ts` picks the UI language and falls back to the other (never blank);
+  fields without a step (or with a missing one) go into the first step. Drafts: `forms/draftStore.ts`
+  (`draft:{userId}:{formId}` in localStorage, photos in IndexedDB `asas-drafts`).
+- The daily report's 3 steps were made by `scripts/data/seed-daily-report-steps.mjs` (API, idempotent).
+
 ## Form access control (role/user-based) - verified in the browser UI, 2026-10-04
 
 Per-form access is layered on `FormDefinitionRoles`/`FormDefinitionUsers`: a form with
