@@ -34,6 +34,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<FormDefinition> FormDefinitions => Set<FormDefinition>();
     public DbSet<FormVersion> FormVersions => Set<FormVersion>();
     public DbSet<FieldDefinition> FieldDefinitions => Set<FieldDefinition>();
+    public DbSet<FormStep> FormSteps => Set<FormStep>();
     public DbSet<Platform.Domain.Forms.FormDefinitionRole> FormDefinitionRoles => Set<Platform.Domain.Forms.FormDefinitionRole>();
     public DbSet<Platform.Domain.Forms.FormDefinitionUser> FormDefinitionUsers => Set<Platform.Domain.Forms.FormDefinitionUser>();
     public DbSet<Platform.Domain.Forms.FormAssignment> FormAssignments => Set<Platform.Domain.Forms.FormAssignment>();

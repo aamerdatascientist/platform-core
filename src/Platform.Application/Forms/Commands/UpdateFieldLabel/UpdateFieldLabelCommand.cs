@@ -11,7 +11,9 @@ namespace Platform.Application.Forms.Commands.UpdateFieldLabel;
 /// its physical column, and every value in it - is untouched, which is why this needs no
 /// confirmation even on a published form with live data.
 /// </summary>
-public record UpdateFieldLabelCommand(Guid FormDefinitionId, Guid FieldDefinitionId, string Label) : IRequest;
+/// <remarks>LabelEn (redesign §9.1): null leaves the English label as it is (older callers send
+/// only Label); an empty string clears it.</remarks>
+public record UpdateFieldLabelCommand(Guid FormDefinitionId, Guid FieldDefinitionId, string Label, string? LabelEn = null) : IRequest;
 
 public class UpdateFieldLabelCommandValidator : AbstractValidator<UpdateFieldLabelCommand>
 {
@@ -20,6 +22,7 @@ public class UpdateFieldLabelCommandValidator : AbstractValidator<UpdateFieldLab
         RuleFor(x => x.FormDefinitionId).NotEmpty();
         RuleFor(x => x.FieldDefinitionId).NotEmpty();
         RuleFor(x => x.Label).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.LabelEn).MaximumLength(200);
     }
 }
 
@@ -47,6 +50,7 @@ public class UpdateFieldLabelCommandHandler : IRequestHandler<UpdateFieldLabelCo
         var field = target.Version.FindFieldOrThrow(request.FieldDefinitionId);
 
         field.UpdateLabel(request.Label);
+        if (request.LabelEn is not null) field.UpdateLabelEn(request.LabelEn);
         await _db.SaveChangesAsync(cancellationToken);
 
         // The reporting view's column aliases are built from Label, so on a published form a

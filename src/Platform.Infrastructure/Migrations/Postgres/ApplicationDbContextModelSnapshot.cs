@@ -130,6 +130,10 @@ namespace Platform.Infrastructure.Migrations.Postgres
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("LabelEn")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<Guid?>("LookupFormDefinitionId")
                         .HasColumnType("uuid");
 
@@ -142,6 +146,9 @@ namespace Platform.Infrastructure.Migrations.Postgres
                     b.Property<string>("OptionsJson")
                         .HasColumnType("text");
 
+                    b.Property<Guid?>("StepId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("ValidationRulesJson")
                         .HasColumnType("text");
 
@@ -153,6 +160,8 @@ namespace Platform.Infrastructure.Migrations.Postgres
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("StepId");
 
                     b.HasIndex("FormVersionId", "Code")
                         .IsUnique();
@@ -248,6 +257,10 @@ namespace Platform.Infrastructure.Migrations.Postgres
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("NameEn")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.Property<int>("Status")
                         .HasColumnType("integer");
 
@@ -288,6 +301,49 @@ namespace Platform.Infrastructure.Migrations.Postgres
                     b.HasKey("FormDefinitionId", "UserId");
 
                     b.ToTable("FormDefinitionUsers", (string)null);
+                });
+
+            modelBuilder.Entity("Platform.Domain.Forms.FormStep", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("FormVersionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("ModifiedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ModifiedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TitleAr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("TitleEn")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FormVersionId", "DisplayOrder");
+
+                    b.ToTable("FormSteps", (string)null);
                 });
 
             modelBuilder.Entity("Platform.Domain.Forms.FormVersion", b =>
@@ -1012,6 +1068,11 @@ namespace Platform.Infrastructure.Migrations.Postgres
                         .HasForeignKey("FormVersionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("Platform.Domain.Forms.FormStep", null)
+                        .WithMany()
+                        .HasForeignKey("StepId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("Platform.Domain.Forms.FormAssignment", b =>
@@ -1043,6 +1104,15 @@ namespace Platform.Infrastructure.Migrations.Postgres
                     b.HasOne("Platform.Domain.Forms.FormDefinition", null)
                         .WithMany("AllowedUsers")
                         .HasForeignKey("FormDefinitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Platform.Domain.Forms.FormStep", b =>
+                {
+                    b.HasOne("Platform.Domain.Forms.FormVersion", null)
+                        .WithMany("Steps")
+                        .HasForeignKey("FormVersionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -1122,6 +1192,8 @@ namespace Platform.Infrastructure.Migrations.Postgres
             modelBuilder.Entity("Platform.Domain.Forms.FormVersion", b =>
                 {
                     b.Navigation("Fields");
+
+                    b.Navigation("Steps");
                 });
 
             modelBuilder.Entity("Platform.Domain.Identity.Role", b =>

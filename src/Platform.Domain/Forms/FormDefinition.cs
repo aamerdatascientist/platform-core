@@ -15,6 +15,9 @@ public class FormDefinition : AuditableEntity
 {
     public string Code { get; private set; } = default!;
     public string Name { get; private set; } = default!;
+
+    /// <summary>The English form name (redesign §9.1); Name stays the Arabic one. Null until filled in.</summary>
+    public string? NameEn { get; private set; }
     public string? Description { get; private set; }
     public string ModuleName { get; private set; } = default!;
 
@@ -51,6 +54,15 @@ public class FormDefinition : AuditableEntity
 
         definition._versions.Add(FormVersion.CreateInitialDraft(definition.Id));
         return definition;
+    }
+
+    /// <summary>Safe: metadata only - the table name was fixed at first publish and never follows Name.</summary>
+    public void Rename(string name, string? nameEn)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("A form needs an Arabic name.", nameof(name));
+        Name = name.Trim();
+        NameEn = string.IsNullOrWhiteSpace(nameEn) ? null : nameEn.Trim();
     }
 
     public FormVersion? GetPublishedVersion() =>

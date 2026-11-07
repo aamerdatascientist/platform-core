@@ -22,6 +22,7 @@ public class FormDefinitionConfiguration : IEntityTypeConfiguration<FormDefiniti
         // soft-deleted - the standard fix for unique-business-key + soft-delete.
         builder.HasIndex(f => f.Code).IsUnique().HasFilter("\"IsDeleted\" = false");
         builder.Property(f => f.Name).IsRequired().HasMaxLength(200);
+        builder.Property(f => f.NameEn).HasMaxLength(200);
         builder.Property(f => f.ModuleName).IsRequired().HasMaxLength(100);
         builder.Property(f => f.TableName).HasMaxLength(128);
 
@@ -42,6 +43,23 @@ public class FormVersionConfiguration : IEntityTypeConfiguration<FormVersion>
         builder.HasMany(v => v.Fields).WithOne().HasForeignKey(fd => fd.FormVersionId)
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(v => v.Fields).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.HasMany(v => v.Steps).WithOne().HasForeignKey(s => s.FormVersionId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(v => v.Steps).UsePropertyAccessMode(PropertyAccessMode.Field);
+    }
+}
+
+/// <summary>Filling steps (redesign §9.2) - presentation metadata, nothing physical.</summary>
+public class FormStepConfiguration : IEntityTypeConfiguration<FormStep>
+{
+    public void Configure(EntityTypeBuilder<FormStep> builder)
+    {
+        builder.ToTable("FormSteps");
+        builder.HasKey(s => s.Id);
+        builder.Property(s => s.TitleAr).IsRequired().HasMaxLength(200);
+        builder.Property(s => s.TitleEn).HasMaxLength(200);
+        builder.HasIndex(s => new { s.FormVersionId, s.DisplayOrder });
     }
 }
 
@@ -53,6 +71,10 @@ public class FieldDefinitionConfiguration : IEntityTypeConfiguration<FieldDefini
         builder.HasKey(fd => fd.Id);
         builder.Property(fd => fd.Code).IsRequired().HasMaxLength(63);
         builder.Property(fd => fd.Label).IsRequired().HasMaxLength(200);
+        builder.Property(fd => fd.LabelEn).HasMaxLength(200);
+        // A deleted step never leaves a field pointing at nothing: FormVersion.RemoveStep moves
+        // its fields first, and SetNull is the database-side backstop.
+        builder.HasOne<FormStep>().WithMany().HasForeignKey(fd => fd.StepId).OnDelete(DeleteBehavior.SetNull);
         // Same 63-char cap as Code itself - this stores another field's Code verbatim.
         builder.Property(fd => fd.VisibleWhenFieldCode).HasMaxLength(63);
         builder.Property(fd => fd.FilterByFieldCode).HasMaxLength(63);

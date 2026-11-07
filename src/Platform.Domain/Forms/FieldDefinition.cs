@@ -23,6 +23,15 @@ public class FieldDefinition : AuditableEntity
     /// <summary>Physical column name. Must match ^[a-z][a-z0-9_]{0,62}$ after normalization.</summary>
     public string Code { get; private set; } = default!;
     public string Label { get; private set; } = default!;
+
+    /// <summary>The English label (redesign §9.1). Label stays the Arabic one - it also names the
+    /// reporting view's columns - and this is null until someone fills it in; the UI then falls
+    /// back to Label.</summary>
+    public string? LabelEn { get; private set; }
+
+    /// <summary>The FormStep (same FormVersion) this field is shown in; null = the first step.
+    /// Presentation only - nothing physical depends on it.</summary>
+    public Guid? StepId { get; private set; }
     public FieldType FieldType { get; private set; }
     public bool IsRequired { get; private set; }
     public bool IsActive { get; private set; } = true;
@@ -237,6 +246,17 @@ public class FieldDefinition : AuditableEntity
     public void Deactivate() => IsActive = false;
 
     public void UpdateLabel(string label) => Label = label.Trim();
+
+    /// <summary>Safe, like UpdateLabel: metadata only. Blank clears it (the UI falls back to Arabic).</summary>
+    public void UpdateLabelEn(string? labelEn) => LabelEn = string.IsNullOrWhiteSpace(labelEn) ? null : labelEn.Trim();
+
+    /// <summary>Safe: moves the field to another step of its own version (the caller checks the
+    /// step belongs to it - FormVersion.MoveFieldToStep). Null = the first step.</summary>
+    internal void SetStep(Guid? stepId) => StepId = stepId;
+
+    /// <summary>Safe: replaces OptionsJson with the same options relabelled (UpdateFieldOptionLabelsCommand
+    /// checks the set of values is unchanged, so every stored answer stays valid).</summary>
+    public void UpdateOptionLabels(string optionsJson) => OptionsJson = optionsJson;
 
     public void UpdateDisplayOrder(int displayOrder) => DisplayOrder = displayOrder;
 
