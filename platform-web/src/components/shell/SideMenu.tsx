@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Icon, LogoMark } from '../icons';
 import { initial, useFormsByModule, useShell } from './ShellData';
+import { useLocalized } from '../../forms/localized';
 
 /**
  * Desktop side menu (HANDOFF §5.2, screens 20-24): 264px on the inline-start side, the logo,
@@ -14,6 +15,7 @@ export function SideMenu({ onSearch }: { onSearch: () => void }) {
   const { t } = useTranslation();
   const { me, isAdmin, dueTodayCount, openDashboard, roleLabel } = useShell();
   const groups = useFormsByModule();
+  const { formName } = useLocalized();
   const location = useLocation();
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -52,7 +54,7 @@ export function SideMenu({ onSearch }: { onSearch: () => void }) {
         <Group key={group.label} title={group.label}>
           {group.forms.map((form) => (
             <Item key={form.id} to={`/forms/${form.id}`} active={location.pathname.startsWith(`/forms/${form.id}`)}>
-              <span className="flex-1"><bdi>{form.name}</bdi></span>
+              <span className="flex-1"><bdi>{formName(form)}</bdi></span>
             </Item>
           ))}
         </Group>

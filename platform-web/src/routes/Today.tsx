@@ -7,6 +7,7 @@ import { initial, useFormsByModule, useShell } from '../components/shell/ShellDa
 import { Card, DayCell, DayLegend, Pill } from '../components/ui';
 import type { DayState } from '../components/ui';
 import type { AssignmentDayDto } from '../types';
+import { useLocalized } from '../forms/localized';
 
 /**
  * Today - the home page for everyone (screens 02 and 10; replaces "Pick a form" and the old My
@@ -18,6 +19,7 @@ export function Today() {
   const { t, i18n } = useTranslation();
   const { me, mine, refresh } = useShell();
   const groups = useFormsByModule();
+  const { formName } = useLocalized();
   const locale = i18n.language.startsWith('ar') ? 'ar-u-nu-latn' : i18n.language;
 
   // Fresh numbers every time the page opens (a form may have just been sent).
@@ -25,6 +27,11 @@ export function Today() {
     refresh();
   }, [refresh]);
 
+  const formById = useMemo(() => new Map(groups.flatMap((g) => g.forms).map((f) => [f.id, f])), [groups]);
+  const nameOf = (d: AssignmentDayDto) => {
+    const f = formById.get(d.formId);
+    return f ? formName(f) : d.formName;
+  };
   const formModule = useMemo(() => {
     const map = new Map<string, string>();
     for (const g of groups) for (const f of g.forms) map.set(f.id, g.label);
@@ -70,7 +77,7 @@ export function Today() {
                   <Icon name="clipboard" size={22} />
                 </span>
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
-                  <span className="text-[18px] font-bold text-ink"><bdi>{d.formName}</bdi></span>
+                  <span className="text-[18px] font-bold text-ink"><bdi>{nameOf(d)}</bdi></span>
                   <span className="text-[14px] text-ink-soft">{t('today.stepsCount', { module: formModule.get(d.formId) ?? '', count: 1 })}</span>
                 </div>
                 <Pill tone="warning" large>{t('today.dueToday')}</Pill>
@@ -90,7 +97,7 @@ export function Today() {
                 <Icon name="check" size={18} />
               </span>
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="text-[16px] font-bold text-ink"><bdi>{d.formName}</bdi></span>
+                <span className="text-[16px] font-bold text-ink"><bdi>{nameOf(d)}</bdi></span>
                 {d.filledAtUtc && <span className="text-[14px] text-ink-soft">{t('today.filledAt', { time: time(d.filledAtUtc) })}</span>}
               </div>
               <Link to="/entries" className="flex min-h-[44px] items-center px-1 text-[15px] font-medium text-accent">
@@ -119,7 +126,7 @@ export function Today() {
           <Card className="divide-y divide-divider overflow-hidden">
             {otherForms.map((f) => (
               <Link key={f.id} to={`/forms/${f.id}`} className="flex min-h-[56px] items-center gap-3 px-[18px] text-[16px] font-medium text-ink hover:bg-field-muted">
-                <span className="flex-1"><bdi>{f.name}</bdi></span>
+                <span className="flex-1"><bdi>{formName(f)}</bdi></span>
                 <Icon name="chevronForward" size={18} className="text-ink-soft" />
               </Link>
             ))}

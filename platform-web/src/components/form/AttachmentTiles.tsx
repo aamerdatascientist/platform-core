@@ -31,11 +31,11 @@ export function AttachmentTiles({
   useEffect(() => () => urls.forEach((u) => u && URL.revokeObjectURL(u)), [urls]);
   const locale = i18n.language.startsWith('ar') ? 'ar-u-nu-latn' : i18n.language;
   const size = (bytes: number) =>
-    new Intl.NumberFormat(locale, { style: 'unit', unit: 'megabyte', unitDisplay: 'short', maximumFractionDigits: 1 }).format(bytes / 1024 / 1024);
+    new Intl.NumberFormat(locale, { style: 'unit', unit: 'megabyte', unitDisplay: 'short', maximumFractionDigits: 1 }).format(Math.max(0.1, bytes / 1024 / 1024));
 
   return (
     <>
-      <div role="group" aria-labelledby={labelledBy} aria-describedby={describedBy} className="grid grid-cols-3 gap-2">
+      <div role="group" aria-labelledby={labelledBy} aria-describedby={describedBy} aria-invalid={invalid || undefined} className="grid grid-cols-3 gap-2">
         {files.map((file, i) => (
           <button
             key={`${file.name}-${i}`}

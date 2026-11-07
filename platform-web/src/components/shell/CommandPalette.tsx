@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { Icon } from '../icons';
 import { useModalFocus } from '../ui';
 import { useFormsByModule, useShell } from './ShellData';
+import { useLocalized } from '../../forms/localized';
 
 interface Entry {
   id: string;
@@ -22,6 +23,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const navigate = useNavigate();
   const { isAdmin, openDashboard } = useShell();
   const groups = useFormsByModule();
+  const { formName } = useLocalized();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const ref = useRef<HTMLDivElement>(null);
@@ -42,7 +44,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       { id: 'entries', label: t('nav.myEntries'), group: t('nav.main'), run: go('/entries') },
       { id: 'settings', label: t('nav.settings'), group: t('nav.main'), run: go('/settings') },
     ];
-    const forms = groups.flatMap((g) => g.forms.map<Entry>((f) => ({ id: f.id, label: f.name, group: g.label, run: go(`/forms/${f.id}`) })));
+    const forms = groups.flatMap((g) => g.forms.map<Entry>((f) => ({ id: f.id, label: formName(f), group: g.label, run: go(`/forms/${f.id}`) })));
     const admin: Entry[] = isAdmin
       ? [
           { id: 'overview', label: t('sidebar.executiveOverview'), group: t('nav.administration'), run: openDashboard },

@@ -12,6 +12,7 @@ import { SubmissionsTable } from '../components/SubmissionsTable';
 import { WorkflowPanel } from '../components/WorkflowPanel';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { DynamicRow, FormDefinitionDto } from '../types';
+import { useLocalized } from '../forms/localized';
 
 interface FormViewProps {
   token: string;
@@ -41,6 +42,7 @@ export function FormView({ token }: FormViewProps) {
   const [recordNotice, setRecordNotice] = useState<string | null>(null);
   const [sentShown, setSentShown] = useState(false);
   const desktop = useIsDesktop();
+  const { formName } = useLocalized();
   const [recordError, setRecordError] = useErrorMessage();
   const [error, setError] = useErrorMessage();
   // The form itself couldn't be opened (no access, deleted, server down, offline): the whole
@@ -193,7 +195,7 @@ export function FormView({ token }: FormViewProps) {
   if (!isAdmin) {
     return (
       <div className="max-w-3xl space-y-8">
-        {!sentShown && <h2 className="font-display text-xl font-semibold text-ink">{formDefinition.name}</h2>}
+        {!sentShown && <h2 className="font-display text-xl font-semibold text-ink">{formName(formDefinition)}</h2>}
         <FormRenderer token={token} formDefinition={formDefinition} onSubmitted={() => {}} onSentChange={setSentShown} />
       </div>
     );
@@ -203,7 +205,7 @@ export function FormView({ token }: FormViewProps) {
     // While the Sent screen (07) shows, the title, records and side panel are hidden around it.
     <div className={sentShown ? 'max-w-6xl' : 'grid max-w-6xl grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]'}>
       <div className="space-y-8">
-        {!sentShown && <h2 className="font-display text-xl font-semibold text-ink">{formDefinition.name}</h2>}
+        {!sentShown && <h2 className="font-display text-xl font-semibold text-ink">{formName(formDefinition)}</h2>}
 
         {editingRecord ? (
           <section className="rounded border border-accent p-4">

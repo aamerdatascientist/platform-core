@@ -6,14 +6,16 @@ import i18n from '../i18n';
 import { api, ApiError } from '../api/client';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import { SentScreen } from './SentScreen';
-import { todayIso } from './DateField';
+import { formatLongDate, todayIso, yesterdayIso } from './DateField';
 import { FieldControl } from './form/FieldControl';
 import { StepFooter, StepHeader } from './form/StepChrome';
 import { Icon } from './icons';
 import { FULL_SCREEN_ATTRIBUTE } from './shell/fullScreen';
 import { useOptionalShell } from './shell/ShellData';
-import { Button, useIsDesktop } from './ui';
+import { Button, InfoBanner, useIsDesktop } from './ui';
 import { lastChoice, recentChoices, rememberChoice } from '../forms/lookupMemory';
+import { clearDraft, loadDraft, loadDraftFiles, saveDraft, saveDraftFiles } from '../forms/draftStore';
+import { useLocalized } from '../forms/localized';
 import { checkValue, isFieldVisible as fieldIsVisible, parseOptions, recordToFormValues } from '../forms/fieldValues';
 import type { FieldProblem } from '../forms/fieldValues';
 import type { FieldDefinitionDto, FormDefinitionDto } from '../types';
@@ -111,6 +113,17 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
   }, [submittedAt, onSentChange]);
   const [error, setError] = useErrorMessage();
   const [fieldErrors, setFieldErrors] = useState<Record<string, FieldError>>({});
+  const { formName, fieldLabel, optionLabel, stepTitle, lang } = useLocalized();
+  // Steps (HANDOFF 03-06): the phone shows one step at a time; desktop shows them all.
+  const [stepIndex, setStepIndex] = useState(0);
+  // Draft (03): answers autosave 500ms after each change; the header then says "Draft saved".
+  const [draftSaved, setDraftSaved] = useState(false);
+  const [resumed, setResumed] = useState(false);
+  const dirty = useRef(false);
+  const filesDirty = useRef(false);
+  const draftChecked = useRef(false);
+  // A field to scroll to and focus once its step is on screen (after Next/Send found a problem).
+  const [focusField, setFocusField] = useState<string | null>(null);
 
   useEffect(() => {
     setValues(initialValues());
@@ -118,6 +131,11 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
     setError(null);
     setFieldErrors({});
     setSubmittedAt(null);
+    setStepIndex(0);
+    setDraftSaved(false);
+    setResumed(false);
+    dirty.current = false;
+    draftChecked.current = false;
 
     // Dynamic-options Dropdowns (e.g. Outflow's "material" sourced from Inflow's "material")
     // fetch once per form load, same cadence as an unfiltered Lookup - their live distinct-
@@ -193,6 +211,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
   }, [filterSourceValuesKey, token]);
 
   function setValue(code: string, value: string) {
+    dirty.current = true;
     setValues((prev) => ({ ...prev, [code]: value }));
     // The problem shown under a field goes away as soon as it is being fixed.
     setFieldErrors((prev) => {
@@ -204,6 +223,8 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
   }
 
   function setFieldFiles(code: string, files: File[]) {
+    dirty.current = true;
+    filesDirty.current = true;
     setAttachmentFiles((prev) => ({ ...prev, [code]: files }));
     setFieldErrors((prev) => {
       if (!(code in prev)) return prev;
@@ -227,6 +248,65 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
     setValues((v) => ({ ...updates, ...v }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lookupChoices, userId]);
+
+  // ---------------------------------------------------------------- steps (HANDOFF §9.2)
+
+  // The version's steps in order, each with its fields (builder order). Fields with no step, or
+  // a step that no longer exists, go into the first step; with no steps at all the form is one
+  // step titled with its name. A step left with no fields isn't shown.
+  const steps = useMemo(() => {
+    const defined = [...(formDefinition.publishedVersion?.steps ?? [])].sort((a, b) => a.displayOrder - b.displayOrder);
+    if (defined.length === 0) return [{ id: 'default', title: formName(formDefinition), fields: activeFields }];
+    const known = new Set(defined.map((d) => d.id));
+    const stepOf = (f: FieldDefinitionDto) => (f.stepId && known.has(f.stepId) ? f.stepId : defined[0].id);
+    const groups = defined
+      .map((d) => ({ id: d.id, title: stepTitle(d), fields: activeFields.filter((f) => stepOf(f) === d.id) }))
+      .filter((g) => g.fields.length > 0);
+    return groups.length > 0 ? groups : [{ id: 'default', title: formName(formDefinition), fields: activeFields }];
+  }, [formDefinition, activeFields, formName, stepTitle]);
+  const stepIndexOf = (f: FieldDefinitionDto) => Math.max(0, steps.findIndex((s) => s.fields.some((x) => x.id === f.id)));
+  const current = Math.min(stepIndex, steps.length - 1);
+
+  // Resume a draft once the person is known (the shell loads them a moment after the page).
+  useEffect(() => {
+    if (editRecord || !userId || draftChecked.current || !formDefinition.publishedVersion) return;
+    draftChecked.current = true;
+    const draft = loadDraft(userId, formDefinition.id, formDefinition.publishedVersion.id);
+    if (draft) {
+      setValues(draft.values);
+      setStepIndex(Math.max(0, draft.step));
+      setResumed(true);
+      setDraftSaved(true);
+    }
+    void loadDraftFiles(userId, formDefinition.id).then((files) => {
+      if (draft && Object.keys(files).length > 0) setAttachmentFiles(files);
+    });
+  }, [userId, editRecord, formDefinition.id, formDefinition.publishedVersion]);
+
+  // Autosave 500ms after the last change - only after the person changed something, so just
+  // opening a form never creates a draft.
+  useEffect(() => {
+    if (editRecord || submittedAt || !dirty.current || !formDefinition.publishedVersion) return;
+    const versionId = formDefinition.publishedVersion.id;
+    const timer = window.setTimeout(() => {
+      const ok = saveDraft(userId, formDefinition.id, { versionId, values, step: current, savedAt: new Date().toISOString() });
+      if (filesDirty.current) {
+        filesDirty.current = false;
+        void saveDraftFiles(userId, formDefinition.id, attachmentFiles);
+      }
+      if (ok) setDraftSaved(true);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [values, attachmentFiles, current, userId, editRecord, submittedAt, formDefinition.id, formDefinition.publishedVersion]);
+
+  // Bring a field with a problem into view once its step is showing.
+  useEffect(() => {
+    if (!focusField) return;
+    const box = document.getElementById(`field-${focusField}`);
+    box?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    box?.querySelector<HTMLElement>('input, textarea, button, [role=radio]')?.focus({ preventScroll: true });
+    setFocusField(null);
+  }, [focusField, current]);
 
   /** The problem with one field's current answer, or null. Same rules as on Send. */
   function problemFor(f: FieldDefinitionDto): FieldError | null {
@@ -295,29 +375,48 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filterSourceValuesKey]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-
+  /** Checks these (visible) fields; shows their problems and moves to the first. True when all fine. */
+  function validate(fields: FieldDefinitionDto[]): boolean {
     setAttempted(true);
     const problems: Record<string, FieldError> = {};
-    visibleFields.forEach((f) => {
-      // Blank or spaces-only counts as not answered, as it does on the server.
+    // Blank or spaces-only counts as not answered, as it does on the server.
+    fields.forEach((f) => {
       const problem = problemFor(f);
       if (problem) problems[f.code] = problem;
     });
-    if (Object.keys(problems).length > 0) {
-      setFieldErrors(problems);
-      // Bring the first problem into view - on a phone it is usually far above the button.
-      const first = visibleFields.find((f) => problems[f.code]);
-      if (first) {
-        const box = document.getElementById(`field-${first.id}`);
-        box?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        box?.querySelector<HTMLElement>('input, textarea, button, [role=radio]')?.focus({ preventScroll: true });
-      }
+    setFieldErrors(problems);
+    const first = fields.find((f) => problems[f.code]);
+    if (!first) return true;
+    // On a phone the first problem may be on an earlier step (Send checks them all).
+    if (!(desktop || isEditing)) setStepIndex(stepIndexOf(first));
+    setFocusField(first.id);
+    return false;
+  }
+
+  function goToStep(index: number) {
+    dirty.current = true;
+    setResumed(false);
+    setStepIndex(index);
+    setFieldErrors({});
+    window.scrollTo(0, 0);
+  }
+
+  /** Next validates only the current step (HANDOFF 03). */
+  function next() {
+    if (!validate(steps[current].fields.filter(isFieldVisible))) return;
+    setAttempted(false);
+    goToStep(current + 1);
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    // Enter in a text box on an earlier step means "Next", not "Send".
+    if (!(desktop || isEditing) && current < steps.length - 1) {
+      next();
       return;
     }
-    setFieldErrors({});
+    if (!validate(visibleFields)) return;
 
     setSubmitting(true);
     try {
@@ -371,7 +470,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
       const projectField = visibleFields.find((f) => f.fieldType === 'Lookup' && f.code === 'project');
       const projectChoice = projectField ? lookupChoices[projectField.code]?.find((c) => c.id === values[projectField.code]) : undefined;
       setSentSummary({
-        project: projectField && projectChoice ? { label: projectField.label, value: projectChoice.label } : null,
+        project: projectField && projectChoice ? { label: fieldLabel(projectField), value: projectChoice.label } : null,
         attachments: uploads.length,
       });
       // Remember the choices made, for "Recent" and "Your last choice" next time.
@@ -380,6 +479,12 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
         .forEach((f) => values[f.code] && rememberChoice(userId, f.id, values[f.code]));
       setAttempted(false);
       setPreselected({});
+      clearDraft(userId, formDefinition.id);
+      dirty.current = false;
+      filesDirty.current = false;
+      setDraftSaved(false);
+      setResumed(false);
+      setStepIndex(0);
       setValues(initialValues());
       setAttachmentFiles({});
       setSubmittedAt(new Date());
@@ -411,7 +516,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
   if (submittedAt) {
     return (
       <SentScreen
-        formName={formDefinition.name}
+        formName={formName(formDefinition)}
         submittedAt={submittedAt}
         project={sentSummary.project}
         attachments={sentSummary.attachments}
@@ -449,7 +554,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
         lookupChoices={lookupChoices[field.code]}
         filterWaitingOnLabel={
           field.filterByFieldCode && !values[field.filterByFieldCode]
-            ? fieldsById.get(field.filterByFieldCode)?.label ?? field.filterByFieldCode
+            ? (fieldsById.get(field.filterByFieldCode) ? fieldLabel(fieldsById.get(field.filterByFieldCode)!) : field.filterByFieldCode)
             : undefined
         }
         isFiltered={!!field.filterByFieldCode}
@@ -472,34 +577,116 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
   // Fields shown because of another answer sit right under it (05): under a yes/no, indented
   // with a 3px accent bar; under a type/phase selector, in a card headed "Shown because you
   // chose: ...". Consecutive dependents of the same selector share one card.
-  const blocks: ReactNode[] = [];
-  for (let i = 0; i < visibleFields.length; i++) {
-    const field = visibleFields[i];
-    const controller = field.visibleWhenFieldCode ? fieldsById.get(field.visibleWhenFieldCode) : undefined;
-    if (!controller) {
-      blocks.push(control(field));
-      continue;
+  const blocksFor = (fields: FieldDefinitionDto[]): ReactNode[] => {
+    const blocks: ReactNode[] = [];
+    for (let i = 0; i < fields.length; i++) {
+      const field = fields[i];
+      const controller = field.visibleWhenFieldCode ? fieldsById.get(field.visibleWhenFieldCode) : undefined;
+      if (!controller) {
+        blocks.push(control(field));
+        continue;
+      }
+      if (controller.fieldType === 'Dropdown') {
+        const group = [field];
+        while (i + 1 < fields.length && fields[i + 1].visibleWhenFieldCode === controller.code) group.push(fields[++i]);
+        const option = parseOptions(controller.optionsJson).find((o) => o.value === values[controller.code]);
+        const chosen = option ? optionLabel(option) : values[controller.code];
+        blocks.push(
+          <div key={`cond-${field.id}`} onAnimationEnd={unclip} className="flex animate-[reveal_180ms_ease-out] flex-col gap-2 overflow-hidden rounded-ui-2xl border border-border bg-panel p-[14px]">
+            <span className="self-start rounded-ui-pill bg-accent-soft px-[10px] py-1 text-[12px] font-bold text-accent-strong">
+              {t('steps.shownBecause', { value: chosen })}
+            </span>
+            <div className="flex flex-col gap-[22px]">{group.map((f) => control(f, true))}</div>
+          </div>,
+        );
+      } else {
+        blocks.push(
+          <div key={`cond-${field.id}`} onAnimationEnd={unclip} className="-mt-2 animate-[reveal_180ms_ease-out] overflow-hidden border-s-[3px] border-accent ps-3">
+            {control(field)}
+          </div>,
+        );
+      }
     }
-    if (controller.fieldType === 'Dropdown') {
-      const group = [field];
-      while (i + 1 < visibleFields.length && visibleFields[i + 1].visibleWhenFieldCode === controller.code) group.push(visibleFields[++i]);
-      const chosen = parseOptions(controller.optionsJson).find((o) => o.value === values[controller.code])?.label ?? values[controller.code];
-      blocks.push(
-        <div key={`cond-${field.id}`} onAnimationEnd={unclip} className="flex animate-[reveal_180ms_ease-out] flex-col gap-2 overflow-hidden rounded-ui-2xl border border-border bg-panel p-[14px]">
-          <span className="self-start rounded-ui-pill bg-accent-soft px-[10px] py-1 text-[12px] font-bold text-accent-strong">
-            {t('steps.shownBecause', { value: chosen })}
-          </span>
-          <div className="flex flex-col gap-[22px]">{group.map((f) => control(f, true))}</div>
-        </div>,
-      );
-    } else {
-      blocks.push(
-        <div key={`cond-${field.id}`} onAnimationEnd={unclip} className="-mt-2 animate-[reveal_180ms_ease-out] overflow-hidden border-s-[3px] border-accent ps-3">
-          {control(field)}
-        </div>,
-      );
+    return blocks;
+  };
+
+  // ---------------------------------------------------------------- review (06)
+
+  /** An answer as people read it: option/choice labels, Yes/No, "Today · 7 November". */
+  const shown = (f: FieldDefinitionDto): string | null => {
+    if (f.fieldType === 'Attachment') {
+      const n = attachmentFiles[f.code]?.length ?? 0;
+      return n > 0 ? t('sent.photos', { count: n }) : null;
     }
-  }
+    const raw = (values[f.code] ?? '').trim();
+    if (!raw) return null;
+    switch (f.fieldType) {
+      case 'Boolean':
+        return raw === 'true' ? t('common.yes') : t('common.no');
+      case 'Dropdown': {
+        const option = parseOptions(f.optionsJson).find((o) => o.value === raw);
+        return option ? optionLabel(option) : raw;
+      }
+      case 'Lookup':
+        return lookupChoices[f.code]?.find((c) => c.id === raw)?.label ?? null;
+      case 'DateTime': {
+        const day = new Intl.DateTimeFormat(lang.startsWith('ar') ? 'ar-u-nu-latn' : lang, { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${raw}T00:00:00Z`));
+        if (raw === todayIso()) return `${t('formRenderer.today')} · ${day}`;
+        if (raw === yesterdayIso()) return `${t('formRenderer.yesterday')} · ${day}`;
+        return formatLongDate(raw, lang);
+      }
+      default:
+        return raw;
+    }
+  };
+
+  /** Rows for one step: answered, visible fields. A yes/no's revealed answer joins its row
+   *  ("Yes · concrete arrived two hours late"), as on 06. */
+  const reviewRows = (fields: FieldDefinitionDto[]) => {
+    const rows: { id: string; label: string; value: string }[] = [];
+    const joined = new Set<string>();
+    for (const f of fields) {
+      if (joined.has(f.code)) continue;
+      let value = shown(f);
+      if (value === null) continue;
+      if (f.fieldType === 'Boolean') {
+        const dependents = fields.filter((d) => d.visibleWhenFieldCode === f.code && d.fieldType !== 'Attachment');
+        for (const d of dependents) {
+          const v = shown(d);
+          joined.add(d.code);
+          if (v) value = `${value} · ${v}`;
+        }
+      }
+      rows.push({ id: f.id, label: fieldLabel(f), value });
+    }
+    return rows;
+  };
+
+  const review = steps.slice(0, -1).map((step, i) => {
+    const rows = reviewRows(step.fields.filter(isFieldVisible));
+    return (
+      <section key={step.id} className="flex flex-col rounded-[18px] border border-border bg-panel">
+        <div className="flex items-center justify-between px-4 pb-1 pt-3">
+          <h2 className="text-[16px] font-bold text-ink">
+            <bdi>{step.title}</bdi>
+          </h2>
+          <button type="button" onClick={() => goToStep(i)} className="min-h-[44px] px-1 text-[15px] font-medium text-accent">
+            {t('steps.edit')}
+          </button>
+        </div>
+        {rows.map((r) => (
+          <div key={r.id} className="flex justify-between gap-3 border-t border-divider px-4 py-[10px]">
+            <span className="shrink-0 text-[15px] text-ink-soft">
+              <bdi>{r.label}</bdi>
+            </span>
+            <span className="min-w-0 text-end text-[15px] font-bold text-ink">
+              <bdi>{r.value}</bdi>
+            </span>
+          </div>
+        ))}
+      </section>
+    );
+  });
 
   const sendLabel = isEditing
     ? submitting
@@ -543,22 +730,23 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
       </Button>
     ) : null;
 
-  // Until steps exist (phase 6), every form is one step titled with the form's name.
-  const stepTitle = formDefinition.name;
-
   if (desktop || isEditing) {
     // Desktop Fill (screen 20, "Fill" tab): one column, one card per step with the step title
-    // as its heading, and a sticky footer holding Send. Also used to correct a record.
+    // as its heading, and a sticky footer holding Send - no step-by-step paging. Also used to
+    // correct a record.
     return (
       <form onSubmit={handleSubmit} noValidate className="flex max-w-[720px] flex-col gap-4">
-        <section className="flex flex-col gap-[22px] rounded-ui-2xl border border-border bg-panel p-5">
-          <h2 className="text-[18px] font-bold text-ink">
-            <bdi>{stepTitle}</bdi>
-          </h2>
-          {blocks}
-        </section>
+        {!isEditing && resumed && <InfoBanner>{t('steps.resumeDraft')}</InfoBanner>}
+        {steps.map((step) => (
+          <section key={step.id} className="flex flex-col gap-[22px] rounded-ui-2xl border border-border bg-panel p-5">
+            <h2 className="text-[18px] font-bold text-ink">
+              <bdi>{step.title}</bdi>
+            </h2>
+            {blocksFor(step.fields.filter(isFieldVisible))}
+          </section>
+        ))}
         {messages}
-        <div className="sticky bottom-0 z-10 -mx-1 flex gap-2 bg-bg px-1 py-3">
+        <div className="sticky bottom-0 z-10 -mx-1 flex items-center gap-2 bg-bg px-1 py-3">
           {cancelButton('desktop')}
           {sendButton('desktop')}
         </div>
@@ -566,23 +754,45 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
     );
   }
 
-  // Phone (03-06, 11): the form takes the whole screen - a step header, the fields, and a
-  // footer with Send that stays at the bottom. No tab bar while filling.
+  // Phone (03-06, 11): the form takes the whole screen - a step header, one step's fields, and
+  // a footer that stays at the bottom: "Next: {step}" on step 1, Previous + Next in between,
+  // and the success Send on the last step, which also shows the review. No tab bar.
+  const last = current === steps.length - 1;
+  const step = steps[current];
   return (
     <FullScreen>
       <form onSubmit={handleSubmit} noValidate className="-mx-5 -mt-5 flex min-h-[100dvh] flex-col bg-bg">
         <StepHeader
-          title={formDefinition.name}
-          step={1}
-          total={1}
-          stepTitle={stepTitle}
+          title={formName(formDefinition)}
+          step={current + 1}
+          total={steps.length}
+          stepTitle={step.title}
+          draftSaved={draftSaved}
+          onBack={() => goToStep(current - 1)}
           onClose={() => (window.history.length > 1 ? navigate(-1) : navigate('/'))}
         />
-        <div className="flex flex-1 flex-col gap-[22px] p-5">
-          {blocks}
+        <div key={step.id} className={`flex flex-1 animate-[step-in-from-end_200ms_ease-out] flex-col p-5 ${last && steps.length > 1 ? 'gap-5' : 'gap-[22px]'}`}>
+          {resumed && <InfoBanner>{t('steps.resumeDraft')}</InfoBanner>}
+          {blocksFor(step.fields.filter(isFieldVisible))}
+          {last && review}
           {messages}
         </div>
-        <StepFooter>{sendButton('phone')}</StepFooter>
+        <StepFooter>
+          {last ? (
+            sendButton('phone')
+          ) : (
+            <div className="flex w-full gap-[10px]">
+              {current > 0 && (
+                <Button variant="secondary" size="phone" onClick={() => goToStep(current - 1)} className="w-[96px] shrink-0 !text-[17px]">
+                  {t('steps.previous')}
+                </Button>
+              )}
+              <Button type="button" size="phone" block onClick={next} iconEnd={<Icon name="chevronForward" size={18} />}>
+                {t('steps.next', { title: steps[current + 1].title })}
+              </Button>
+            </div>
+          )}
+        </StepFooter>
       </form>
     </FullScreen>
   );

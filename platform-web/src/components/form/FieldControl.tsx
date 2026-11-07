@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { todayIso } from '../DateField';
 import { ChipGroup, DateQuickPick, FieldShell, LookupRow, Stepper, TextArea, TextInput, YesNo } from '../ui';
 import { parseRules } from '../../forms/fieldValues';
+import { useLocalized } from '../../forms/localized';
 import type { DropdownOption, FieldDefinitionDto } from '../../types';
 import { AttachmentTiles } from './AttachmentTiles';
 import { LookupSheet } from './LookupSheet';
@@ -61,6 +62,8 @@ export function FieldControl({
 }) {
   const { t } = useTranslation();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const { fieldLabel, optionLabel } = useLocalized();
+  const label = fieldLabel(field);
   const rules = parseRules(field.validationRulesJson);
   const type = field.fieldType;
 
@@ -71,7 +74,7 @@ export function FieldControl({
       : type === 'Dropdown' && field.dynamicOptionsSourceFormDefinitionId
         ? dynamicOptions?.map((v) => ({ value: v, label: v }))
         : type === 'Dropdown'
-          ? options.map((o) => ({ value: o.value, label: o.label }))
+          ? options.map((o) => ({ value: o.value, label: optionLabel(o) }))
           : undefined;
   const chips = type === 'Dropdown' && choices !== undefined && chipsFit(choices);
   const asGroup = type === 'DateTime' || type === 'Boolean' || chips || type === 'Attachment';
@@ -89,7 +92,7 @@ export function FieldControl({
           : null;
 
   return (
-    <FieldShell label={<bdi>{field.label}</bdi>} required={field.isRequired} hint={hint} error={error} asGroup={asGroup}>
+    <FieldShell label={<bdi>{label}</bdi>} required={field.isRequired} hint={hint} error={error} asGroup={asGroup}>
       {({ inputId, labelId, describedBy, invalid }) => {
         switch (type) {
           case 'DateTime':
@@ -147,7 +150,7 @@ export function FieldControl({
                 ? t('formRenderer.loadingOptions')
                 : noChoices
                   ? t('formRenderer.noChoices')
-                  : t('lookup.choose', { label: field.label });
+                  : t('lookup.choose', { label });
             return (
               <>
                 <div className={inCard ? '[&>button]:!min-h-[52px] [&>button]:!rounded-ui-lg [&>button]:!bg-field-muted' : ''}>
@@ -166,7 +169,7 @@ export function FieldControl({
                 <LookupSheet
                   open={sheetOpen}
                   onClose={() => setSheetOpen(false)}
-                  title={t('lookup.choose', { label: field.label })}
+                  title={t('lookup.choose', { label })}
                   choices={choices ?? []}
                   value={value}
                   recent={recent}

@@ -6,6 +6,7 @@ import { useFormsByModule, useShell } from '../components/shell/ShellData';
 import { Card, EmptyState, SectionHeading } from '../components/ui';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import { useEffect } from 'react';
+import { useLocalized } from '../forms/localized';
 
 /**
  * The phone Forms tab (HANDOFF §5.1; not drawn - styled like "Other forms" on 02): one card per
@@ -16,6 +17,7 @@ export function FormsList() {
   const { t } = useTranslation();
   const { forms, formsError } = useShell();
   const groups = useFormsByModule();
+  const { formName } = useLocalized();
   const [error, setError] = useErrorMessage();
   useEffect(() => {
     setError(formsError ? { err: formsError, fallbackKey: 'sidebar.loadFormsError' } : null);
@@ -38,7 +40,7 @@ export function FormsList() {
           <Card className="divide-y divide-divider overflow-hidden">
             {group.forms.map((form) => (
               <Link key={form.id} to={`/forms/${form.id}`} className="flex min-h-[56px] items-center gap-3 px-[18px] text-[16px] font-medium text-ink hover:bg-field-muted">
-                <span className="flex-1"><bdi>{form.name}</bdi></span>
+                <span className="flex-1"><bdi>{formName(form)}</bdi></span>
                 <Icon name="chevronForward" size={18} className="text-ink-soft" />
               </Link>
             ))}

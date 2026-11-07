@@ -19,7 +19,12 @@ export type FormStatus = 'Draft' | 'Published' | 'Retired';
 export interface FieldDefinitionDto {
   id: string;
   code: string;
+  /** The Arabic label (it also names the reporting view's column). */
   label: string;
+  /** The English label (redesign §9.1); null/absent until filled in - show `label` then. */
+  labelEn?: string | null;
+  /** The step this field is filled in (§9.2); null = the first step. */
+  stepId?: string | null;
   fieldType: FieldType;
   isRequired: boolean;
   isActive: boolean;
@@ -56,12 +61,23 @@ export interface FormVersionDto {
   status: FormStatus;
   publishedAtUtc: string | null;
   fields: FieldDefinitionDto[];
+  /** Filling steps in order (§9.2); empty = one step titled with the form name. */
+  steps?: FormStepDto[];
+}
+
+export interface FormStepDto {
+  id: string;
+  titleAr: string;
+  titleEn: string | null;
+  displayOrder: number;
 }
 
 export interface FormSummaryDto {
   id: string;
   code: string;
   name: string;
+  /** English name (§9.1); null/absent until filled in - show `name` then. */
+  nameEn?: string | null;
   moduleName: string;
   status: FormStatus;
 }
@@ -78,6 +94,7 @@ export interface FormDefinitionDto {
   publishedVersion: FormVersionDto | null;
   allowedRoleIds: string[];
   allowedUserIds: string[];
+  nameEn?: string | null;
 }
 
 /** Raw submission row - values are keyed by FieldDefinition.code, same shape the backend returns. */
@@ -185,6 +202,8 @@ export interface RoleDto {
 export interface DropdownOption {
   value: string;
   label: string;
+  /** English label (§9.1), stored inside OptionsJson. */
+  labelEn?: string | null;
 }
 
 // Mirrors Platform.Application.Analytics.Queries.GetExecutiveOverview's DTOs - same
