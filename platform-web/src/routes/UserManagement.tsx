@@ -301,12 +301,20 @@ function UserDrawer({ token, user, roles, onClose, onChanged }: { token: string;
           </span>
         </label>
         {/* WhatsApp, as it will be once connected (config/whatsapp.ts). */}
-        <div className="flex items-center gap-[10px] rounded-ui-lg bg-warning-soft px-3 py-[10px]">
-          <span className="flex-1 text-[13px] text-warning-strong">{t('whatsapp.statusBox')}</span>
-          <button type="button" onClick={() => whatsapp.guard(() => undefined)} className="h-[34px] shrink-0 rounded-[9px] bg-panel px-[10px] text-[13px] font-bold text-ink">
-            {t('whatsapp.connect')}
-          </button>
-        </div>
+        {whatsapp.ready ? (
+          <div className={`flex items-center gap-[10px] rounded-ui-lg px-3 py-[10px] ${user.phoneNumber ? 'bg-success-soft' : 'bg-warning-soft'}`}>
+            <span className={`flex-1 text-[13px] ${user.phoneNumber ? 'text-success' : 'text-warning-strong'}`}>
+              {user.phoneNumber ? t('whatsapp.statusReady') : t('whatsapp.statusNoNumber')}
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-[10px] rounded-ui-lg bg-warning-soft px-3 py-[10px]">
+            <span className="flex-1 text-[13px] text-warning-strong">{t('whatsapp.statusBox')}</span>
+            <button type="button" onClick={() => whatsapp.guard(() => undefined)} className="h-[34px] shrink-0 rounded-[9px] bg-panel px-[10px] text-[13px] font-bold text-ink">
+              {t('whatsapp.connect')}
+            </button>
+          </div>
+        )}
         {whatsapp.notice && (
           <p role="status" className="text-[13px] text-warning-strong">
             {t('whatsapp.notReady')}

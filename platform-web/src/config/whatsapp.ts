@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 
 /**
- * WhatsApp isn't connected yet (owner, 2026-11-07): every WhatsApp control is shown as it will
- * be once it is - in Settings > Reminders, the user drawer, the assign panel and "Send now" on
- * the reports page - but pressing one only says "WhatsApp isn't set up yet". Set this to true
- * when the WhatsApp templates are approved and connected; the controls then do the real thing.
+ * WhatsApp is live (owner, 2026-11-07: Meta approved the templates form_assigned, form_reminder
+ * and stakeholder_report). Messages go to the number on each person's account, so there is
+ * nothing to "connect": Settings and the user drawer show where messages go. Set this back to
+ * false to grey WhatsApp out again - every control then only says "WhatsApp isn't set up yet".
  */
-export const WHATSAPP_READY = false;
+export const WHATSAPP_READY = true;
 
 /** Runs `action` when WhatsApp is ready; otherwise shows the "not set up yet" note for a few seconds. */
 export function useWhatsAppGate() {

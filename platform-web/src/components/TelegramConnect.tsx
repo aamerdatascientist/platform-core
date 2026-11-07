@@ -127,7 +127,7 @@ export function TelegramConnect({ token }: { token: string }) {
 /** WhatsApp, shown as it will be once connected; until then "Connect" only says it isn't set up yet. */
 function WhatsAppRow() {
   const { t } = useTranslation();
-  const { notice, guard } = useWhatsAppGate();
+  const { notice, guard, ready } = useWhatsAppGate();
   return (
     <div className="flex flex-col gap-3 py-[14px]">
       <div className="flex items-center gap-3">
@@ -136,13 +136,15 @@ function WhatsAppRow() {
         </span>
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <span className="text-[16px] font-bold text-ink">{t('whatsapp.title')}</span>
-          <span className="text-[14px] text-ink-soft">{t('whatsapp.notConnected')}</span>
+          <span className="text-[14px] text-ink-soft">{ready ? t('whatsapp.byNumber') : t('whatsapp.notConnected')}</span>
         </div>
-        <Button variant="secondary" size="compact" onClick={() => guard(() => undefined)} className="!rounded-ui-lg !text-[14px]">
-          {t('whatsapp.connect')}
-        </Button>
+        {!ready && (
+          <Button variant="secondary" size="compact" onClick={() => guard(() => undefined)} className="!rounded-ui-lg !text-[14px]">
+            {t('whatsapp.connect')}
+          </Button>
+        )}
       </div>
-      <p className="text-[13px] text-ink-soft">{t('whatsapp.explain')}</p>
+      <p className="text-[13px] text-ink-soft">{ready ? t('whatsapp.explainReady') : t('whatsapp.explain')}</p>
       {notice && (
         <p role="status" className="rounded-ui-lg bg-warning-soft px-3 py-2 text-[14px] text-warning-strong">
           {t('whatsapp.notReady')}

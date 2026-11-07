@@ -1047,6 +1047,10 @@
     "explain": "Get your form reminders on WhatsApp too.",
     "statusBox": "WhatsApp isn't connected yet.",
     "channelOk": "WhatsApp ✓",
-    "channelNone": "No WhatsApp"
+    "channelNone": "No WhatsApp",
+    "byNumber": "On - to the number on your account",
+    "explainReady": "Form reminders also come on WhatsApp, to the number your administrator added to your account.",
+    "statusReady": "WhatsApp reminders go to this number.",
+    "statusNoNumber": "No number yet - add one above to send WhatsApp reminders."
   }
 }
