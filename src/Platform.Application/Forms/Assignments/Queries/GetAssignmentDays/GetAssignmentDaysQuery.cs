@@ -49,14 +49,17 @@ public class GetAssignmentDaysQueryHandler : IRequestHandler<GetAssignmentDaysQu
         var reminders = (await _db.NotificationLogs
                 .Where(n => n.AssignmentId != null && ids.Contains(n.AssignmentId.Value) && n.ForDate != null)
                 .Where(n => n.ForDate >= request.From && n.ForDate <= request.To)
-                .Select(n => new { AssignmentId = n.AssignmentId!.Value, Date = n.ForDate!.Value, n.Status })
+                .Select(n => new { AssignmentId = n.AssignmentId!.Value, Date = n.ForDate!.Value, n.Status, n.SentAtUtc })
                 .ToListAsync(cancellationToken))
             .GroupBy(n => (n.AssignmentId, n.Date))
-            .ToDictionary(g => g.Key, g => (Sent: g.Count(n => n.Status == "sent"), Failed: g.Count(n => n.Status == "failed")));
+            .ToDictionary(g => g.Key, g => (
+                Sent: g.Count(n => n.Status == "sent"),
+                Failed: g.Count(n => n.Status == "failed"),
+                Last: g.Where(n => n.Status == "sent").Max(n => n.SentAtUtc)));
 
         return days
             .Select(d => reminders.TryGetValue((d.AssignmentId, d.Date), out var r)
-                ? d with { RemindersSent = r.Sent, RemindersFailed = r.Failed }
+                ? d with { RemindersSent = r.Sent, RemindersFailed = r.Failed, LastRemindedAtUtc = r.Last }
                 : d)
             .ToList();
     }

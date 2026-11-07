@@ -22,6 +22,15 @@ public class AssignmentNotifier
     public const string TestKind = "test";
     public static string ReminderKind(int slot) => $"reminder-{slot}";
 
+    /// <summary>
+    /// An administrator's "Remind those who haven't filled" (redesign 23, owner decision 7,
+    /// 2026-11-06): its own kind, so the send-once index makes it at most once per person, form
+    /// and day per channel - and it never uses up (or is blocked by) the automatic reminder slots.
+    /// </summary>
+    public const string ManualReminderKind = "manual";
+
+    public record ManualReminderResult(int Sent, int Failed, int AlreadyReminded, int NoChannel);
+
     private static readonly string[] ArabicMonths =
         { "يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر" };
 
@@ -141,6 +150,55 @@ public class AssignmentNotifier
             }
         }
         return sent;
+    }
+
+    /// <summary>
+    /// Reminds everyone still pending today, now (redesign 23). Per pending assignment and channel:
+    /// sent, failed, already reminded manually today (skipped), or no linked channel.
+    /// </summary>
+    public async Task<ManualReminderResult> SendManualRemindersAsync(DateOnly today, CancellationToken cancellationToken)
+    {
+        if (!AnyChannelConfigured || !FormAssignmentTracker.IsWorkingDay(today)) return new ManualReminderResult(0, 0, 0, 0);
+
+        var (assignments, stamps) = await FormAssignmentTracker.LoadAsync(_db, _dynamicData, null, null, today, today, cancellationToken);
+        var pending = FormAssignmentTracker.BuildDays(assignments, stamps, today, today, today)
+            .Where(d => d.Status == FormAssignmentTracker.Pending)
+            .ToList();
+        var already = (await _db.NotificationLogs
+                .Where(n => n.Kind == ManualReminderKind && n.ForDate == today && n.AssignmentId != null)
+                .Select(n => new { AssignmentId = n.AssignmentId!.Value, n.Channel })
+                .ToListAsync(cancellationToken))
+            .Select(n => (n.AssignmentId, n.Channel))
+            .ToHashSet();
+        var userIds = pending.Select(d => d.UserId).Distinct().ToList();
+        var contacts = await _db.Users
+            .Where(u => userIds.Contains(u.Id) && u.IsActive)
+            .ToDictionaryAsync(u => u.Id, u => new { u.PhoneNumber, u.TelegramChatId }, cancellationToken);
+
+        int sent = 0, failed = 0, skipped = 0, noChannel = 0;
+        foreach (var day in pending)
+        {
+            var contact = contacts.GetValueOrDefault(day.UserId);
+            var channels = contact is null ? new List<(string, string)>() : ChannelsFor(contact.PhoneNumber, contact.TelegramChatId).ToList();
+            if (channels.Count == 0)
+            {
+                noChannel++;
+                continue;
+            }
+            var message = ReminderMessage(_whatsAppSettings.ReminderTemplate, day.UserName, day.FormName, today, Link($"/forms/{day.FormId}"));
+            foreach (var (channel, recipient) in channels)
+            {
+                if (already.Contains((day.AssignmentId, channel)))
+                {
+                    skipped++;
+                    continue;
+                }
+                if (await TrySendAsync(day.UserId, day.AssignmentId, ManualReminderKind, today, channel, recipient, message, cancellationToken)) sent++;
+                else if (await _db.NotificationLogs.AnyAsync(n => n.AssignmentId == day.AssignmentId && n.Kind == ManualReminderKind && n.ForDate == today && n.Channel == channel && n.Status == "failed", cancellationToken)) failed++;
+                else skipped++;
+            }
+        }
+        return new ManualReminderResult(sent, failed, skipped, noChannel);
     }
 
     /// <summary>A sample message to one user on one channel, for checking the setup. Returns the outcome.</summary>

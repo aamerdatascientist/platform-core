@@ -320,13 +320,13 @@ public class DynamicDataRepository : IDynamicDataRepository
         if (userIds.Count == 0) return Array.Empty<SubmissionStamp>();
 
         var sql = $"""
-            SELECT "CreatedByUserId" AS "UserId", "CreatedAtUtc" FROM "{tableName}"
+            SELECT "CreatedByUserId" AS "UserId", "CreatedAtUtc", "Id" FROM "{tableName}"
             WHERE "IsDeleted" = false AND "CreatedByUserId" = ANY(@UserIds)
               AND "CreatedAtUtc" >= @FromUtc AND "CreatedAtUtc" < @ToUtc;
             """;
 
         await using var connection = new NpgsqlConnection(_connectionString);
-        var rows = await connection.QueryAsync<(Guid UserId, DateTime CreatedAtUtc)>(new CommandDefinition(
+        var rows = await connection.QueryAsync<(Guid UserId, DateTime CreatedAtUtc, Guid Id)>(new CommandDefinition(
             sql,
             new
             {
@@ -335,7 +335,7 @@ public class DynamicDataRepository : IDynamicDataRepository
                 ToUtc = DateTime.SpecifyKind(toUtc, DateTimeKind.Utc),
             },
             cancellationToken: cancellationToken));
-        return rows.Select(r => new SubmissionStamp(r.UserId, DateTime.SpecifyKind(r.CreatedAtUtc, DateTimeKind.Utc))).ToList();
+        return rows.Select(r => new SubmissionStamp(r.UserId, DateTime.SpecifyKind(r.CreatedAtUtc, DateTimeKind.Utc), r.Id)).ToList();
     }
 
     public async Task<IReadOnlyList<string>> GetDistinctColumnValuesAsync(

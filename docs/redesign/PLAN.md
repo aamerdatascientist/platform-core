@@ -74,3 +74,8 @@ Migration `AddFormStepsAndEnglishLabels` (adds `FormDefinitions.NameEn`, `FieldD
 - `GET api/forms/{formId}/submissions/{recordId}` (new): owner-or-administrator **and** `FormAccessChecker.HasAccess` for the record's form (owner decision 2026-11-06). Returns the row, sender name, lookup labels and its attachment list. 403 otherwise.
 - `GET api/submissions/mine?formId=&before=&pageSize=20` (new, any signed-in user): the caller's own non-deleted rows across forms they can access, newest first; `formId` of a form they can't access → 403.
 - Tests: 403 for a user without form access on both new endpoints; another user's record → 403; own rows only.
+
+### Phase 8 — admin pages (22-25)
+**No schema change, no migration.**
+- `POST api/form-assignments/remind-pending` (administrators): reminds everyone still pending today through `AssignmentNotifier`. Logged as kind `manual`, so the existing send-once index makes it at most once per person, form and day per channel, separate from the automatic `reminder-{slot}` kinds (answer to owner decision 7: the automatic reminder never counts against it). Returns `{sent, failed, alreadyReminded, noChannel}`.
+- `AssignmentDayDto` gains `recordId` (that day's first entry, so a grid cell opens it) and `lastRemindedAtUtc` ("Reminded at 4:10 PM"); `SubmissionStamp` carries the row id. Additive only.

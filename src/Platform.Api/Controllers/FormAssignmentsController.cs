@@ -50,6 +50,13 @@ public class FormAssignmentsController : ControllerBase
             new CreateFormAssignmentsCommand(request.FormDefinitionId, request.UserIds, request.StartDate, request.EndDate, request.Note),
             cancellationToken));
 
+    /// <summary>"Remind those who haven't filled" (redesign 23, §9.5): reminds everyone still
+    /// pending today; manual reminders go at most once per person, form and day per channel.</summary>
+    [HttpPost("remind-pending")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<ActionResult<Platform.Application.Notifications.AssignmentNotifier.ManualReminderResult>> RemindPending(CancellationToken cancellationToken) =>
+        Ok(await _sender.Send(new Platform.Application.Forms.Assignments.Commands.RemindPending.RemindPendingCommand(), cancellationToken));
+
     [HttpPost("{id:guid}/stop")]
     [Authorize(Roles = "Administrator")]
     public async Task<IActionResult> Stop(Guid id, CancellationToken cancellationToken)

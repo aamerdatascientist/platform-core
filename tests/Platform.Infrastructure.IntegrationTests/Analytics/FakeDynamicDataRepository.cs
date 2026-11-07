@@ -122,7 +122,10 @@ public class FakeDynamicDataRepository : IDynamicDataRepository
     public Task<IReadOnlyList<SubmissionStamp>> GetSubmissionStampsAsync(
         string tableName, IReadOnlyCollection<Guid> userIds, DateTime fromUtc, DateTime toUtc,
         CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("Not used by the analytics query handler tests.");
+        Task.FromResult<IReadOnlyList<SubmissionStamp>>((Records.GetValueOrDefault(tableName) ?? new List<RecordRow>())
+            .Where(r => userIds.Contains(r.CreatedByUserId) && r.CreatedAtUtc >= fromUtc && r.CreatedAtUtc < toUtc)
+            .Select(r => new SubmissionStamp(r.CreatedByUserId, r.CreatedAtUtc, r.Id))
+            .ToList());
 
     public Task<bool> AnyOtherWithTextAsync(
         string tableName, string columnCode, string text,

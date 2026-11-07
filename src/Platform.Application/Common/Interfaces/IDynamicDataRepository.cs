@@ -39,7 +39,8 @@ public record RecordSearch(
     bool CountTotal = true);
 
 /// <summary>One submission: who created the row and when (UTC).</summary>
-public record SubmissionStamp(Guid UserId, DateTime CreatedAtUtc);
+/// <summary>Who sent a row, when, and its id (the tracking grid opens that entry - redesign 23).</summary>
+public record SubmissionStamp(Guid UserId, DateTime CreatedAtUtc, Guid? RecordId = null);
 
 /// <summary>
 /// CRUD against a dynamically generated table. Every method takes the FormVersion's

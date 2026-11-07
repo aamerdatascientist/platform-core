@@ -18,7 +18,11 @@ public record AssignmentInfo(
 public record AssignmentDayDto(
     Guid AssignmentId, Guid UserId, string UserName, Guid FormId, string FormName, DateOnly Date,
     DateTime AssignedAtUtc, string? AssignedByName, string Status, DateTime? FilledAtUtc, int SubmissionCount,
-    int RemindersSent = 0, int RemindersFailed = 0);
+    int RemindersSent = 0, int RemindersFailed = 0,
+    /// <summary>The first entry sent that day, when filled (the grid cell opens it - redesign 23).</summary>
+    Guid? RecordId = null,
+    /// <summary>When the person was last reminded about that day, automatic or manual ("Reminded at 4:10 PM").</summary>
+    DateTime? LastRemindedAtUtc = null);
 
 /// <summary>
 /// Turns assignments into days, and days into filled / missed / pending by reading the form's
@@ -54,7 +58,7 @@ public static class FormAssignmentTracker
     {
         var byFormUserDay = stamps
             .GroupBy(s => (s.FormId, s.Stamp.UserId, Day: SaudiDay(s.Stamp.CreatedAtUtc)))
-            .ToDictionary(g => g.Key, g => g.Select(s => s.Stamp.CreatedAtUtc).OrderBy(t => t).ToList());
+            .ToDictionary(g => g.Key, g => g.Select(s => s.Stamp).OrderBy(s => s.CreatedAtUtc).ToList());
 
         var days = new List<AssignmentDayDto>();
         foreach (var a in assignments)
@@ -64,11 +68,11 @@ public static class FormAssignmentTracker
             for (var day = first; day <= last; day = day.AddDays(1))
             {
                 if (!IsWorkingDay(day)) continue;
-                byFormUserDay.TryGetValue((a.FormId, a.UserId, day), out var times);
-                var status = times is { Count: > 0 } ? Filled : day < today ? Missed : Pending;
+                byFormUserDay.TryGetValue((a.FormId, a.UserId, day), out var sent);
+                var status = sent is { Count: > 0 } ? Filled : day < today ? Missed : Pending;
                 days.Add(new AssignmentDayDto(
                     a.Id, a.UserId, a.UserName, a.FormId, a.FormName, day, a.AssignedAtUtc, a.AssignedByName,
-                    status, times?.FirstOrDefault(), times?.Count ?? 0));
+                    status, sent?.FirstOrDefault()?.CreatedAtUtc, sent?.Count ?? 0, RecordId: sent?.FirstOrDefault()?.RecordId));
             }
         }
 
