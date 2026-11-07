@@ -9,6 +9,7 @@ import { initial } from '../components/shell/ShellData';
 import { Button, Segmented, Sheet, TableCard, tdClass, thClass } from '../components/ui';
 import { dayLabel, localeFor } from '../forms/recordAnswers';
 import { useErrorMessage } from '../hooks/useErrorMessage';
+import { useWhatsAppGate } from '../config/whatsapp';
 import type { ReportKind, ReportRecipientDto, ReportRunDto, ReportsOverviewDto } from '../types';
 
 const KINDS: ReportKind[] = ['daily', 'weekly', 'monthly'];
@@ -265,6 +266,8 @@ function RunNow({ token, onDone }: { token: string; onDone: () => Promise<void> 
   const [busy, setBusy] = useState<'preview' | 'send' | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [result, setResult] = useState<ReportRunDto | null>(null);
+  // "Send now" delivers on WhatsApp - until it's connected it only says so (preview still works).
+  const whatsapp = useWhatsAppGate();
   const [error, setError] = useErrorMessage();
 
   async function run(deliver: boolean) {
@@ -295,12 +298,17 @@ function RunNow({ token, onDone }: { token: string; onDone: () => Promise<void> 
         </label>
       </div>
       {error && <p className="text-[14px] text-danger">{error}</p>}
+      {whatsapp.notice && (
+        <p role="status" className="rounded-ui-lg bg-warning-soft px-3 py-2 text-[14px] text-warning-strong">
+          {t('whatsapp.notReady')}
+        </p>
+      )}
       {result && <RunResult token={token} run={result} />}
       <div className="mt-auto flex gap-2">
         <Button size="desktop" variant="secondary" block className="!h-[44px] !font-normal" disabled={busy !== null} onClick={() => run(false)}>
           {busy === 'preview' ? t('reports.run.working') : t('reportsV2.previewNoSend')}
         </Button>
-        <Button size="desktop" block className="!h-[44px]" disabled={busy !== null} onClick={() => setConfirming(true)}>
+        <Button size="desktop" block className="!h-[44px]" disabled={busy !== null} onClick={() => whatsapp.guard(() => setConfirming(true))}>
           {busy === 'send' ? t('reports.run.working') : t('reports.run.send')}
         </Button>
       </div>

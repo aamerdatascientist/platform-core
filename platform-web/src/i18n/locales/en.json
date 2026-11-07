@@ -1036,5 +1036,15 @@
   "roleName": {
     "Administrator": "Administrator",
     "Project Manager": "Project manager"
+  },
+  "whatsapp": {
+    "title": "WhatsApp",
+    "notReady": "WhatsApp isn't set up yet. These buttons will work once it's connected.",
+    "notConnected": "Not connected",
+    "connect": "Connect",
+    "explain": "Get your form reminders on WhatsApp too.",
+    "statusBox": "WhatsApp isn't connected yet.",
+    "channelOk": "WhatsApp ✓",
+    "channelNone": "No WhatsApp"
   }
 }

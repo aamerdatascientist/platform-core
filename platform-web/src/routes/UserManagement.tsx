@@ -7,6 +7,7 @@ import { initial, useShell } from '../components/shell/ShellData';
 import { Button, ClickableRow, Drawer, Segmented, Sheet, TableCard, tdClass, thClass } from '../components/ui';
 import { UserTelegramPanel } from '../components/UserTelegramPanel';
 import { useErrorMessage } from '../hooks/useErrorMessage';
+import { useWhatsAppGate } from '../config/whatsapp';
 import type { RoleDto, UserSummaryDto } from '../types';
 
 type Filter = 'all' | 'active' | 'off';
@@ -197,6 +198,7 @@ function UserDrawer({ token, user, roles, onClose, onChanged }: { token: string;
   const [phone, setPhone] = useState(user.phoneNumber ? `+${user.phoneNumber}` : '');
   const [note, setNote] = useState<string | null>(null);
   const [telegramOpen, setTelegramOpen] = useState(false);
+  const whatsapp = useWhatsAppGate();
   const [resetOpen, setResetOpen] = useState(false);
 
   async function act(action: () => Promise<unknown>, fallbackKey: string, done?: string) {
@@ -284,12 +286,14 @@ function UserDrawer({ token, user, roles, onClose, onChanged }: { token: string;
                 size="compact"
                 variant="secondary"
                 className="!h-[40px] !min-h-[40px] shrink-0 !border !text-[13px]"
-                disabled={busy || !user.phoneNumber}
+                disabled={busy}
                 onClick={() =>
-                  act(async () => {
-                    const r = await api.users.sendWhatsAppTest(token, user.id);
-                    if (!r.success) throw new Error(r.error ?? 'failed');
-                  }, 'userManagement.phoneTestFailed', t('userManagement.phoneTestSent'))
+                  whatsapp.guard(() =>
+                    act(async () => {
+                      const r = await api.users.sendWhatsAppTest(token, user.id);
+                      if (!r.success) throw new Error(r.error ?? 'failed');
+                    }, 'userManagement.phoneTestFailed', t('userManagement.phoneTestSent')),
+                  )
                 }
               >
                 {t('usersV2.testMessage')}
@@ -297,6 +301,18 @@ function UserDrawer({ token, user, roles, onClose, onChanged }: { token: string;
             )}
           </span>
         </label>
+        {/* WhatsApp, as it will be once connected (config/whatsapp.ts). */}
+        <div className="flex items-center gap-[10px] rounded-ui-lg bg-warning-soft px-3 py-[10px]">
+          <span className="flex-1 text-[13px] text-warning-strong">{t('whatsapp.statusBox')}</span>
+          <button type="button" onClick={() => whatsapp.guard(() => undefined)} className="h-[34px] shrink-0 rounded-[9px] bg-panel px-[10px] text-[13px] font-bold text-ink">
+            {t('whatsapp.connect')}
+          </button>
+        </div>
+        {whatsapp.notice && (
+          <p role="status" className="text-[13px] text-warning-strong">
+            {t('whatsapp.notReady')}
+          </p>
+        )}
         <div className={`flex items-center gap-[10px] rounded-ui-lg px-3 py-[10px] ${user.telegramLinked ? 'bg-success-soft' : 'bg-warning-soft'}`}>
           <span className={`flex-1 text-[13px] ${user.telegramLinked ? 'text-success-strong' : 'text-warning-strong'}`}>
             {user.telegramLinked ? t('usersV2.telegramLinkedBox') : t('usersV2.telegramNotLinkedBox')}

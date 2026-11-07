@@ -1070,5 +1070,15 @@
   "roleName": {
     "Administrator": "مسؤول",
     "Project Manager": "مدير مشروع"
+  },
+  "whatsapp": {
+    "title": "واتساب",
+    "notReady": "واتساب غير مُعدّ بعد. ستعمل هذه الأزرار بعد ربطه.",
+    "notConnected": "غير مربوط",
+    "connect": "ربط",
+    "explain": "استلم تذكيرات النماذج على واتساب أيضاً.",
+    "statusBox": "واتساب غير مربوط بعد.",
+    "channelOk": "واتساب ✓",
+    "channelNone": "لا يوجد واتساب"
   }
 }

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useWhatsAppGate } from '../config/whatsapp';
 import { api } from '../api/client';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { TelegramStatusDto } from '../types';
@@ -80,14 +81,14 @@ export function TelegramConnect({ token }: { token: string }) {
     }
   }
 
-  if (!status?.configured) return null;
-
   return (
     <section className="flex flex-col gap-2" aria-labelledby="settings-notifications">
       <h2 id="settings-notifications" className="px-1 text-[14px] font-bold text-ink-soft">
         {t('settings.notifications')}
       </h2>
-      <Card kind="phone-secondary" className="flex flex-col gap-3 px-4 py-[14px]">
+      <Card kind="phone-secondary" className="flex flex-col divide-y divide-divider px-4">
+      {status?.configured && (
+      <div className="flex flex-col gap-3 py-[14px]">
         <div className="flex items-center gap-3">
           <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-ui-lg bg-accent-soft text-accent">
             <Icon name="send" size={20} />
@@ -115,7 +116,38 @@ export function TelegramConnect({ token }: { token: string }) {
           </Button>
         )}
         {error && <p className="text-[14px] text-danger">{error}</p>}
+      </div>
+      )}
+        <WhatsAppRow />
       </Card>
     </section>
+  );
+}
+
+/** WhatsApp, shown as it will be once connected; until then "Connect" only says it isn't set up yet. */
+function WhatsAppRow() {
+  const { t } = useTranslation();
+  const { notice, guard } = useWhatsAppGate();
+  return (
+    <div className="flex flex-col gap-3 py-[14px]">
+      <div className="flex items-center gap-3">
+        <span aria-hidden="true" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-ui-lg bg-success-soft text-success">
+          <Icon name="bell" size={20} />
+        </span>
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="text-[16px] font-bold text-ink">{t('whatsapp.title')}</span>
+          <span className="text-[14px] text-ink-soft">{t('whatsapp.notConnected')}</span>
+        </div>
+        <Button variant="secondary" size="compact" onClick={() => guard(() => undefined)} className="!rounded-ui-lg !text-[14px]">
+          {t('whatsapp.connect')}
+        </Button>
+      </div>
+      <p className="text-[13px] text-ink-soft">{t('whatsapp.explain')}</p>
+      {notice && (
+        <p role="status" className="rounded-ui-lg bg-warning-soft px-3 py-2 text-[14px] text-warning-strong">
+          {t('whatsapp.notReady')}
+        </p>
+      )}
+    </div>
   );
 }

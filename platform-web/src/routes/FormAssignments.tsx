@@ -337,7 +337,10 @@ function AssignPanel({
               <span className="flex-1 font-bold text-ink">
                 <bdi>{u.displayName}</bdi>
               </span>
-              <span className={`text-[12px] ${u.telegramLinked ? 'text-success' : 'text-warning'}`}>{u.telegramLinked ? t('usersV2.remindersTelegram') : t('usersV2.noTelegram')}</span>
+              <span className="flex flex-col items-end text-[12px] leading-tight">
+                <span className={u.telegramLinked ? 'text-success' : 'text-warning'}>{u.telegramLinked ? t('usersV2.remindersTelegram') : t('usersV2.noTelegram')}</span>
+                <span className={u.phoneNumber ? 'text-success' : 'text-ink-soft'}>{u.phoneNumber ? t('whatsapp.channelOk') : t('whatsapp.channelNone')}</span>
+              </span>
             </label>
           );
         })}
