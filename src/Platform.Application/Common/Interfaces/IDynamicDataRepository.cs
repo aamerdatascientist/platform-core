@@ -14,6 +14,30 @@ public record PagedResult<T>(IReadOnlyList<T> Items, int TotalCount, int Page, i
 /// </summary>
 public record DynamicRowFilter(string FieldCode, object Value);
 
+/// <summary>
+/// A submitted row with who sent it and when (redesign phase 7: My entries, Records).
+/// </summary>
+public record RecordRow(Guid Id, DateTime CreatedAtUtc, Guid CreatedByUserId, IReadOnlyDictionary<string, object?> Values);
+
+/// <summary>
+/// What SearchAsync filters by - all optional, all ANDed. Field codes are resolved from real
+/// FieldDefinitions by the caller and still go through the identifier check; every value is a
+/// parameter. Text matches any text/dropdown column (case-insensitive, LIKE wildcards escaped).
+/// The date range applies to a DateTime field (DateFieldCode) or, without one, to CreatedAtUtc;
+/// From is inclusive, To exclusive. Before is a (CreatedAtUtc, Id) cursor for newest-first paging.
+/// </summary>
+public record RecordSearch(
+    int Page = 1,
+    int PageSize = 25,
+    IReadOnlyList<DynamicRowFilter>? Matches = null,
+    string? Text = null,
+    string? DateFieldCode = null,
+    DateTimeOffset? From = null,
+    DateTimeOffset? To = null,
+    Guid? CreatedByUserId = null,
+    (DateTime CreatedAtUtc, Guid Id)? Before = null,
+    bool CountTotal = true);
+
 /// <summary>One submission: who created the row and when (UTC).</summary>
 public record SubmissionStamp(Guid UserId, DateTime CreatedAtUtc);
 
@@ -55,6 +79,20 @@ public interface IDynamicDataRepository
         string tableName, Guid id, Guid deletedByUserId, CancellationToken cancellationToken = default);
 
     Task<DynamicRow?> GetByIdAsync(
+        string tableName,
+        IReadOnlyCollection<FieldDefinition> activeFields,
+        Guid id,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Filtered, newest-first rows with sender and time (see RecordSearch).</summary>
+    Task<PagedResult<RecordRow>> SearchAsync(
+        string tableName,
+        IReadOnlyCollection<FieldDefinition> activeFields,
+        RecordSearch search,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>One row with sender and time, or null (missing or deleted).</summary>
+    Task<RecordRow?> GetRecordAsync(
         string tableName,
         IReadOnlyCollection<FieldDefinition> activeFields,
         Guid id,

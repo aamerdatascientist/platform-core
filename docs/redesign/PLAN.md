@@ -61,3 +61,16 @@ copied to `docs/redesign/` as instructed. All 18 PNGs and HANDOFF.md read in ful
 2 Foundation → 3 Shells → 4 Sign in/Today/Settings/Sent → 5 Renderer (single-step) → 6 Labels+Steps API, builder, multi-step+drafts → 7 My entries + Records API and pages → 8 Users, Assignments, Reports, Builder home, Overview → 9 Offline queue → 10 Polish + acceptance checklist.
 
 Phases 2–5 are frontend only. Backend work starts in phase 6.
+
+## 6. Phase log — exact schema/API changes per phase (owner: "do the rest of the phases yourself", 2026-11-07)
+
+### Phase 6 — done 2026-11-07 (approved by the owner before starting)
+Migration `AddFormStepsAndEnglishLabels` (adds `FormDefinitions.NameEn`, `FieldDefinitions.LabelEn` + `StepId`, table `FormSteps`); endpoints in CLAUDE.md "Steps and English labels". No `Data_*` table or `Report_*` view touched.
+
+### Phase 7 — My entries (08) + Records (20)
+**No schema change, no migration.** Read-only queries plus one response superset:
+- `IDynamicDataRepository.SearchAsync(table, fields, RecordSearch)` (new; `QueryAsync` unchanged): equality filters, `ILIKE` text search over text/dropdown columns (escaped), a date range on a DateTime field or on `CreatedAtUtc`, own-rows (`CreatedByUserId`), and a `(CreatedAtUtc, Id)` cursor. Every identifier through `SqlTypeMapper.AssertSafePostgresIdentifier`, every value a parameter. Rows also carry `CreatedAtUtc` and `CreatedByUserId`.
+- `GET api/forms/{id}/submissions` (administrators, unchanged route): new optional `q`, `from`, `to`, `dateField`, repeatable `f=code:value`; each item gains `createdAtUtc`, `createdByUserId`, `createdByName`, `lookupLabels` (resolved Lookup labels — fixes the raw-GUID display) and `attachmentCount`. Old fields unchanged, so old callers keep working.
+- `GET api/forms/{formId}/submissions/{recordId}` (new): owner-or-administrator **and** `FormAccessChecker.HasAccess` for the record's form (owner decision 2026-11-06). Returns the row, sender name, lookup labels and its attachment list. 403 otherwise.
+- `GET api/submissions/mine?formId=&before=&pageSize=20` (new, any signed-in user): the caller's own non-deleted rows across forms they can access, newest first; `formId` of a form they can't access → 403.
+- Tests: 403 for a user without form access on both new endpoints; another user's record → 403; own rows only.

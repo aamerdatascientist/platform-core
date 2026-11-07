@@ -7,6 +7,8 @@ using Platform.Application.Forms.Commands.SubmitFormData;
 using Platform.Application.Forms.Commands.UpdateSubmission;
 using Platform.Application.Forms.Queries.GetFormSubmissions;
 
+using Platform.Application.Forms.Records;
+
 namespace Platform.Api.Controllers;
 
 [ApiController]
@@ -62,12 +64,35 @@ public class FormDataController : ControllerBase
     /// forms in but don't browse what everyone else submitted; the form's own Lookup
     /// dropdowns get their choices from GET /api/forms/{id}/fields/{fieldId}/lookup-options
     /// instead, so locking this down doesn't empty them.
+    ///
+    /// Redesign phase 7 (Records tab, HANDOFF §9.4): optional q (text), from/to (yyyy-mm-dd,
+    /// Saudi days; on dateField when given, else on when it was sent) and repeatable
+    /// f=code:value filters. Each item now also carries createdAtUtc, createdByName,
+    /// lookupLabels and attachmentCount - a superset of the old {id, values}, so old callers
+    /// keep working. The old filterFieldCode/filterValue pair still works too.
     /// </summary>
     [HttpGet]
     [Authorize(Roles = "Administrator")]
-    public async Task<ActionResult<PagedResult<DynamicRow>>> List(
+    public async Task<ActionResult<RecordsPageDto>> List(
         Guid formId, [FromQuery] int page = 1, [FromQuery] int pageSize = 25,
         [FromQuery] string? filterFieldCode = null, [FromQuery] string? filterValue = null,
-        CancellationToken cancellationToken = default) =>
-        Ok(await _sender.Send(new GetFormSubmissionsQuery(formId, page, pageSize, filterFieldCode, filterValue), cancellationToken));
+        [FromQuery] string? q = null, [FromQuery] string? from = null, [FromQuery] string? to = null,
+        [FromQuery] string? dateField = null, [FromQuery(Name = "f")] string[]? filters = null,
+        CancellationToken cancellationToken = default)
+    {
+        var all = (filters ?? Array.Empty<string>()).ToList();
+        if (filterFieldCode is not null || filterValue is not null)
+        {
+            if (string.IsNullOrEmpty(filterFieldCode) || string.IsNullOrEmpty(filterValue))
+                return BadRequest(new { title = "filterFieldCode and filterValue go together." });
+            all.Add($"{filterFieldCode}:{filterValue}");
+        }
+        return Ok(await _sender.Send(new SearchRecordsQuery(formId, page, pageSize, q, from, to, dateField, all), cancellationToken));
+    }
+
+    /// <summary>One record with its attachments - its sender or an administrator, and only
+    /// with access to the form (redesign §9.3; owner decision 2026-11-06). 403 otherwise.</summary>
+    [HttpGet("{recordId:guid}")]
+    public async Task<ActionResult<RecordDetailDto>> Get(Guid formId, Guid recordId, CancellationToken cancellationToken) =>
+        Ok(await _sender.Send(new GetRecordDetailQuery(formId, recordId), cancellationToken));
 }

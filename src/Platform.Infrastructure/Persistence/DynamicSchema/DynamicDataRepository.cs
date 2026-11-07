@@ -191,6 +191,117 @@ public class DynamicDataRepository : IDynamicDataRepository
         return new PagedResult<DynamicRow>(items, totalCount, page, pageSize);
     }
 
+    public async Task<PagedResult<RecordRow>> SearchAsync(
+        string tableName, IReadOnlyCollection<FieldDefinition> activeFields, RecordSearch search,
+        CancellationToken cancellationToken = default)
+    {
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
+        var page = Math.Max(search.Page, 1);
+        var pageSize = Math.Clamp(search.PageSize, 1, 200);
+        var readableFields = activeFields.Where(f => f.FieldType != FieldType.Attachment).ToList();
+        var selectColumns = BuildSelectColumnList(readableFields);
+
+        var parameters = new DynamicParameters();
+        parameters.Add("Offset", (page - 1) * pageSize);
+        parameters.Add("PageSize", pageSize);
+        var where = new List<string> { "\"IsDeleted\" = false" };
+
+        var i = 0;
+        foreach (var filter in search.Matches ?? Array.Empty<DynamicRowFilter>())
+        {
+            SqlTypeMapper.AssertSafePostgresIdentifier(filter.FieldCode);
+            where.Add($"\"{filter.FieldCode}\" = @Eq{i}");
+            parameters.Add($"Eq{i}", filter.Value);
+            i++;
+        }
+
+        if (!string.IsNullOrWhiteSpace(search.Text))
+        {
+            var textColumns = readableFields
+                .Where(f => f.FieldType is FieldType.ShortText or FieldType.LongText or FieldType.Dropdown)
+                .Select(f =>
+                {
+                    SqlTypeMapper.AssertSafePostgresIdentifier(f.Code);
+                    return $"\"{f.Code}\" ILIKE @Text ESCAPE '\\'";
+                })
+                .ToList();
+            // No text column means nothing can match - not "ignore the search".
+            where.Add(textColumns.Count == 0 ? "false" : $"({string.Join(" OR ", textColumns)})");
+            var escaped = search.Text.Trim().Replace("\\", "\\\\").Replace("%", "\\%").Replace("_", "\\_");
+            parameters.Add("Text", $"%{escaped}%");
+        }
+
+        var dateColumn = "\"CreatedAtUtc\"";
+        if (search.DateFieldCode is { } dateCode)
+        {
+            SqlTypeMapper.AssertSafePostgresIdentifier(dateCode);
+            dateColumn = $"\"{dateCode}\"";
+        }
+        if (search.From is { } from)
+        {
+            where.Add($"{dateColumn} >= @From");
+            parameters.Add("From", search.DateFieldCode is null ? from.UtcDateTime : from.ToUniversalTime());
+        }
+        if (search.To is { } to)
+        {
+            where.Add($"{dateColumn} < @To");
+            parameters.Add("To", search.DateFieldCode is null ? to.UtcDateTime : to.ToUniversalTime());
+        }
+
+        if (search.CreatedByUserId is { } userId)
+        {
+            where.Add("\"CreatedByUserId\" = @CreatedBy");
+            parameters.Add("CreatedBy", userId);
+        }
+
+        if (search.Before is { } before)
+        {
+            where.Add("(\"CreatedAtUtc\", \"Id\") < (@BeforeAt, @BeforeId)");
+            parameters.Add("BeforeAt", DateTime.SpecifyKind(before.CreatedAtUtc, DateTimeKind.Utc));
+            parameters.Add("BeforeId", before.Id);
+        }
+
+        var whereClause = string.Join(" AND ", where);
+        var pageSql = $"""
+            SELECT "Id", "CreatedAtUtc", "CreatedByUserId"{selectColumns} FROM "{tableName}"
+            WHERE {whereClause}
+            ORDER BY "CreatedAtUtc" DESC, "Id" DESC
+            OFFSET @Offset ROWS FETCH NEXT @PageSize ROWS ONLY;
+            """;
+
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        var total = search.CountTotal
+            ? await connection.ExecuteScalarAsync<int>(new CommandDefinition(
+                $"SELECT COUNT(1) FROM \"{tableName}\" WHERE {whereClause};", parameters, cancellationToken: cancellationToken))
+            : -1;
+        IEnumerable<object> rows = await connection.QueryAsync(new CommandDefinition(pageSql, parameters, cancellationToken: cancellationToken));
+        return new PagedResult<RecordRow>(rows.Select(r => ToRecordRow(r, readableFields)).ToList(), total, page, pageSize);
+    }
+
+    public async Task<RecordRow?> GetRecordAsync(
+        string tableName, IReadOnlyCollection<FieldDefinition> activeFields, Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
+        var readableFields = activeFields.Where(f => f.FieldType != FieldType.Attachment).ToList();
+        var sql = $"SELECT \"Id\", \"CreatedAtUtc\", \"CreatedByUserId\"{BuildSelectColumnList(readableFields)} FROM \"{tableName}\" WHERE \"Id\" = @Id AND \"IsDeleted\" = false;";
+        await using var connection = new NpgsqlConnection(_connectionString);
+        var row = await connection.QuerySingleOrDefaultAsync(new CommandDefinition(sql, new { Id = id }, cancellationToken: cancellationToken));
+        return row is null ? null : ToRecordRow(row, readableFields);
+    }
+
+    private static RecordRow ToRecordRow(dynamic row, IReadOnlyCollection<FieldDefinition> fields)
+    {
+        var dict = (IDictionary<string, object?>)row;
+        var values = fields.ToDictionary(f => f.Code, f => dict.TryGetValue(f.Code, out var v) ? v : null);
+        return new RecordRow(
+            (Guid)dict["Id"]!,
+            DateTime.SpecifyKind((DateTime)dict["CreatedAtUtc"]!, DateTimeKind.Utc),
+            (Guid)dict["CreatedByUserId"]!,
+            values);
+    }
+
     public async Task<int> CountAsync(string tableName, CancellationToken cancellationToken = default)
     {
         SqlTypeMapper.AssertSafePostgresIdentifier(tableName);

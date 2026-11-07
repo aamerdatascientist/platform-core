@@ -48,6 +48,35 @@ public class FakeDynamicDataRepository : IDynamicDataRepository
         CancellationToken cancellationToken = default) =>
         throw new NotSupportedException("Not used by the analytics query handler tests.");
 
+    /// <summary>Rows with sender and time, for SearchAsync/GetRecordAsync (My entries, Records).</summary>
+    public Dictionary<string, List<RecordRow>> Records { get; } = new();
+
+    /// <summary>The last search per table, so tests can check what the handler asked for.</summary>
+    public Dictionary<string, RecordSearch> LastSearch { get; } = new();
+
+    public Task<PagedResult<RecordRow>> SearchAsync(
+        string tableName, IReadOnlyCollection<FieldDefinition> activeFields, RecordSearch search,
+        CancellationToken cancellationToken = default)
+    {
+        LastSearch[tableName] = search;
+        var rows = Records.GetValueOrDefault(tableName) ?? new List<RecordRow>();
+        IEnumerable<RecordRow> q = rows;
+        foreach (var f in search.Matches ?? Array.Empty<DynamicRowFilter>())
+            q = q.Where(r => Equals(r.Values.GetValueOrDefault(f.FieldCode), f.Value));
+        if (search.CreatedByUserId is { } u) q = q.Where(r => r.CreatedByUserId == u);
+        if (search.Before is { } b) q = q.Where(r => r.CreatedAtUtc < b.CreatedAtUtc || (r.CreatedAtUtc == b.CreatedAtUtc && r.Id.CompareTo(b.Id) < 0));
+        if (!string.IsNullOrWhiteSpace(search.Text))
+            q = q.Where(r => r.Values.Values.OfType<string>().Any(v => v.Contains(search.Text, StringComparison.OrdinalIgnoreCase)));
+        var all = q.OrderByDescending(r => r.CreatedAtUtc).ThenByDescending(r => r.Id).ToList();
+        var page = all.Skip((search.Page - 1) * search.PageSize).Take(search.PageSize).ToList();
+        return Task.FromResult(new PagedResult<RecordRow>(page, all.Count, search.Page, search.PageSize));
+    }
+
+    public Task<RecordRow?> GetRecordAsync(
+        string tableName, IReadOnlyCollection<FieldDefinition> activeFields, Guid id,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult((Records.GetValueOrDefault(tableName) ?? new List<RecordRow>()).SingleOrDefault(r => r.Id == id));
+
     public Task<DynamicRow?> GetByIdAsync(
         string tableName, IReadOnlyCollection<FieldDefinition> activeFields, Guid id,
         CancellationToken cancellationToken = default) =>
