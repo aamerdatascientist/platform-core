@@ -34,7 +34,18 @@ public class FormDataController : ControllerBase
         // this endpoint will ever trust.
         var userId = _currentUser.UserId!.Value;
 
-        var id = await _sender.Send(new SubmitFormDataCommand(formId, values, userId), cancellationToken);
+        // The offline queue (redesign §9.6): Idempotency-Key makes a retried entry save only
+        // once; X-Entered-At is when Send was pressed on the phone (ISO 8601).
+        var key = Request.Headers["Idempotency-Key"].FirstOrDefault();
+        DateTime? enteredAt = null;
+        if (Request.Headers["X-Entered-At"].FirstOrDefault() is { Length: > 0 } raw)
+        {
+            if (!DateTimeOffset.TryParse(raw, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed))
+                return BadRequest(new { title = "X-Entered-At must be an ISO 8601 time.", code = "submission.enteredAtInvalid" });
+            enteredAt = parsed.UtcDateTime;
+        }
+
+        var id = await _sender.Send(new SubmitFormDataCommand(formId, values, userId, string.IsNullOrWhiteSpace(key) ? null : key, enteredAt), cancellationToken);
         return Ok(new { id });
     }
 

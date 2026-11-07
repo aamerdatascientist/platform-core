@@ -42,11 +42,24 @@ public class FakeDynamicDataRepository : IDynamicDataRepository
         return Task.FromResult(new PagedResult<DynamicRow>(items, matching.Count, page, pageSize));
     }
 
+    /// <summary>Set to make the next InsertAsync fail (the offline-queue tests).</summary>
+    public bool FailNextInsert { get; set; }
+
     public Task<Guid> InsertAsync(
         string tableName, IReadOnlyCollection<FieldDefinition> activeFields,
         IReadOnlyDictionary<string, object?> values, Guid submittedByUserId,
-        CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("Not used by the analytics query handler tests.");
+        CancellationToken cancellationToken = default)
+    {
+        if (FailNextInsert)
+        {
+            FailNextInsert = false;
+            throw new InvalidOperationException("insert failed (test)");
+        }
+        var row = new RecordRow(Guid.NewGuid(), DateTime.UtcNow, submittedByUserId, values.ToDictionary(kv => kv.Key, kv => kv.Value));
+        if (!Records.TryGetValue(tableName, out var rows)) Records[tableName] = rows = new List<RecordRow>();
+        rows.Add(row);
+        return Task.FromResult(row.Id);
+    }
 
     /// <summary>Rows with sender and time, for SearchAsync/GetRecordAsync (My entries, Records).</summary>
     public Dictionary<string, List<RecordRow>> Records { get; } = new();

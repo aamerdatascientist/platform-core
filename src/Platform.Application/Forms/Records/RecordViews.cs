@@ -17,7 +17,10 @@ public record RecordItemDto(
     /// <summary>Lookup field code -> the chosen row's label (the target form's display field),
     /// so nobody ever sees a raw GUID.</summary>
     IReadOnlyDictionary<string, string> LookupLabels,
-    int AttachmentCount);
+    int AttachmentCount,
+    /// <summary>When Send was pressed on the phone, for an entry that waited in the offline
+    /// queue (owner decision 8: shown instead of the server time); null otherwise.</summary>
+    DateTime? EnteredAtUtc = null);
 
 public record RecordsPageDto(IReadOnlyList<RecordItemDto> Items, int TotalCount, int Page, int PageSize);
 
@@ -45,6 +48,9 @@ public static class RecordViews
             .GroupBy(f => f.RecordId)
             .Select(g => new { g.Key, Count = g.Count() })
             .ToDictionaryAsync(x => x.Key, x => x.Count, cancellationToken);
+        var entered = await db.SubmissionReceipts
+            .Where(r => r.RecordId != null && ids.Contains(r.RecordId.Value) && r.EnteredAtUtc != null)
+            .ToDictionaryAsync(r => r.RecordId!.Value, r => DateTime.SpecifyKind(r.EnteredAtUtc!.Value, DateTimeKind.Utc), cancellationToken);
         var userIds = rows.Select(r => r.CreatedByUserId).Distinct().ToList();
         var names = await db.Users.IgnoreQueryFilters()
             .Where(u => userIds.Contains(u.Id))
@@ -53,7 +59,8 @@ public static class RecordViews
         return rows.Select(r => new RecordItemDto(
             r.Id, formId, r.CreatedAtUtc, r.CreatedByUserId, names.GetValueOrDefault(r.CreatedByUserId), r.Values,
             labels.TryGetValue(r.Id, out var l) ? l : new Dictionary<string, string>(),
-            counts.GetValueOrDefault(r.Id))).ToList();
+            counts.GetValueOrDefault(r.Id),
+            entered.TryGetValue(r.Id, out var at) ? at : null)).ToList();
     }
 
     private static async Task<Dictionary<Guid, Dictionary<string, string>>> LookupLabelsAsync(

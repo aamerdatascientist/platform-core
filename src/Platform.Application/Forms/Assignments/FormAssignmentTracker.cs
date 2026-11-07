@@ -35,6 +35,9 @@ public static class FormAssignmentTracker
     public const string Missed = "missed";
     public const string Pending = "pending";
 
+    /// <summary>How late the offline queue may send an entry (SubmitFormDataCommand allows 3 days).</summary>
+    public const int LateSendDays = 3;
+
     private static readonly TimeSpan SaudiArabiaOffset = TimeSpan.FromHours(3);
 
     public static DateOnly SaudiToday(DateTime utcNow) => SaudiDay(utcNow);
@@ -122,10 +125,24 @@ public static class FormAssignmentTracker
         {
             if (forms.GetValueOrDefault(group.Key)?.TableName is not { } table) continue;
             var start = group.Min(a => a.StartDate) > from ? group.Min(a => a.StartDate) : from;
+            // An entry kept on the phone without signal is sent up to 3 days later but counts for
+            // the day it was entered (owner decision 8) - so read 3 days past the range too.
             var rows = await dynamicData.GetSubmissionStampsAsync(
                 table, group.Select(a => a.UserId).Distinct().ToList(),
-                SaudiDayStartUtc(start), SaudiDayStartUtc(to.AddDays(1)), cancellationToken);
+                SaudiDayStartUtc(start), SaudiDayStartUtc(to.AddDays(1 + LateSendDays)), cancellationToken);
             stamps.AddRange(rows.Select(r => (group.Key, r)));
+        }
+
+        // The phone's own time, where the entry came through the offline queue (SubmissionReceipt).
+        var recordIds = stamps.Select(s => s.Item2.RecordId).OfType<Guid>().ToList();
+        if (recordIds.Count > 0)
+        {
+            var entered = await db.SubmissionReceipts
+                .Where(r => r.RecordId != null && recordIds.Contains(r.RecordId.Value) && r.EnteredAtUtc != null)
+                .ToDictionaryAsync(r => r.RecordId!.Value, r => r.EnteredAtUtc!.Value, cancellationToken);
+            for (var i = 0; i < stamps.Count; i++)
+                if (stamps[i].Item2.RecordId is { } id && entered.TryGetValue(id, out var at))
+                    stamps[i] = (stamps[i].Item1, stamps[i].Item2 with { CreatedAtUtc = DateTime.SpecifyKind(at, DateTimeKind.Utc) });
         }
 
         return (infos, stamps);
