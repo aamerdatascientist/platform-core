@@ -217,7 +217,10 @@
     "submission": {
       "choiceMissing": "This choice no longer exists. Reload the page and choose again.",
       "choiceMismatch": "This choice doesn't belong to what you picked in the field it depends on (for example, a zone of another project). Choose again.",
-      "duplicate": "This value is already used by another record. Enter a different one."
+      "duplicate": "This value is already used by another record. Enter a different one.",
+      "enteredAtInvalid": "Kept on the phone for more than 3 days - it can no longer be sent. Fill it in again.",
+      "keyReused": "This entry couldn't be matched to its form. Fill it in again.",
+      "inProgress": "Still being saved - it will be checked again shortly."
     },
     "assignment.formNotPublished": "This form isn't published yet, so it can't be filled.",
     "assignment.userInactive": "Deactivated users can't be assigned.",

@@ -6,6 +6,9 @@ import i18n from '../i18n';
 import { api, ApiError } from '../api/client';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import { SentScreen } from './SentScreen';
+import { OfflineSavedScreen } from './OfflineSavedScreen';
+import { useOfflineQueue } from './shell/OfflineQueue';
+import { newKey } from '../forms/offlineQueue';
 import { formatLongDate, todayIso, yesterdayIso } from './DateField';
 import { FieldControl } from './form/FieldControl';
 import { StepFooter, StepHeader } from './form/StepChrome';
@@ -97,6 +100,9 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
   // Set when a submission has just been saved: the form is replaced by a confirmation until
   // the person chooses to submit another, so success is impossible to miss.
   const [submittedAt, setSubmittedAt] = useState<Date | null>(null);
+  // Set when the entry was kept on this phone instead (no connection) - screen 12.
+  const [queuedShown, setQueuedShown] = useState(false);
+  const queue = useOfflineQueue();
   const [sentSummary, setSentSummary] = useState<{ project: { label: string; value: string } | null; attachments: number }>({ project: null, attachments: 0 });
   const [attachmentFiles, setAttachmentFiles] = useState<Record<string, File[]>>({});
   // Errors show on Send, then for each field again when the person leaves it (HANDOFF §6:
@@ -112,8 +118,8 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
   const [dynamicDropdownOptions, setDynamicDropdownOptions] = useState<Record<string, string[]>>({});
   const [submitting, setSubmitting] = useState(false);
   useEffect(() => {
-    onSentChange?.(submittedAt !== null);
-  }, [submittedAt, onSentChange]);
+    onSentChange?.(submittedAt !== null || queuedShown);
+  }, [submittedAt, queuedShown, onSentChange]);
   const [error, setError] = useErrorMessage();
   const [fieldErrors, setFieldErrors] = useState<Record<string, FieldError>>({});
   const { formName, fieldLabel, optionLabel, stepTitle, lang } = useLocalized();
@@ -134,6 +140,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
     setError(null);
     setFieldErrors({});
     setSubmittedAt(null);
+    setQueuedShown(false);
     setStepIndex(0);
     setDraftSaved(false);
     setResumed(false);
@@ -431,6 +438,24 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
     goToStep(current + 1);
   }
 
+  /** After an entry is sent - or kept on the phone: remember the choices, clear the draft, start fresh. */
+  function finishSend() {
+    // Remember the choices made, for "Recent" and "Your last choice" next time.
+    visibleFields
+      .filter((f) => f.fieldType === 'Lookup' || f.fieldType === 'Dropdown')
+      .forEach((f) => values[f.code] && rememberChoice(userId, f.id, values[f.code]));
+    setAttempted(false);
+    setPreselected({});
+    clearDraft(userId, formDefinition.id);
+    dirty.current = false;
+    filesDirty.current = false;
+    setDraftSaved(false);
+    setResumed(false);
+    setStepIndex(0);
+    setValues(initialValues());
+    setAttachmentFiles({});
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (preview) return;
@@ -465,11 +490,48 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
         return;
       }
 
-      const { id: recordId } = await api.submissions.submit(token, formDefinition.id, payload);
-
       const uploads = visibleFields
         .filter((f) => f.fieldType === 'Attachment')
         .flatMap((f) => (attachmentFiles[f.code] ?? []).map((file) => ({ field: f, file })));
+      const projectField = visibleFields.find((f) => f.fieldType === 'Lookup' && f.code === 'project');
+      const projectChoice = projectField ? lookupChoices[projectField.code]?.find((c) => c.id === values[projectField.code]) : undefined;
+
+      // Offline queue (§9.6): every send carries a key, so a retry after a lost answer can't
+      // save it twice. With no connection - or no answer at all - it is kept on this phone.
+      const key = newKey();
+      const keepOnPhone = async () => {
+        const ok = await queue?.add({
+          key,
+          userId: userId ?? '',
+          formId: formDefinition.id,
+          formName: formName(formDefinition),
+          project: projectChoice?.label ?? null,
+          values: payload,
+          files: uploads.map((u) => ({ fieldCode: u.field.code, file: u.file })),
+          enteredAtUtc: new Date().toISOString(),
+          error: null,
+        });
+        if (!ok) {
+          setError({ key: 'formRenderer.submitFailed' });
+          return;
+        }
+        finishSend();
+        setQueuedShown(true);
+      };
+      if (queue && userId && typeof navigator !== 'undefined' && navigator.onLine === false) {
+        await keepOnPhone();
+        return;
+      }
+      let recordId: string;
+      try {
+        ({ id: recordId } = await api.submissions.submit(token, formDefinition.id, payload, { idempotencyKey: key }));
+      } catch (err) {
+        if (!(err instanceof ApiError) && queue && userId) {
+          await keepOnPhone();
+          return;
+        }
+        throw err;
+      }
 
       if (uploads.length > 0) {
         const results = await Promise.allSettled(
@@ -491,26 +553,11 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
 
       // The Sent screen's summary (screen 07): the project, if the form has a project field,
       // and how many files were attached.
-      const projectField = visibleFields.find((f) => f.fieldType === 'Lookup' && f.code === 'project');
-      const projectChoice = projectField ? lookupChoices[projectField.code]?.find((c) => c.id === values[projectField.code]) : undefined;
       setSentSummary({
         project: projectField && projectChoice ? { label: fieldLabel(projectField), value: projectChoice.label } : null,
         attachments: uploads.length,
       });
-      // Remember the choices made, for "Recent" and "Your last choice" next time.
-      visibleFields
-        .filter((f) => f.fieldType === 'Lookup' || f.fieldType === 'Dropdown')
-        .forEach((f) => values[f.code] && rememberChoice(userId, f.id, values[f.code]));
-      setAttempted(false);
-      setPreselected({});
-      clearDraft(userId, formDefinition.id);
-      dirty.current = false;
-      filesDirty.current = false;
-      setDraftSaved(false);
-      setResumed(false);
-      setStepIndex(0);
-      setValues(initialValues());
-      setAttachmentFiles({});
+      finishSend();
       setSubmittedAt(new Date());
       onSubmitted?.();
     } catch (err) {
@@ -536,6 +583,8 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
   if (!formDefinition.publishedVersion) {
     return <p className="text-sm text-ink-soft">{t('formRenderer.noPublishedVersion')}</p>;
   }
+
+  if (queuedShown) return <OfflineSavedScreen />;
 
   if (submittedAt) {
     return (

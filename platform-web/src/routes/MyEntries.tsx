@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { WaitingList } from '../components/OfflineSavedScreen';
 import { useShell } from '../components/shell/ShellData';
 import { Button, EmptyState } from '../components/ui';
 import { saudiTodayIso } from '../forms/fieldValues';
@@ -107,6 +108,8 @@ export function MyEntries({ token }: { token: string }) {
   return (
     <div className="mx-auto flex max-w-[720px] flex-col gap-4">
       <h1 className="text-[26px] font-extrabold text-ink">{t('entries.title')}</h1>
+      {/* Entries kept on this phone, still to be sent (12). */}
+      <WaitingList />
 
       {seenForms.length > 0 && (
         <div className="-mx-5 flex gap-2 overflow-x-auto px-5 pb-1 lg:mx-0 lg:flex-wrap lg:px-0" role="group" aria-label={t('entries.title')}>

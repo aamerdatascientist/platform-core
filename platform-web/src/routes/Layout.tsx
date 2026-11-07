@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { CommandPalette, useCommandPaletteShortcut } from '../components/shell/CommandPalette';
 import { FULL_SCREEN_ATTRIBUTE } from '../components/shell/fullScreen';
 import { ShellProvider } from '../components/shell/ShellData';
+import { OfflineBanner, QueueProvider } from '../components/shell/OfflineQueue';
 import { SideMenu } from '../components/shell/SideMenu';
 import { TabBar } from '../components/shell/TabBar';
 import { useIsDesktop } from '../components/ui';
@@ -20,7 +21,9 @@ interface LayoutProps {
 export function Layout({ token }: LayoutProps) {
   return (
     <ShellProvider token={token}>
-      <Shell />
+      <QueueProvider>
+        <Shell />
+      </QueueProvider>
     </ShellProvider>
   );
 }
@@ -50,8 +53,11 @@ function Shell() {
     return (
       <div className="flex min-h-screen bg-bg">
         <SideMenu onSearch={openPalette} />
-        <main className="min-w-0 flex-[999_1_560px] px-8 pb-8 pt-6">
-          <Outlet />
+        <main className="min-w-0 flex-[999_1_560px] pb-8">
+          <OfflineBanner />
+          <div className="px-8 pt-6">
+            <Outlet />
+          </div>
         </main>
         <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       </div>
@@ -60,6 +66,7 @@ function Shell() {
 
   return (
     <div className="min-h-screen bg-bg">
+      <OfflineBanner />
       <main
         className="px-5 pt-5"
         style={{ paddingBottom: fullScreen ? undefined : 'calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 20px)' }}

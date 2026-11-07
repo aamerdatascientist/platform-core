@@ -408,8 +408,20 @@ export const api = {
   },
 
   submissions: {
-    submit: (token: string, formId: string, values: Record<string, unknown>) =>
-      request<{ id: string }>(`/api/forms/${formId}/submissions`, { method: 'POST', body: JSON.stringify(values) }, token),
+    /** idempotencyKey: the server saves it only once; enteredAtUtc: when Send was pressed (offline queue, §9.6). */
+    submit: (token: string, formId: string, values: Record<string, unknown>, options: { idempotencyKey?: string; enteredAtUtc?: string } = {}) =>
+      request<{ id: string }>(
+        `/api/forms/${formId}/submissions`,
+        {
+          method: 'POST',
+          body: JSON.stringify(values),
+          headers: {
+            ...(options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {}),
+            ...(options.enteredAtUtc ? { 'X-Entered-At': options.enteredAtUtc } : {}),
+          },
+        },
+        token,
+      ),
 
     list: (
       token: string,
