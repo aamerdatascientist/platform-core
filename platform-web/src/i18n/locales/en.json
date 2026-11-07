@@ -817,6 +817,7 @@
     "otherDate": "Other date",
     "yesterdayValue": "Yesterday: {{value}}",
     "lastChoice": "Your last choice",
+    "filteredBy": "Only choices for {{value}}",
     "increase": "Increase",
     "decrease": "Decrease",
     "takePhoto": "Take a photo",

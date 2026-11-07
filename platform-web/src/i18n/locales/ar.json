@@ -821,6 +821,7 @@
     "otherDate": "تاريخ آخر",
     "yesterdayValue": "أمس: {{value}}",
     "lastChoice": "آخر ما اخترته",
+    "filteredBy": "خيارات {{value}} فقط",
     "increase": "زيادة",
     "decrease": "إنقاص",
     "takePhoto": "التقط صورة",

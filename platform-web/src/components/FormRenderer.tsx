@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { AnimationEvent, ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
@@ -453,12 +453,21 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
             : undefined
         }
         isFiltered={!!field.filterByFieldCode}
+        filteredByValue={
+          field.filterByFieldCode ? lookupChoices[field.filterByFieldCode]?.find((c) => c.id === values[field.filterByFieldCode!])?.label : undefined
+        }
         recent={recentChoices(userId, field.id)}
         isLastChoice={!!preselected[field.code] && preselected[field.code] === values[field.code]}
         inCard={inCard}
       />
     </div>
   );
+
+  // The reveal animates height, which needs the block clipped - but only while it runs, or a
+  // focused field's ring inside it is cut off.
+  const unclip = (e: AnimationEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) e.currentTarget.style.overflow = 'visible';
+  };
 
   // Fields shown because of another answer sit right under it (05): under a yes/no, indented
   // with a 3px accent bar; under a type/phase selector, in a card headed "Shown because you
@@ -476,7 +485,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
       while (i + 1 < visibleFields.length && visibleFields[i + 1].visibleWhenFieldCode === controller.code) group.push(visibleFields[++i]);
       const chosen = parseOptions(controller.optionsJson).find((o) => o.value === values[controller.code])?.label ?? values[controller.code];
       blocks.push(
-        <div key={`cond-${field.id}`} className="flex animate-[reveal_180ms_ease-out] flex-col gap-2 overflow-hidden rounded-ui-2xl border border-border bg-panel p-[14px]">
+        <div key={`cond-${field.id}`} onAnimationEnd={unclip} className="flex animate-[reveal_180ms_ease-out] flex-col gap-2 overflow-hidden rounded-ui-2xl border border-border bg-panel p-[14px]">
           <span className="self-start rounded-ui-pill bg-accent-soft px-[10px] py-1 text-[12px] font-bold text-accent-strong">
             {t('steps.shownBecause', { value: chosen })}
           </span>
@@ -485,7 +494,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
       );
     } else {
       blocks.push(
-        <div key={`cond-${field.id}`} className="mt-1 animate-[reveal_180ms_ease-out] overflow-hidden border-s-[3px] border-accent ps-3">
+        <div key={`cond-${field.id}`} onAnimationEnd={unclip} className="-mt-2 animate-[reveal_180ms_ease-out] overflow-hidden border-s-[3px] border-accent ps-3">
           {control(field)}
         </div>,
       );

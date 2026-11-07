@@ -48,18 +48,19 @@ export function LookupSheet({
     onClose();
   };
 
-  const row = (c: Choice, keyPrefix: string) => {
-    const on = c.value === value;
+  const row = (c: Choice, keyPrefix: 'recent' | 'all') => {
+    // 04: the chosen row is marked once - under Recent when it is there, otherwise in the full list.
+    const on = c.value === value && (keyPrefix === 'recent' || !recentChoices.some((r) => r.value === value));
     return (
-      <li key={`${keyPrefix}-${c.value}`}>
+      <li key={`${keyPrefix}-${c.value}`} className={keyPrefix === 'all' ? 'border-b border-divider' : ''}>
         <button
           type="button"
           role="option"
           aria-selected={on}
           onClick={() => pick(c.value)}
-          className={`flex min-h-[64px] w-full items-center gap-3 rounded-ui-xl px-3 text-start ${on ? 'bg-accent-soft' : 'hover:bg-field-muted'}`}
+          className={`flex min-h-[64px] w-full items-center gap-3 px-3 text-start ${keyPrefix === 'recent' ? 'rounded-ui-xl' : ''} ${on ? 'bg-accent-soft' : 'hover:bg-field-muted'}`}
         >
-          <span className="flex min-w-0 flex-1 flex-col">
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
             <span className={`text-[17px] text-ink ${on ? 'font-bold' : 'font-medium'}`}>
               <bdi>{c.label}</bdi>
             </span>
@@ -81,8 +82,9 @@ export function LookupSheet({
       title={title}
       footer={<p className="text-center text-[13px] text-ink-soft">{t('lookup.notFound')}</p>}
     >
-      <div className="sticky top-0 z-10 bg-panel pb-3">
-        <label className="flex h-[50px] items-center gap-2 rounded-ui-xl bg-field-muted px-[14px]">
+      <div className="-mx-2">
+      <div className="sticky top-0 z-10 bg-panel px-2 pb-3 pt-1.5">
+        <label className="flex h-[50px] items-center gap-[10px] rounded-ui-xl bg-field-muted px-[14px]">
           <Icon name="search" size={20} className="text-ink-soft" />
           <input
             type="search"
@@ -96,20 +98,21 @@ export function LookupSheet({
       </div>
       {recentChoices.length > 0 && (
         <>
-          <h3 className="pb-2 pt-1 text-[13px] font-bold text-ink-soft">{t('lookup.recent')}</h3>
-          <ul role="listbox" aria-label={t('lookup.recent')} className="mb-3">
+          <h3 className="p-2 text-[13px] font-bold leading-tight text-ink-soft">{t('lookup.recent')}</h3>
+          <ul role="listbox" aria-label={t('lookup.recent')}>
             {recentChoices.map((c) => row(c, 'recent'))}
           </ul>
         </>
       )}
-      <h3 className="pb-2 pt-1 text-[13px] font-bold text-ink-soft">{t('lookup.all', { count: choices.length })}</h3>
+      <h3 className={`px-2 pb-2 text-[13px] font-bold leading-tight text-ink-soft ${recentChoices.length > 0 ? 'pt-4' : 'pt-2'}`}>{t('lookup.all', { count: choices.length })}</h3>
       {matches.length === 0 ? (
         <p className="py-6 text-center text-[15px] text-ink-soft">{t('lookup.noResults', { q: query })}</p>
       ) : (
-        <ul role="listbox" aria-label={title} className="divide-y divide-divider">
+        <ul role="listbox" aria-label={title}>
           {matches.map((c) => row(c, 'all'))}
         </ul>
       )}
+      </div>
     </Sheet>
   );
 }

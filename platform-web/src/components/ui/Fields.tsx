@@ -90,7 +90,7 @@ export function TextArea({ invalid, className = '', ...rest }: { invalid?: boole
     <textarea
       rows={3}
       aria-invalid={invalid || undefined}
-      className={`w-full min-w-0 resize-none rounded-ui-xl border-[1.5px] bg-panel px-[14px] py-3 text-[17px] text-ink placeholder:text-ink-soft focus:border-accent focus:shadow-focus-ring focus:outline-none md:text-[15px] ${
+      className={`w-full min-w-0 resize-none rounded-ui-xl border-[1.5px] bg-panel px-[14px] py-3 text-[16px] text-ink placeholder:text-ink-soft focus:border-accent focus:shadow-focus-ring focus:outline-none md:text-[15px] ${
         invalid ? '!border-danger !bg-danger-soft' : 'border-border'
       } ${className}`}
       {...rest}
@@ -137,6 +137,7 @@ export function Stepper({
         id={id}
         type="text"
         inputMode="numeric"
+        data-own-size=""
         value={value}
         onChange={(e) => onChange(e.target.value)}
         aria-invalid={invalid || undefined}
@@ -245,8 +246,8 @@ export function LookupRow({
     >
       {icon && !disabled && <Icon name={icon} size={20} className="text-accent" />}
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className={`truncate text-[17px] font-medium ${value ? 'text-ink' : 'text-ink-soft'}`}>{value ?? placeholder}</span>
-        {value && sub && <span className="truncate text-[13px] text-ink-soft">{sub}</span>}
+        <span className={`truncate text-[17px] font-medium leading-[1.2] ${value ? 'text-ink' : 'text-ink-soft'}`}>{value ?? placeholder}</span>
+        {value && sub && <span className="truncate text-[13px] leading-[1.2] text-ink-soft">{sub}</span>}
       </span>
       <Icon name="chevronDown" size={18} className="text-ink-soft" />
     </button>

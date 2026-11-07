@@ -84,11 +84,11 @@ export function Sheet({
   if (!open) return null;
 
   const header = (
-    <div className="flex items-center justify-between gap-3 px-5 pb-3 pt-1">
+    <div className="flex items-center justify-between gap-3 py-1.5 pl-5 pr-3">
       <h2 id={titleId} className="text-[20px] font-extrabold text-ink">
         {title}
       </h2>
-      <IconButton label={t('steps.close')} onClick={onClose}>
+      <IconButton label={t('steps.close')} onClick={onClose} round>
         <Icon name="close" size={22} />
       </IconButton>
     </div>
@@ -112,7 +112,7 @@ export function Sheet({
       >
         {!desktop && (
           <div
-            className="flex justify-center pb-3 pt-3"
+            className="flex justify-center pb-1 pt-[10px]"
             onTouchStart={(e) => (start.current = e.touches[0].clientY)}
             onTouchMove={(e) => start.current !== null && setDrag(Math.max(0, e.touches[0].clientY - start.current))}
             onTouchEnd={() => {
@@ -126,7 +126,7 @@ export function Sheet({
         )}
         {header}
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4">{children}</div>
-        {footer && <div className="border-t border-divider px-5 py-3">{footer}</div>}
+        {footer && <div className="px-5 pb-[22px] pt-3">{footer}</div>}
       </div>
     </div>,
     document.body,

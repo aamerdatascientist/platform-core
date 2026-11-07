@@ -52,10 +52,17 @@ body {
    width iOS actually cares about, so desktop's smaller, denser text is untouched - this
    changes nothing about how the app looks or reads above that breakpoint. */
 @media (max-width: 767px) {
-  input,
-  select,
-  textarea {
+  input:not([data-own-size]),
+  select {
     font-size: 17px !important;
+  }
+  /* 05: the long-text box is 16px. */
+  textarea {
+    font-size: 16px !important;
+  }
+  /* The number stepper's value is 24px/700 (03, 11) - already over 16px, so no zoom. */
+  input[data-own-size] {
+    font-size: 24px !important;
   }
 }
 

@@ -31,6 +31,7 @@ export function FieldControl({
   lookupChoices,
   filterWaitingOnLabel,
   isFiltered,
+  filteredByValue,
   recent,
   isLastChoice,
   onLookupPicked,
@@ -49,6 +50,8 @@ export function FieldControl({
   /** Set when this Lookup depends on another field that has no value yet. */
   filterWaitingOnLabel?: string;
   isFiltered?: boolean;
+  /** The chosen value this Lookup's list is narrowed by (05: "Only choices for Demo project"). */
+  filteredByValue?: string;
   recent: string[];
   /** The value was pre-selected from the person's last choice ("Your last choice"). */
   isLastChoice?: boolean;
@@ -81,7 +84,9 @@ export function FieldControl({
         ? isFiltered
           ? t('formRenderer.noChoicesForFilter')
           : t('formRenderer.noChoicesHint')
-        : null;
+        : isFiltered && filteredByValue && choices !== undefined
+          ? t('steps.filteredBy', { value: filteredByValue })
+          : null;
 
   return (
     <FieldShell label={<bdi>{field.label}</bdi>} required={field.isRequired} hint={hint} error={error} asGroup={asGroup}>
@@ -134,7 +139,7 @@ export function FieldControl({
           case 'Dropdown':
           case 'Lookup': {
             if (chips && choices)
-              return <ChipGroup labelledBy={labelId} value={value || null} onChange={onChange} options={choices} invalid={invalid} describedBy={describedBy} />;
+              return <ChipGroup labelledBy={labelId} value={value || null} onChange={onChange} options={choices} invalid={invalid} describedBy={describedBy} compact={choices.some((c) => c.label.length > 14)} />;
             const chosen = choices?.find((c) => c.value === value);
             const placeholder = filterWaitingOnLabel
               ? t('formRenderer.chooseFilterSourceFirst', { label: filterWaitingOnLabel })
