@@ -71,11 +71,11 @@ async function refreshAccessToken(): Promise<string | null> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       try {
-        const response = await fetch(`${BASE_URL}/api/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken: stored.refreshToken }),
-        });
+        const response = await fetchOnceMore(
+          `${BASE_URL}/api/auth/refresh`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: stored.refreshToken }) },
+          true,
+        );
         if (!response.ok) {
           // Another tab may have refreshed first: refresh tokens are single-use, so ours was
           // already spent, but the new pair is in shared storage - use it instead of signing
@@ -99,6 +99,28 @@ async function refreshAccessToken(): Promise<string | null> {
   return refreshPromise;
 }
 
+/**
+ * Requests that can safely go twice: reading, and signing in / renewing the session.
+ * iPhone Safari reuses a connection the server has already closed after a few idle minutes,
+ * and the first request then fails at once ("network connection lost") without reaching the
+ * server - the "couldn't reach the server" on the sign-in page (2026-11-07). These get one
+ * quiet retry on a fresh connection; anything that writes data never does (it could arrive
+ * twice - the offline queue's idempotency key handles that for entries).
+ */
+function retriable(path: string, method: string) {
+  return method === 'GET' || path === '/api/auth/login' || path === '/api/auth/refresh';
+}
+
+async function fetchOnceMore(url: string, init: RequestInit, retry: boolean) {
+  try {
+    return await fetch(url, init);
+  } catch (err) {
+    if (!retry || !(err instanceof TypeError)) throw err;
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    return fetch(url, init);
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
   const doFetch = (accessToken?: string) => {
     const headers: Record<string, string> = {
@@ -106,7 +128,7 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
       ...(options.headers as Record<string, string> | undefined),
     };
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-    return fetch(`${BASE_URL}${path}`, { ...options, headers });
+    return fetchOnceMore(`${BASE_URL}${path}`, { ...options, headers }, retriable(path, (options.method ?? 'GET').toUpperCase()));
   };
 
   let response = await doFetch(token);
@@ -576,6 +598,10 @@ export const api = {
       ),
 
     stop: (token: string, id: string) => request<void>(`/api/form-assignments/${id}/stop`, { method: 'POST' }, token),
+
+    /** Reminds everyone still pending today; once per person, form and day (redesign 23). */
+    remindPending: (token: string) =>
+      request<{ sent: number; failed: number; alreadyReminded: number; noChannel: number }>('/api/form-assignments/remind-pending', { method: 'POST' }, token),
   },
 
   users: {

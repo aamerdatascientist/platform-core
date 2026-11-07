@@ -309,3 +309,5 @@ html {
 
 /* Directional icons point the reading direction (components/icons.tsx). */
 [dir="rtl"] .rtl-flip { transform: scaleX(-1); }
+/* Horizontal fills drawn with a gradient (overview phase segments) start on the inline-start side. */
+[dir="rtl"] { --grad-dir: 270deg; }

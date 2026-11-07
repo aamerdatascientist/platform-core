@@ -114,7 +114,6 @@ export function Settings({ token }: SettingsProps) {
             <AdminRow onClick={openDashboard} title={t('sidebar.executiveOverview')} hint={t('settings.dashboardHint')} external />
             <AdminRow to="/builder" title={t('settings.formBuilder')} hint={t('settings.formBuilderHint')} />
             <AdminRow to="/admin/assignments" title={t('settings.assignments')} hint={t('settings.assignmentsHint')} />
-            <AdminRow to="/admin/assignments/status" title={t('assignments.tracking.title')} hint={t('settings.trackingHint')} />
             <AdminRow to="/admin/reports" title={t('reports.title')} hint={t('settings.reportsHint')} />
             <AdminRow to="/admin/users" title={t('userManagement.title')} hint={t('settings.usersHint')} />
           </Card>

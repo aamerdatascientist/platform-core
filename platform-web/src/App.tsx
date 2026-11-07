@@ -8,7 +8,6 @@ import { ExecutiveOverview } from './routes/ExecutiveOverview';
 import { FormBuilder } from './routes/FormBuilder';
 import { FormView } from './routes/FormView';
 import { Layout } from './routes/Layout';
-import { AssignmentTracking } from './routes/AssignmentTracking';
 import { FormAssignments } from './routes/FormAssignments';
 import { StakeholderReports } from './routes/StakeholderReports';
 import { Today } from './routes/Today';
@@ -78,8 +77,8 @@ export default function App() {
           <Route path="builder/:formId" element={<FormBuilder token={accessToken} />} />
           <Route path="admin/users" element={<UserManagement token={accessToken} />} />
           <Route path="admin/assignments" element={<FormAssignments token={accessToken} />} />
-          {/* Merged into /admin/assignments in phase 8 (screen 23); the old page stays reachable until then. */}
-          <Route path="admin/assignments/status" element={<AssignmentTracking token={accessToken} />} />
+          {/* Merged into /admin/assignments (screen 23, phase 8). */}
+          <Route path="admin/assignments/status" element={<Navigate to="/admin/assignments" replace />} />
           <Route path="admin/reports" element={<StakeholderReports token={accessToken} />} />
         </Route>
         <Route path="*" element={<StatusPage kind="notFound" />} />

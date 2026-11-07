@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isRtl } from '../i18n';
 import { saudiTodayIso } from '../forms/fieldValues';
+import { Sheet } from './ui/Overlay';
 
 /**
  * Date entry for form fields, replacing the browser's own <input type="date">.
@@ -278,5 +279,50 @@ function Chevron({ direction }: { direction: 'left' | 'right' }) {
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d={direction === 'left' ? 'M15 18l-6-6 6-6' : 'M9 6l6 6-6 6'} />
     </svg>
+  );
+}
+
+/**
+ * A compact date button ("Today · 7 November") that opens the calendar in a dialog - for the
+ * administration panels (23 assign, 24 "Up to"), where the full field doesn't fit.
+ */
+export function DateButton({
+  value,
+  onPick,
+  title,
+  maxDate,
+  placeholder,
+  className = '',
+}: {
+  value: string | null;
+  onPick: (iso: string) => void;
+  title: string;
+  maxDate?: string;
+  /** Shown when there is no date (e.g. "No end date"). */
+  placeholder?: string;
+  className?: string;
+}) {
+  const { t, i18n } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const locale = i18n.language.startsWith('ar') ? 'ar-u-nu-latn' : i18n.language;
+  const text = value
+    ? (value === todayIso() ? `${t('formRenderer.today')} · ` : '') + new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`))
+    : (placeholder ?? '');
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} aria-label={`${title}: ${text}`} className={`rounded-ui-md border border-border bg-panel px-2 text-[14px] ${value ? 'text-ink' : 'text-ink-soft'} ${className}`}>
+        {text}
+      </button>
+      <Sheet open={open} onClose={() => setOpen(false)} title={title} desktopWidth={400}>
+        <CalendarPanel
+          value={value ?? todayIso()}
+          maxDate={maxDate}
+          onPick={(iso) => {
+            onPick(iso);
+            setOpen(false);
+          }}
+        />
+      </Sheet>
+    </>
   );
 }

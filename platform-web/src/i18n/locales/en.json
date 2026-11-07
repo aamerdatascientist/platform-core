@@ -698,7 +698,10 @@
     "kind": {
       "daily": "Daily",
       "weekly": "Weekly",
-      "monthly": "Monthly"
+      "monthly": "Monthly",
+      "dailyShort": "Daily",
+      "weeklyShort": "Weekly",
+      "monthlyShort": "Monthly"
     },
     "trigger": {
       "schedule": "Scheduled",
@@ -955,7 +958,15 @@
     "remindersTitle": "Reminders",
     "passwordTitle": "Password",
     "deactivateAccount": "Deactivate account",
-    "reactivateAccount": "Reactivate account"
+    "reactivateAccount": "Reactivate account",
+    "remindersTelegram": "Telegram ✓",
+    "remindersWhatsapp": "WhatsApp",
+    "noTelegram": "No Telegram",
+    "newRole": "+ New role",
+    "newUser": "+ New user",
+    "linkGroup": "Link to a group",
+    "telegramLinkedBox": "Telegram is linked.",
+    "telegramNotLinkedBox": "Telegram isn't linked yet."
   },
   "assignmentsV2": {
     "rule": "One form every working day, Saturday to Thursday. Friday is off.",
@@ -974,7 +985,16 @@
     "assignUsers_zero": "Assign",
     "assignUsers_one": "Assign 1 user",
     "assignUsers_other": "Assign {{count}} users",
-    "cellLabel": "{{user}}, {{date}}: {{status}}"
+    "cellLabel": "{{user}}, {{date}}: {{status}}",
+    "assignForm": "+ Assign a form",
+    "remindResult": "Sent {{sent}} · failed {{failed}} · already reminded today {{already}} · no Telegram or WhatsApp {{none}}",
+    "remindedAt": "Reminded at {{time}}",
+    "last14": "Last 14 days",
+    "last30": "Last 30 days",
+    "last60": "Last 60 days",
+    "rowEnded": "Ended",
+    "openEntry": "Open the entry",
+    "dayList": "Who was due on {{date}}"
   },
   "reportsV2": {
     "intro": "A PDF report with a written analysis reaches each recipient on WhatsApp at {{time}} Saudi time.",

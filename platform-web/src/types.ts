@@ -355,6 +355,10 @@ export interface AssignmentDayDto {
   /** WhatsApp reminders about this day (tracking page only). */
   remindersSent: number;
   remindersFailed: number;
+  /** That day's first entry, when filled (the grid cell opens it). */
+  recordId?: string | null;
+  /** When the person was last reminded about that day (automatic or manual). */
+  lastRemindedAtUtc?: string | null;
 }
 
 export interface MyAssignmentsDto {

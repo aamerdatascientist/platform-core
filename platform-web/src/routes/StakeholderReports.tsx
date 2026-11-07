@@ -1,42 +1,53 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
 import { api } from '../api/client';
-import { DateField, todayIso } from '../components/DateField';
+import { builderInput } from '../components/builder/FieldSettings';
+import { DateButton, todayIso } from '../components/DateField';
+import { Icon } from '../components/icons';
 import { LoadingSpinner } from '../components/LoadingSpinner';
+import { initial } from '../components/shell/ShellData';
+import { Button, Segmented, Sheet, TableCard, tdClass, thClass } from '../components/ui';
+import { dayLabel, localeFor } from '../forms/recordAnswers';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { ReportKind, ReportRecipientDto, ReportRunDto, ReportsOverviewDto } from '../types';
 
-interface StakeholderReportsProps {
-  token: string;
-}
-
-const sectionClass = 'rounded border border-border bg-panel p-4 shadow-recessed sm:p-5';
-const headingClass = 'mb-3 text-label font-medium text-ink-soft';
-const inputClass = 'w-full rounded border border-border bg-bg px-2 py-1.5 text-sm text-ink focus:border-accent focus:outline-none';
-const buttonClass = 'rounded border border-border bg-panel px-3 py-1.5 text-sm text-ink hover:border-ink disabled:opacity-50';
-const primaryClass = 'rounded bg-accent px-3 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50';
-const thClass = 'whitespace-nowrap border-b border-border px-2 py-2 text-start text-label font-medium text-ink-soft';
-const tdClass = 'border-b border-border px-2 py-2 align-top';
 const KINDS: ReportKind[] = ['daily', 'weekly', 'monthly'];
-
 type RecipientDraft = Omit<ReportRecipientDto, 'id'>;
-const emptyRecipient: RecipientDraft = {
-  name: '',
-  phoneNumber: '',
-  receivesDaily: true,
-  receivesWeekly: true,
-  receivesMonthly: true,
-  isActive: true,
-};
+const emptyRecipient: RecipientDraft = { name: '', phoneNumber: '', receivesDaily: true, receivesWeekly: true, receivesMonthly: true, isActive: true };
+const card = 'flex flex-col rounded-ui-2xl border border-border bg-panel';
+
+/** Saudi "now" as a calendar day and minutes past midnight. */
+function saudiNow() {
+  const d = new Date(Date.now() + 3 * 3600_000);
+  return { day: d.toISOString().slice(0, 10), minutes: d.getUTCHours() * 60 + d.getUTCMinutes() };
+}
+const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+const weekday = (iso: string) => new Date(`${iso}T00:00:00Z`).getUTCDay();
+const lastOfMonth = (iso: string) => new Date(Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)), 0)).toISOString().slice(0, 10);
 
 /**
- * Administrators: the stakeholder reports - daily, weekly and monthly PDFs with Claude's
- * written analysis, sent on WhatsApp at 6 pm. Who receives them, this month's Claude spend
- * against the cap, a preview or an immediate send, and the history with downloads.
+ * The next send day of each report, worked out here from the schedule (24, HANDOFF §9.7):
+ * daily = the next working day (Saturday-Thursday), weekly = the next Thursday, monthly = the
+ * last day of the month - today counts while the send time hasn't passed.
  */
-export function StakeholderReports({ token }: StakeholderReportsProps) {
-  const { t } = useTranslation();
+export function nextSendDay(kind: ReportKind, sendTime: string) {
+  const { day, minutes } = saudiNow();
+  const [h, m] = sendTime.split(':').map(Number);
+  const passed = minutes >= h * 60 + (m || 0);
+  const fits = (d: string) => (kind === 'daily' ? weekday(d) !== 5 : kind === 'weekly' ? weekday(d) === 4 : d === lastOfMonth(d));
+  let d = passed ? addDays(day, 1) : day;
+  for (let i = 0; i < 40 && !fits(d); i++) d = addDays(d, 1);
+  return d;
+}
+
+/**
+ * Stakeholder reports (screen 24): setup pills, the three schedules with their next date, this
+ * month's Claude spend against the cap, recipients, "Make a report now" (preview or send, with the
+ * existing confirmation) and recent reports - raw technical errors only behind "Show reason".
+ */
+export function StakeholderReports({ token }: { token: string }) {
+  const { t, i18n } = useTranslation();
+  const locale = localeFor(i18n.language);
   const [overview, setOverview] = useState<ReportsOverviewDto | null>(null);
   const [error, setError] = useErrorMessage();
 
@@ -49,99 +60,74 @@ export function StakeholderReports({ token }: StakeholderReportsProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
-
   useEffect(() => {
     void load();
   }, [load]);
 
+  if (!overview) return error ? <p className="text-[14px] text-danger">{error}</p> : <LoadingSpinner />;
+  const [h, m] = overview.sendTime.split(':').map(Number);
+  const time = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }).format(new Date(Date.UTC(2026, 0, 1, h, m || 0)));
+  const share = overview.monthlyBudgetUsd > 0 ? Math.min(1, overview.spentThisMonthUsd / overview.monthlyBudgetUsd) : 0;
+  const setup: [string, boolean][] = [
+    [t('reports.setup.analysis'), overview.analysisConfigured],
+    [t('reports.setup.pdf'), overview.pdfConfigured],
+    [t('reports.setup.whatsApp'), overview.whatsAppConfigured],
+  ];
+
   return (
-    <div className="max-w-4xl space-y-4">
-      <div>
-        <Link to="/settings" className="text-xs text-ink-soft hover:text-ink">
-          {t('reports.back')}
-        </Link>
-        <h2 className="mt-1 font-display text-xl font-semibold text-ink">{t('reports.title')}</h2>
-        <p className="mt-1 text-sm text-ink-soft">{t('reports.intro', { time: overview?.sendTime ?? '18:00' })}</p>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <span className="text-[14px] text-ink-soft">{t('nav.administration')}</span>
+          <h1 className="text-[28px] font-extrabold text-ink">{t('reports.title')}</h1>
+          <p className="text-[14px] text-ink-soft">{t('reportsV2.intro', { time })}</p>
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          {setup.map(([name, ok]) => (
+            <span key={name} className={`rounded-ui-pill px-3 py-1.5 text-[13px] font-bold ${ok ? 'bg-success-soft text-success' : 'bg-danger-soft text-danger'}`}>
+              {ok ? t('reportsV2.setupOk', { name }) : t('reportsV2.setupMissing', { name })}
+            </span>
+          ))}
+        </div>
+      </div>
+      {error && <p className="text-[14px] text-danger">{error}</p>}
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {KINDS.map((kind) => (
+          <div key={kind} className={`${card} gap-1 px-4 py-[14px]`}>
+            <span className="text-[16px] font-extrabold text-ink">{t(`reports.kind.${kind}`)}</span>
+            <span className="text-[13px] text-ink-soft">{t(`reportsV2.${kind}When`, { time })}</span>
+            <span className="mt-1.5 text-[13px] font-bold text-accent-strong">{t('reportsV2.next', { date: dayLabel(nextSendDay(kind, overview.sendTime), locale) })}</span>
+          </div>
+        ))}
+        <div className={`${card} gap-2 px-4 py-[14px]`}>
+          <span className="text-[13px] text-ink-soft">{t('reports.budget.title')}</span>
+          <span dir="ltr" className="text-start text-[22px] font-extrabold text-ink rtl:text-right">
+            ${overview.spentThisMonthUsd.toFixed(2)} <span className="text-[14px] font-medium text-ink-soft">/ ${overview.monthlyBudgetUsd.toFixed(2)}</span>
+          </span>
+          <div aria-hidden="true" className="h-1.5 rounded-ui-pill bg-divider">
+            <div className={`h-1.5 min-w-1.5 rounded-ui-pill ${share >= 0.9 ? 'bg-danger' : 'bg-accent'}`} style={{ width: `${Math.round(share * 100)}%` }} />
+          </div>
+        </div>
       </div>
 
-      {error && <p className="text-sm text-danger">{error}</p>}
-      {!overview ? (
-        !error && <LoadingSpinner />
-      ) : (
-        <>
-          <SetupAndBudget overview={overview} />
-          <Recipients token={token} recipients={overview.recipients} onChanged={load} />
-          <RunNow token={token} onDone={load} />
-          <History token={token} runs={overview.runs} />
-        </>
-      )}
+      <div className="flex flex-wrap items-stretch gap-4">
+        <Recipients token={token} recipients={overview.recipients} onChanged={load} />
+        <RunNow token={token} onDone={load} />
+      </div>
+      <History token={token} runs={overview.runs} />
     </div>
   );
 }
 
-function SetupAndBudget({ overview }: { overview: ReportsOverviewDto }) {
-  const { t } = useTranslation();
-  const share = overview.monthlyBudgetUsd > 0 ? Math.min(1, overview.spentThisMonthUsd / overview.monthlyBudgetUsd) : 0;
-  const checks: [string, boolean][] = [
-    ['reports.setup.analysis', overview.analysisConfigured],
-    ['reports.setup.pdf', overview.pdfConfigured],
-    ['reports.setup.whatsApp', overview.whatsAppConfigured],
-  ];
-  return (
-    <section className={sectionClass}>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div>
-          <h3 className={headingClass}>{t('reports.setup.title')}</h3>
-          <ul className="space-y-1 text-sm">
-            {checks.map(([key, ok]) => (
-              <li key={key} className={ok ? 'text-success' : 'text-danger'}>
-                {ok ? '✓' : '✗'} {t(key)}
-              </li>
-            ))}
-          </ul>
-          <p className="mt-2 text-xs text-ink-soft" dir="ltr">
-            {overview.model}
-          </p>
-        </div>
-        <div>
-          <h3 className={headingClass}>{t('reports.budget.title')}</h3>
-          <p className="text-2xl font-semibold text-ink" dir="ltr">
-            ${overview.spentThisMonthUsd.toFixed(2)}{' '}
-            <span className="text-sm font-normal text-ink-soft">/ ${overview.monthlyBudgetUsd.toFixed(2)}</span>
-          </p>
-          <div className="mt-2 h-2 overflow-hidden rounded-full bg-bg">
-            <div
-              className={`h-full rounded-full ${share >= 0.9 ? 'bg-danger' : 'bg-accent'}`}
-              style={{ width: `${Math.round(share * 100)}%` }}
-            />
-          </div>
-          <p className="mt-2 text-xs text-ink-soft">{t('reports.budget.hint')}</p>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Recipients({
-  token,
-  recipients,
-  onChanged,
-}: {
-  token: string;
-  recipients: ReportRecipientDto[];
-  onChanged: () => Promise<void>;
-}) {
+function Recipients({ token, recipients, onChanged }: { token: string; recipients: ReportRecipientDto[]; onChanged: () => Promise<void> }) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState<string | 'new' | null>(null);
   const [draft, setDraft] = useState<RecipientDraft>(emptyRecipient);
+  const [menu, setMenu] = useState<string | null>(null);
+  const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useErrorMessage();
-
-  function start(recipient?: ReportRecipientDto) {
-    setError(null);
-    setEditing(recipient?.id ?? 'new');
-    setDraft(recipient ? { ...recipient } : emptyRecipient);
-  }
 
   async function save() {
     setBusy(true);
@@ -155,125 +141,118 @@ function Recipients({
       setBusy(false);
     }
   }
-
-  async function remove(recipient: ReportRecipientDto) {
-    if (!window.confirm(t('reports.recipients.confirmDelete', { name: recipient.name }))) return;
+  async function remove(id: string) {
+    setBusy(true);
     try {
-      await api.reports.deleteRecipient(token, recipient.id);
+      await api.reports.deleteRecipient(token, id);
+      setConfirmRemove(null);
       await onChanged();
     } catch (err) {
       setError({ err, fallbackKey: 'reports.recipients.saveError' });
+    } finally {
+      setBusy(false);
     }
   }
-
-  const kindsOf = (r: RecipientDraft) =>
-    KINDS.filter((k) => (k === 'daily' ? r.receivesDaily : k === 'weekly' ? r.receivesWeekly : r.receivesMonthly))
-      .map((k) => t(`reports.kind.${k}`))
-      .join(' · ');
-
-  const form = (
-    <div className="space-y-3 rounded border border-border bg-bg p-3">
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <label htmlFor="recipient-name" className="mb-1 block text-xs text-ink-soft">
-            {t('reports.recipients.name')}
-          </label>
-          <input
-            id="recipient-name"
-            className={inputClass}
-            value={draft.name}
-            onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-          />
-        </div>
-        <div>
-          <label htmlFor="recipient-phone" className="mb-1 block text-xs text-ink-soft">
-            {t('reports.recipients.phone')}
-          </label>
-          <input
-            id="recipient-phone"
-            dir="ltr"
-            inputMode="tel"
-            className={inputClass}
-            placeholder="05XXXXXXXX"
-            value={draft.phoneNumber}
-            onChange={(e) => setDraft({ ...draft, phoneNumber: e.target.value })}
-          />
-        </div>
-      </div>
-      <div className="flex flex-wrap gap-4 text-sm text-ink">
-        {(
-          [
-            ['receivesDaily', 'daily'],
-            ['receivesWeekly', 'weekly'],
-            ['receivesMonthly', 'monthly'],
-          ] as const
-        ).map(([field, kind]) => (
-          <label key={field} className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              checked={draft[field]}
-              onChange={(e) => setDraft({ ...draft, [field]: e.target.checked })}
-            />
-            {t(`reports.kind.${kind}`)}
-          </label>
-        ))}
-        {editing !== 'new' && (
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={draft.isActive} onChange={(e) => setDraft({ ...draft, isActive: e.target.checked })} />
-            {t('reports.recipients.active')}
-          </label>
-        )}
-      </div>
-      {error && <p className="text-sm text-danger">{error}</p>}
-      <div className="flex gap-2">
-        <button type="button" onClick={save} disabled={busy || !draft.name.trim() || !draft.phoneNumber.trim()} className={primaryClass}>
-          {t('reports.recipients.save')}
-        </button>
-        <button type="button" onClick={() => setEditing(null)} className="px-3 py-1.5 text-sm text-ink-soft">
-          {t('reports.cancel')}
-        </button>
-      </div>
-    </div>
-  );
+  const phone = (digits: string) => `+${digits.replace(/^(\d{3})(\d{2})(\d{3})(\d{4})$/, '$1 $2 $3 $4')}`;
 
   return (
-    <section className={sectionClass}>
-      <h3 className={headingClass}>{t('reports.recipients.title')}</h3>
-      <p className="mb-3 text-xs text-ink-soft">{t('reports.recipients.hint')}</p>
-      <ul className="space-y-2">
-        {recipients.map((r) =>
-          editing === r.id ? (
-            <li key={r.id}>{form}</li>
-          ) : (
-            <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded border border-border p-3">
-              <div>
-                <p className={`text-sm font-medium ${r.isActive ? 'text-ink' : 'text-ink-soft line-through'}`}>{r.name}</p>
-                <p className="text-xs text-ink-soft">
-                  <span dir="ltr">+{r.phoneNumber}</span> · {kindsOf(r) || t('reports.recipients.none')}
-                </p>
-              </div>
-              <div className="flex gap-2">
-                <button type="button" onClick={() => start(r)} className={buttonClass}>
-                  {t('reports.recipients.edit')}
-                </button>
-                <button type="button" onClick={() => remove(r)} className="px-2 py-1.5 text-sm text-danger">
-                  {t('reports.recipients.delete')}
-                </button>
-              </div>
-            </li>
-          ),
-        )}
-        {recipients.length === 0 && editing !== 'new' && <li className="text-sm text-ink-soft">{t('reports.recipients.empty')}</li>}
-      </ul>
-      <div className="mt-3">
-        {editing === 'new' ? (
-          form
-        ) : (
-          <button type="button" onClick={() => start()} className={buttonClass}>
-            {t('reports.recipients.add')}
-          </button>
-        )}
+    <section className={`${card} flex-[1_1_360px] gap-3 px-[18px] py-4`}>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-[17px] font-extrabold text-ink">{t('reportsV2.recipientsTitle', { count: recipients.length })}</h2>
+        <Button size="compact" variant="secondary" className="!h-[36px] !min-h-[36px] !border !font-normal" onClick={() => (setDraft(emptyRecipient), setError(null), setEditing('new'))}>
+          {t('reports.recipients.add')}
+        </Button>
       </div>
+      {recipients.length === 0 && <p className="text-[14px] text-ink-soft">{t('reports.recipients.empty')}</p>}
+      {recipients.map((r) => (
+        <div key={r.id} className={`relative flex items-center gap-3 rounded-ui-lg border border-divider px-[14px] py-3 ${r.isActive ? '' : 'opacity-60'}`}>
+          <span aria-hidden="true" className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full bg-success-soft font-extrabold text-success">
+            {initial(r.name)}
+          </span>
+          <div className="flex min-w-0 flex-1 flex-col gap-1">
+            <span className={`text-[15px] font-bold text-ink ${r.isActive ? '' : 'line-through'}`}>
+              <bdi>{r.name}</bdi>
+            </span>
+            <span dir="ltr" className="text-start text-[13px] text-ink-soft rtl:text-right">
+              {phone(r.phoneNumber)}
+            </span>
+          </div>
+          <div className="flex flex-wrap justify-end gap-1">
+            {KINDS.filter((k) => (k === 'daily' ? r.receivesDaily : k === 'weekly' ? r.receivesWeekly : r.receivesMonthly)).map((k) => (
+              <span key={k} className="rounded-ui-pill bg-accent-soft px-2 py-[3px] text-[12px] font-bold text-accent-strong">
+                {t(`reports.kind.${k}Short`)}
+              </span>
+            ))}
+          </div>
+          <button type="button" aria-label={t('reports.recipients.edit')} aria-expanded={menu === r.id} onClick={() => setMenu(menu === r.id ? null : r.id)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-ui-md text-ink-soft hover:bg-field-muted">
+            <Icon name="sliders" size={16} />
+          </button>
+          {menu === r.id && (
+            <div className="absolute end-2 top-[52px] z-20 flex min-w-[160px] flex-col rounded-ui-lg border border-border bg-panel p-1 shadow-elev-1">
+              <button type="button" className="min-h-[40px] rounded-ui-md px-3 text-start text-[14px] text-ink hover:bg-field-muted" onClick={() => (setMenu(null), setError(null), setDraft({ ...r }), setEditing(r.id))}>
+                {t('reports.recipients.edit')}
+              </button>
+              <button type="button" className="min-h-[40px] rounded-ui-md px-3 text-start text-[14px] text-danger hover:bg-danger-soft" onClick={() => (setMenu(null), setConfirmRemove(r.id))}>
+                {t('reports.recipients.delete')}
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+      <span className="text-[13px] text-ink-soft">{t('reports.recipients.hint')}</span>
+      {error && <p className="text-[14px] text-danger">{error}</p>}
+
+      <Sheet open={editing !== null} onClose={() => setEditing(null)} title={editing === 'new' ? t('reports.recipients.add') : t('reports.recipients.edit')} desktopWidth={520}>
+        <div className="flex flex-col gap-3 pb-2">
+          <label className="flex flex-col gap-1.5 text-[14px] font-bold text-ink">
+            {t('reports.recipients.name')}
+            <input className={builderInput} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+          </label>
+          <label className="flex flex-col gap-1.5 text-[14px] font-bold text-ink">
+            {t('reports.recipients.phone')}
+            <input dir="ltr" inputMode="tel" placeholder="05XXXXXXXX" className={builderInput} value={draft.phoneNumber} onChange={(e) => setDraft({ ...draft, phoneNumber: e.target.value })} />
+          </label>
+          <div className="flex flex-wrap gap-4 text-[14px] text-ink">
+            {(
+              [
+                ['receivesDaily', 'daily'],
+                ['receivesWeekly', 'weekly'],
+                ['receivesMonthly', 'monthly'],
+              ] as const
+            ).map(([field, kind]) => (
+              <label key={field} className="flex min-h-[40px] items-center gap-2">
+                <input type="checkbox" checked={draft[field]} onChange={(e) => setDraft({ ...draft, [field]: e.target.checked })} />
+                {t(`reports.kind.${kind}`)}
+              </label>
+            ))}
+            {editing !== 'new' && (
+              <label className="flex min-h-[40px] items-center gap-2">
+                <input type="checkbox" checked={draft.isActive} onChange={(e) => setDraft({ ...draft, isActive: e.target.checked })} />
+                {t('reports.recipients.active')}
+              </label>
+            )}
+          </div>
+          {error && <p className="text-[14px] text-danger">{error}</p>}
+          <div>
+            <Button size="desktop" disabled={busy || !draft.name.trim() || !draft.phoneNumber.trim()} onClick={save}>
+              {t('reports.recipients.save')}
+            </Button>
+          </div>
+        </div>
+      </Sheet>
+      <Sheet open={confirmRemove !== null} onClose={() => setConfirmRemove(null)} title={t('reports.recipients.delete')} desktopWidth={440}>
+        <div className="flex flex-col gap-3 pb-2">
+          <p className="text-[14px] text-ink">{t('reports.recipients.confirmDelete', { name: recipients.find((r) => r.id === confirmRemove)?.name ?? '' })}</p>
+          <div className="flex gap-2">
+            <Button size="desktop" variant="danger" disabled={busy} onClick={() => confirmRemove && remove(confirmRemove)}>
+              {t('reports.recipients.delete')}
+            </Button>
+            <Button size="desktop" variant="link" onClick={() => setConfirmRemove(null)}>
+              {t('reports.cancel')}
+            </Button>
+          </div>
+        </div>
+      </Sheet>
     </section>
   );
 }
@@ -284,17 +263,17 @@ function RunNow({ token, onDone }: { token: string; onDone: () => Promise<void> 
   const [date, setDate] = useState(todayIso());
   const [withAnalysis, setWithAnalysis] = useState(true);
   const [busy, setBusy] = useState<'preview' | 'send' | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const [result, setResult] = useState<ReportRunDto | null>(null);
   const [error, setError] = useErrorMessage();
 
   async function run(deliver: boolean) {
-    if (deliver && !window.confirm(t('reports.run.confirmSend', { kind: t(`reports.kind.${kind}`) }))) return;
+    setConfirming(false);
     setBusy(deliver ? 'send' : 'preview');
     setResult(null);
     setError(null);
     try {
-      const run = await api.reports.run(token, { kind, to: date || null, withAnalysis, deliver });
-      setResult(run);
+      setResult(await api.reports.run(token, { kind, to: date || null, withAnalysis, deliver }));
       await onDone();
     } catch (err) {
       setError({ err, fallbackKey: 'reports.run.error' });
@@ -304,77 +283,101 @@ function RunNow({ token, onDone }: { token: string; onDone: () => Promise<void> 
   }
 
   return (
-    <section className={sectionClass}>
-      <h3 className={headingClass}>{t('reports.run.title')}</h3>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div>
-          <label htmlFor="run-kind" className="mb-1 block text-xs text-ink-soft">
-            {t('reports.run.kind')}
-          </label>
-          <select id="run-kind" className={inputClass} value={kind} onChange={(e) => setKind(e.target.value as ReportKind)}>
-            {KINDS.map((k) => (
-              <option key={k} value={k}>
-                {t(`reports.kind.${k}`)}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor="run-date" className="mb-1 block text-xs text-ink-soft">
-            {t('reports.run.date')}
-          </label>
-          <DateField id="run-date" value={date} onChange={setDate} required className={inputClass} maxDate={todayIso()} />
-        </div>
-        <label className="flex items-end gap-2 pb-1.5 text-sm text-ink">
-          <input type="checkbox" checked={withAnalysis} onChange={(e) => setWithAnalysis(e.target.checked)} />
+    <section className={`${card} flex-[1_1_360px] gap-3 px-[18px] py-4`}>
+      <h2 className="text-[17px] font-extrabold text-ink">{t('reports.run.title')}</h2>
+      <Segmented<ReportKind> size="desktop" label={t('reports.run.kind')} value={kind} onChange={setKind} options={KINDS.map((k) => ({ value: k, label: t(`reports.kind.${k}`) }))} />
+      <div className="flex flex-wrap items-center gap-[10px] text-[14px]">
+        <span className="text-ink-soft">{t('reports.run.date')}</span>
+        <DateButton value={date} onPick={setDate} title={t('reports.run.date')} maxDate={todayIso()} className="h-[38px] px-3" />
+        <label className="ms-auto flex min-h-[40px] items-center gap-2 text-ink">
+          <input type="checkbox" className="h-[18px] w-[18px] accent-[var(--accent)]" checked={withAnalysis} onChange={(e) => setWithAnalysis(e.target.checked)} />
           {t('reports.run.withAnalysis')}
         </label>
       </div>
-      <p className="mt-2 text-xs text-ink-soft">{t('reports.run.hint')}</p>
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button type="button" onClick={() => run(false)} disabled={busy !== null} className={buttonClass}>
-          {busy === 'preview' ? t('reports.run.working') : t('reports.run.preview')}
-        </button>
-        <button type="button" onClick={() => run(true)} disabled={busy !== null} className={primaryClass}>
+      {error && <p className="text-[14px] text-danger">{error}</p>}
+      {result && <RunResult token={token} run={result} />}
+      <div className="mt-auto flex gap-2">
+        <Button size="desktop" variant="secondary" block className="!h-[44px] !font-normal" disabled={busy !== null} onClick={() => run(false)}>
+          {busy === 'preview' ? t('reports.run.working') : t('reportsV2.previewNoSend')}
+        </Button>
+        <Button size="desktop" block className="!h-[44px]" disabled={busy !== null} onClick={() => setConfirming(true)}>
           {busy === 'send' ? t('reports.run.working') : t('reports.run.send')}
-        </button>
+        </Button>
       </div>
-      {error && <p className="mt-2 text-sm text-danger">{error}</p>}
-      {result && (
-        <div className="mt-3 space-y-2 rounded border border-border bg-bg p-3 text-sm">
-          <RunStatus run={result} />
-          {result.hasPdf && <Downloads token={token} runId={result.id} />}
+      <Sheet open={confirming} onClose={() => setConfirming(false)} title={t('reports.run.send')} desktopWidth={460}>
+        <div className="flex flex-col gap-3 pb-2">
+          <p className="text-[14px] text-ink">{t('reports.run.confirmSend', { kind: t(`reports.kind.${kind}`) })}</p>
+          <div className="flex gap-2">
+            <Button size="desktop" onClick={() => run(true)}>
+              {t('reports.run.send')}
+            </Button>
+            <Button size="desktop" variant="link" onClick={() => setConfirming(false)}>
+              {t('reports.cancel')}
+            </Button>
+          </div>
         </div>
-      )}
+      </Sheet>
     </section>
   );
 }
 
-function RunStatus({ run }: { run: ReportRunDto }) {
-  const { t } = useTranslation();
+/** A run's outcome in plain words (no raw errors - those are behind "Show reason"). */
+function outcome(run: ReportRunDto): { tone: 'success' | 'warning' | 'danger'; key: string } {
+  if (run.status === 'failed') return { tone: 'danger', key: 'reportsV2.resultFailed' };
+  if (run.deliveries.some((d) => d.status === 'failed')) return { tone: 'warning', key: 'reportsV2.resultNotSent' };
+  if (run.analysis !== 'written') return { tone: 'warning', key: 'reportsV2.resultDoneNoAnalysis' };
+  return { tone: 'success', key: 'reportsV2.resultDoneAnalysis' };
+}
+const DOT = { success: 'bg-success text-success', warning: 'bg-warning text-warning', danger: 'bg-danger text-danger' };
+
+function RunResult({ token, run }: { token: string; run: ReportRunDto }) {
   return (
-    <div className="space-y-1">
-      <p className={run.status === 'failed' ? 'text-danger' : 'text-ink'}>
-        {t(`reports.status.${run.status}`, run.status)}
-        {run.analysis && ` · ${t(`reports.analysis.${run.analysis}`, run.analysis)}`}
-        {run.costUsd > 0 && <span dir="ltr"> · ${run.costUsd.toFixed(3)}</span>}
-      </p>
-      {run.error && (
-        <p className="text-xs text-danger" dir="auto">
-          {run.error}
-        </p>
-      )}
-      {run.deliveries.map((d) => (
-        <p key={d.phoneNumber} className={`text-xs ${d.status === 'failed' ? 'text-danger' : 'text-ink-soft'}`} dir="auto">
-          {d.recipientName}: {t(`reports.delivery.${d.status}`, d.status)}
-          {d.error ? ` - ${d.error}` : ''}
-        </p>
-      ))}
+    <div className="flex flex-col gap-2 rounded-ui-lg bg-field-muted px-3 py-2.5 text-[14px]" role="status">
+      <Outcome run={run} />
+      {run.hasPdf && <Downloads token={token} runId={run.id} />}
     </div>
   );
 }
 
-/** A4 and phone downloads. The tab is opened inside the click (pop-up blockers), then pointed at the link. */
+function Outcome({ run }: { run: ReportRunDto }) {
+  const { t } = useTranslation();
+  const [reason, setReason] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const o = outcome(run);
+  const details = [run.error, ...run.deliveries.filter((d) => d.error).map((d) => `${d.recipientName}: ${d.error}`)].filter(Boolean).join('\n');
+  return (
+    <span className="inline-flex flex-wrap items-center gap-2">
+      <span className={`inline-flex items-center gap-1.5 font-bold ${DOT[o.tone].split(' ')[1]}`}>
+        <span aria-hidden="true" className={`h-2 w-2 rounded-full ${DOT[o.tone].split(' ')[0]}`} />
+        {t(o.key)}
+      </span>
+      {details && (
+        <button type="button" onClick={() => setReason(true)} className="h-[28px] rounded-[8px] border border-border bg-panel px-2 text-[12px] text-ink">
+          {t('reportsV2.showReason')}
+        </button>
+      )}
+      <Sheet open={reason} onClose={() => setReason(false)} title={t('reportsV2.reasonTitle')} desktopWidth={560}>
+        <div className="flex flex-col gap-3 pb-2">
+          <pre dir="ltr" className="max-h-[50vh] overflow-auto whitespace-pre-wrap rounded-ui-md bg-field-muted p-3 text-start font-mono text-[12px] text-ink">
+            {details}
+          </pre>
+          <Button
+            size="desktop"
+            variant="secondary"
+            className="self-start"
+            onClick={() => {
+              void navigator.clipboard?.writeText(details).then(() => setCopied(true));
+            }}
+          >
+            {copied ? t('reportsV2.copied') : t('reportsV2.copy')}
+          </Button>
+        </div>
+      </Sheet>
+    </span>
+  );
+}
+
+/** Phone and A4 downloads. The tab is opened inside the click (pop-up blockers), then pointed at the link. */
 function Downloads({ token, runId }: { token: string; runId: string }) {
   const { t } = useTranslation();
   async function open(phone: boolean) {
@@ -387,60 +390,59 @@ function Downloads({ token, runId }: { token: string; runId: string }) {
       tab?.close();
     }
   }
+  const b = 'h-[32px] whitespace-nowrap rounded-[8px] border border-border bg-panel px-[10px] text-[13px] text-ink hover:border-ink-soft';
   return (
-    <div className="flex flex-wrap gap-2">
-      <button type="button" onClick={() => open(true)} className={buttonClass}>
+    <span className="inline-flex gap-1.5">
+      <button type="button" onClick={() => open(true)} className={b}>
         {t('reports.download.phone')}
       </button>
-      <button type="button" onClick={() => open(false)} className={buttonClass}>
+      <button type="button" onClick={() => open(false)} className={b}>
         {t('reports.download.a4')}
       </button>
-    </div>
+    </span>
   );
 }
 
 function History({ token, runs }: { token: string; runs: ReportRunDto[] }) {
   const { t, i18n } = useTranslation();
-  const locale = i18n.language.startsWith('ar') ? 'ar-u-nu-latn' : i18n.language;
-  const when = (iso: string) =>
-    new Date(iso).toLocaleString(locale, { timeZone: 'Asia/Riyadh', dateStyle: 'medium', timeStyle: 'short' });
+  const locale = localeFor(i18n.language);
+  const when = (iso: string) => {
+    const day = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', timeZone: 'Asia/Riyadh' }).format(new Date(iso));
+    const time = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Riyadh' }).format(new Date(iso));
+    return `${day} · ${time}`;
+  };
   return (
-    <section className={sectionClass}>
-      <h3 className={headingClass}>{t('reports.history.title')}</h3>
-      {runs.length === 0 ? (
-        <p className="text-sm text-ink-soft">{t('reports.history.empty')}</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr>
-                <th className={thClass}>{t('reports.history.when')}</th>
-                <th className={thClass}>{t('reports.history.report')}</th>
-                <th className={thClass}>{t('reports.history.result')}</th>
-                <th className={thClass}>{t('reports.history.files')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {runs.map((run) => (
-                <tr key={run.id}>
-                  <td className={`${tdClass} whitespace-nowrap text-ink-soft`}>{when(run.createdAtUtc)}</td>
-                  <td className={tdClass}>
-                    <span className="text-ink">{t(`reports.kind.${run.kind}`)}</span>
-                    <span className="block text-xs text-ink-soft">
-                      {run.periodStart === run.periodEnd ? run.periodEnd : `${run.periodStart} – ${run.periodEnd}`} ·{' '}
-                      {t(`reports.trigger.${run.trigger}`, run.trigger)}
-                    </span>
-                  </td>
-                  <td className={tdClass}>
-                    <RunStatus run={run} />
-                  </td>
-                  <td className={tdClass}>{run.hasPdf && <Downloads token={token} runId={run.id} />}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
+    <TableCard className="[&_table]:min-w-[680px]">
+      <caption className="px-[18px] py-[14px] text-start text-[17px] font-extrabold text-ink">{t('reports.history.title')}</caption>
+      <thead>
+        <tr>
+          <th className={thClass}>{t('reports.history.when')}</th>
+          <th className={thClass}>{t('reports.history.report')}</th>
+          <th className={thClass}>{t('reports.history.result')}</th>
+          <th className={thClass}>{t('reports.history.files')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {runs.length === 0 && (
+          <tr>
+            <td className={`${tdClass} text-ink-soft`} colSpan={4}>
+              {t('reports.history.empty')}
+            </td>
+          </tr>
+        )}
+        {runs.map((run) => (
+          <tr key={run.id}>
+            <td className={`${tdClass} whitespace-nowrap`}>{when(run.createdAtUtc)}</td>
+            <td className={tdClass}>
+              <span className="font-bold">{t(`reports.kind.${run.kind}`)}</span> <span className="text-ink-soft">· {t(`reports.trigger.${run.trigger}`, run.trigger)}</span>
+            </td>
+            <td className={tdClass}>
+              <Outcome run={run} />
+            </td>
+            <td className={tdClass}>{run.hasPdf && <Downloads token={token} runId={run.id} />}</td>
+          </tr>
+        ))}
+      </tbody>
+    </TableCard>
   );
 }

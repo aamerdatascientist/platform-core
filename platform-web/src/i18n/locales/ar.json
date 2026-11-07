@@ -698,7 +698,10 @@
     "kind": {
       "daily": "اليومي",
       "weekly": "الأسبوعي",
-      "monthly": "الشهري"
+      "monthly": "الشهري",
+      "dailyShort": "يومي",
+      "weeklyShort": "أسبوعي",
+      "monthlyShort": "شهري"
     },
     "trigger": {
       "schedule": "مجدول",
@@ -986,7 +989,15 @@
     "remindersTitle": "التذكيرات",
     "passwordTitle": "كلمة المرور",
     "deactivateAccount": "تعطيل الحساب",
-    "reactivateAccount": "إعادة تفعيل الحساب"
+    "reactivateAccount": "إعادة تفعيل الحساب",
+    "remindersTelegram": "تيليجرام ✓",
+    "remindersWhatsapp": "واتساب",
+    "noTelegram": "لا يوجد تيليجرام",
+    "newRole": "+ دور جديد",
+    "newUser": "+ مستخدم جديد",
+    "linkGroup": "ربط بمجموعة",
+    "telegramLinkedBox": "تيليجرام مربوط.",
+    "telegramNotLinkedBox": "تيليجرام غير مربوط بعد."
   },
   "assignmentsV2": {
     "rule": "نموذج واحد في كل يوم عمل، من السبت إلى الخميس. الجمعة عطلة.",
@@ -1008,7 +1019,16 @@
     "assignUsers_few": "تكليف {{count}} مستخدمين",
     "assignUsers_many": "تكليف {{count}} مستخدماً",
     "assignUsers_other": "تكليف {{count}} مستخدم",
-    "cellLabel": "{{user}}، {{date}}: {{status}}"
+    "cellLabel": "{{user}}، {{date}}: {{status}}",
+    "assignForm": "+ تكليف بنموذج",
+    "remindResult": "أُرسل {{sent}} · فشل {{failed}} · ذُكّر اليوم مسبقاً {{already}} · بلا تيليجرام أو واتساب {{none}}",
+    "remindedAt": "ذُكّر الساعة {{time}}",
+    "last14": "آخر 14 يوماً",
+    "last30": "آخر 30 يوماً",
+    "last60": "آخر 60 يوماً",
+    "rowEnded": "منتهٍ",
+    "openEntry": "فتح الإدخال",
+    "dayList": "المطلوب منهم يوم {{date}}"
   },
   "reportsV2": {
     "intro": "تقرير PDF مع تحليل مكتوب يصل كل مستلم على واتساب الساعة {{time}} بتوقيت السعودية.",
