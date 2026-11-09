@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json;
 using Platform.Application.Common.Interfaces;
+using Platform.Application.StageProgress;
 using Platform.Domain.Forms;
 
 namespace Platform.Application.Analytics.Queries.GetExecutiveOverview;
@@ -13,7 +14,7 @@ namespace Platform.Application.Analytics.Queries.GetExecutiveOverview;
 /// </summary>
 public record OverviewInputs(
     IReadOnlyList<OverviewProjectRow> Projects,
-    IReadOnlyDictionary<Guid, OverviewUnitCounts> UnitCounts,
+    IReadOnlyDictionary<Guid, ProjectStageData> StageData,
     IReadOnlyList<OverviewReportRow> Reports,
     IReadOnlyList<OverviewStockRow> Stock,
     OverviewLabels Labels);
@@ -23,17 +24,24 @@ public class OverviewLabels
 {
     private readonly IReadOnlyDictionary<string, string> _units;
     private readonly IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> _options;
+    private readonly IReadOnlyDictionary<string, string> _stages;
 
     public OverviewLabels(
         IReadOnlyDictionary<string, string> units,
-        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> options)
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, string>> options,
+        IReadOnlyDictionary<string, string>? stages = null)
     {
         _units = units;
         _options = options;
+        _stages = stages ?? new Dictionary<string, string>();
     }
 
     public static OverviewLabels Empty { get; } = new(
         new Dictionary<string, string>(), new Dictionary<string, IReadOnlyDictionary<string, string>>());
+
+    /// <summary>A stage's Arabic name from the plans (a v1 report's old phase: its option label).</summary>
+    public string Stage(string code) =>
+        _stages.TryGetValue(code, out var name) ? name : Option("phase", code);
 
     /// <summary>The label of a dropdown value on the daily progress report form (weather, milestone, ...).</summary>
     public string Option(string fieldCode, string? value)
@@ -42,26 +50,9 @@ public class OverviewLabels
         return _options.TryGetValue(fieldCode, out var labels) && labels.TryGetValue(value, out var label) ? label : value;
     }
 
-    /// <summary>The unit a report is about, as people know it: "الطابق الثالث", "الكهرباء - الطابق 3".</summary>
-    public string Unit(string phase, string? unitKey)
-    {
-        if (string.IsNullOrWhiteSpace(unitKey)) return string.Empty;
-        return phase switch
-        {
-            OverviewProgressPlan.Paperwork => Option("milestone", unitKey),
-            OverviewProgressPlan.Mep when unitKey.Split('@') is [var trade, var room] =>
-                $"{Option("mep_trade", trade)} - {Option("mep_room", room)}",
-            _ => _units.TryGetValue(unitKey, out var label) ? Prefix(phase) + label : unitKey,
-        };
-    }
-
-    private static string Prefix(string phase) => phase switch
-    {
-        OverviewProgressPlan.Excavation => "المنطقة ",
-        OverviewProgressPlan.Foundation => "القاعدة ",
-        OverviewProgressPlan.Structural => "الطابق ",
-        _ => string.Empty,
-    };
+    /// <summary>A floor's name (v2 reports name floors by their project-floors row).</summary>
+    public string Unit(string phase, string? unitKey) =>
+        string.IsNullOrWhiteSpace(unitKey) ? string.Empty : _units.TryGetValue(unitKey, out var label) ? label : string.Empty;
 }
 
 /// <summary>Reads <see cref="OverviewInputs"/> from the live forms.</summary>
@@ -81,10 +72,13 @@ public class ExecutiveOverviewLoader
     private readonly IApplicationDbContext _db;
     private readonly IDynamicDataRepository _dynamicDataRepository;
 
-    public ExecutiveOverviewLoader(IApplicationDbContext db, IDynamicDataRepository dynamicDataRepository)
+    private readonly StageProgressData _stageData;
+
+    public ExecutiveOverviewLoader(IApplicationDbContext db, IDynamicDataRepository dynamicDataRepository, StageProgressData? stageData = null)
     {
         _db = db;
         _dynamicDataRepository = dynamicDataRepository;
+        _stageData = stageData ?? new StageProgressData(db, dynamicDataRepository);
     }
 
     public async Task<OverviewInputs> LoadAsync(bool withLabels, CancellationToken cancellationToken)
@@ -92,8 +86,6 @@ public class ExecutiveOverviewLoader
         // A form that doesn't exist (or was never published) simply contributes no rows -
         // the dashboard degrades to empty panels rather than failing.
         var projectRows = (await ReadAllAsync("projects", cancellationToken)).Rows;
-        var zoneRows = (await ReadAllAsync("project-zones", cancellationToken)).Rows;
-        var footingRows = (await ReadAllAsync("project-footings", cancellationToken)).Rows;
         var floorRows = (await ReadAllAsync("project-floors", cancellationToken)).Rows;
         var (reportRows, reportForm) = await ReadAllAsync(ReportFormCode, cancellationToken);
         var inflowRows = (await ReadAllAsync("stock-inflow", cancellationToken)).Rows;
@@ -111,31 +103,49 @@ public class ExecutiveOverviewLoader
                 LocalDate(row, "expected_completion")))
             .ToList();
 
-        var zones = CountByProject(zoneRows);
-        var footings = CountByProject(footingRows);
-        var floors = CountByProject(floorRows);
-        var unitCounts = projects.ToDictionary(
-            p => p.Id,
-            p => new OverviewUnitCounts(
-                zones.GetValueOrDefault(p.Id), footings.GetValueOrDefault(p.Id), floors.GetValueOrDefault(p.Id)));
+        // Progress comes from each project's own stage plan and the reports' stage blocks.
+        var stageData = new Dictionary<Guid, ProjectStageData>();
+        foreach (var project in projects)
+            if (await _stageData.ProjectDataAsync(project.Id, cancellationToken) is { Plan.Count: > 0 } data)
+                stageData[project.Id] = data;
 
+        // Report rows for the non-progress panels: a v1 report is one row under its old phase;
+        // a v2 report gives one row per stage block (the block's own plan met and problem),
+        // all carrying the report's id so crew and delays count once per report.
+        var blocksByReport = await ReportBlocksAsync(reportForm, cancellationToken);
         var reports = new List<OverviewReportRow>();
         foreach (var row in reportRows)
         {
-            // A report with no project, date or phase can't be placed anywhere on the page.
+            // A report with no project or date can't be placed anywhere on the page.
             if (Id(row, "project") is not { } projectId || LocalDate(row, "report_date") is not { } date) continue;
+            var crew = Number(row, "crew_count");
+            var weather = Text(row, "weather");
+            var delay = Flag(row, "had_delay");
+            var cause = Text(row, "delay_cause");
+
+            if (blocksByReport.TryGetValue(row.Id, out var blocks))
+            {
+                foreach (var block in blocks)
+                {
+                    if (BlockText(block, "stage") is not { } stage) continue;
+                    reports.Add(new OverviewReportRow(
+                        projectId, date, stage, null, crew, weather, delay, cause,
+                        block.Values.GetValueOrDefault("has_problem") is true,
+                        BlockText(block, "problem_details"),
+                        block.Values.GetValueOrDefault("plan_met") is true,
+                        row.Id));
+                }
+                continue;
+            }
+
             var phase = Text(row, "phase");
             if (phase is null) continue;
-
             reports.Add(new OverviewReportRow(
-                projectId, date, phase, UnitKey(row, phase),
-                Number(row, "crew_count"),
-                Text(row, "weather"),
-                Flag(row, "had_delay"),
-                Text(row, "delay_cause"),
+                projectId, date, phase, null, crew, weather, delay, cause,
                 Flag(row, "has_problem_today"),
                 Text(row, "problem_description"),
-                Flag(row, "plan_completed_today")));
+                Flag(row, "plan_completed_today"),
+                row.Id));
         }
 
         var stock = new List<OverviewStockRow>();
@@ -164,15 +174,26 @@ public class ExecutiveOverviewLoader
 
         var labels = withLabels
             ? new OverviewLabels(
-                UnitLabels(zoneRows, "zone_label", "zone_code")
-                    .Concat(UnitLabels(footingRows, "footing_label", "footing_code"))
-                    .Concat(UnitLabels(floorRows, "floor_label", "floor_code"))
-                    .ToDictionary(x => x.Key, x => x.Value),
-                OptionLabels(reportForm))
+                UnitLabels(floorRows, "floor_label", "floor_code").ToDictionary(x => x.Key, x => x.Value),
+                OptionLabels(reportForm),
+                stageData.Values.SelectMany(d => d.Plan).GroupBy(r => r.StageCode).ToDictionary(g => g.Key, g => g.First().StageNameAr))
             : OverviewLabels.Empty;
 
-        return new OverviewInputs(projects, unitCounts, reports, stock, labels);
+        return new OverviewInputs(projects, stageData, reports, stock, labels);
     }
+
+    private async Task<Dictionary<Guid, List<BlockRow>>> ReportBlocksAsync(FormDefinition? form, CancellationToken cancellationToken)
+    {
+        var version = form?.GetPublishedVersion();
+        var section = version?.Sections.FirstOrDefault(s => s.Code == StageForms.StagesSection);
+        if (form?.TableName is null || version is null || section?.ChildTableName is null) return new();
+        var fields = version.Fields.Where(f => f.IsActive && f.SectionId == section.Id).ToList();
+        var blocks = await _dynamicDataRepository.GetAllBlocksAsync(section.ChildTableName, form.TableName, fields, cancellationToken);
+        return blocks.GroupBy(b => b.ParentId).ToDictionary(g => g.Key, g => g.OrderBy(b => b.BlockIndex).ToList());
+    }
+
+    private static string? BlockText(BlockRow row, string code) =>
+        row.Values.GetValueOrDefault(code)?.ToString() is { Length: > 0 } text && !string.IsNullOrWhiteSpace(text) ? text : null;
 
     /// <summary>
     /// Every non-deleted row of a form, fetched page by page (the repository caps a page at
@@ -232,27 +253,6 @@ public class ExecutiveOverviewLoader
         }
         return result;
     }
-
-    private static Dictionary<Guid, int> CountByProject(IEnumerable<DynamicRow> rows) =>
-        rows.Select(row => Id(row, "project"))
-            .Where(id => id is not null)
-            .GroupBy(id => id!.Value)
-            .ToDictionary(g => g.Key, g => g.Count());
-
-    /// <summary>
-    /// Which unit a report is about, within its phase. MEP has two selectors (trade and
-    /// floor), so its key is both; every other phase has one.
-    /// </summary>
-    private static string? UnitKey(DynamicRow row, string phase) => phase switch
-    {
-        OverviewProgressPlan.Paperwork => Text(row, "milestone"),
-        OverviewProgressPlan.Excavation => Id(row, "zone")?.ToString(),
-        OverviewProgressPlan.Foundation => Id(row, "footing")?.ToString(),
-        OverviewProgressPlan.Structural => Id(row, "floor")?.ToString(),
-        OverviewProgressPlan.Mep =>
-            Text(row, "mep_trade") is { } trade && Text(row, "mep_room") is { } room ? $"{trade}@{room}" : null,
-        _ => null,
-    };
 
     // DynamicRow values are loosely-typed objects straight from Dapper. Each reader below
     // returns "nothing" for a missing, null or unexpectedly-typed value instead of throwing -

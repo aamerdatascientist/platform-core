@@ -48,7 +48,7 @@ public static class FormAssignmentTracker
     public static DateTime SaudiDayStartUtc(DateOnly day) =>
         DateTime.SpecifyKind(day.ToDateTime(TimeOnly.MinValue) - SaudiArabiaOffset, DateTimeKind.Utc);
 
-    public static bool IsWorkingDay(DateOnly day) => day.DayOfWeek != DayOfWeek.Friday;
+    public static bool IsWorkingDay(DateOnly day) => Platform.Application.StageProgress.WorkingWeek.IsWorkingDay(day);
 
     /// <summary>
     /// Every working day each assignment covers within [from, to], never past today, newest

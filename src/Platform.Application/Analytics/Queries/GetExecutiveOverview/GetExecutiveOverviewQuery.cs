@@ -32,8 +32,9 @@ public class GetExecutiveOverviewQueryHandler : IRequestHandler<GetExecutiveOver
     {
         var inputs = await _loader.LoadAsync(withLabels: false, cancellationToken);
         var today = ExecutiveOverviewLoader.SaudiToday(DateTime.UtcNow);
-        var phaseFilter = OverviewProgressPlan.Phases.Contains(request.Phase) ? request.Phase : null;
+        // The stage filter takes a stage code from the plans; anything else means "all stages".
+        var stageFilter = inputs.StageData.Values.Any(d => d.Plan.Any(r => r.StageCode == request.Phase)) ? request.Phase : null;
         return ExecutiveOverviewCalculator.Calculate(
-            inputs.Projects, inputs.UnitCounts, inputs.Reports, inputs.Stock, today, request.ProjectId, phaseFilter);
+            inputs.Projects, inputs.StageData, inputs.Reports, inputs.Stock, today, request.ProjectId, stageFilter);
     }
 }

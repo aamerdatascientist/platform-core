@@ -28,6 +28,8 @@ var trackedEnvironmentSettingsIndex = builder.Configuration.Sources.ToList().Fin
 builder.Configuration.Sources.Insert(trackedEnvironmentSettingsIndex + 1, localSettingsSource);
 
 builder.Services.AddApplication();
+// The weekly day off for every working-day calculation (Schedule:WeeklyDayOff, default Friday).
+Platform.Application.StageProgress.WorkingWeek.Configure(builder.Configuration["Schedule:WeeklyDayOff"]);
 builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddControllers()

@@ -92,15 +92,13 @@ public static class ReportFigures
         report,
         planRules = new
         {
-            workingDaysPerZone = OverviewProgressPlan.ZoneDays,
-            workingDaysPerFooting = OverviewProgressPlan.FootingDays,
-            workingDaysPerFloor = OverviewProgressPlan.FloorDays,
-            workingDaysPerMepTradePerFloor = OverviewProgressPlan.MepTradeDays,
-            paperworkMilestoneDays = OverviewProgressPlan.MilestoneDays,
-            paperworkTotalDays = OverviewProgressPlan.MilestoneDays.Values.Sum(),
+            // Each project has its own stage plan (days per stage, per floor or per side); each
+            // stage in the figures carries its plannedDays and earnedDays from that plan.
+            progressMethod = "one working day earned per unit per day whose plan was met, capped at the unit's planned days",
+            plannedDatesSlackPercent = (int)Math.Round(StageProgress.StageDates.Slack * 100),
             forecastPaceWindowDays = ExecutiveOverviewCalculator.ForecastPaceDays,
             forecastAmberUpToDaysLate = OverviewKpiThresholds.ForecastWarnDays,
-            fridayIsTheOnlyDayOff = true,
+            weeklyDayOff = StageProgress.WorkingWeek.DayOff.ToString(),
         },
     }, Options);
 }

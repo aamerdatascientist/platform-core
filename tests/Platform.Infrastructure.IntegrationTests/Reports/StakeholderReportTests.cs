@@ -1,3 +1,4 @@
+using Platform.Application.StageProgress;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -71,31 +72,49 @@ public class StakeholderReportTests
     // ------------------------------------------------------------------ figures
 
     private static readonly Guid ProjectId = Guid.NewGuid();
-    private static readonly Guid Floor2 = Guid.NewGuid();
-    private static readonly Guid Floor3 = Guid.NewGuid();
+    private static readonly ProjectShape Shape = Platform.Infrastructure.IntegrationTests.StageProgress.StageScheduleTests.Reference();
+    private static readonly Guid Floor2 = Shape.ActiveLevels.Single(l => l.LevelNumber == 2).Id;
+    private static readonly Guid Floor3 = Shape.ActiveLevels.Single(l => l.LevelNumber == 3).Id;
+    private static readonly string StructureName = DefaultStagePlan.Rows.First(r => r.StageCode == StageCodes.Structure).StageNameAr;
+    private static readonly string WallsName = DefaultStagePlan.Rows.First(r => r.StageCode == StageCodes.Walls).StageNameAr;
 
-    private static OverviewInputs Inputs(params OverviewReportRow[] reports) => new(
-        new[] { new OverviewProjectRow(ProjectId, "119", "نزل الأخيار", "مكة", "محمد قاسم", "active", new DateOnly(2026, 1, 20), new DateOnly(2026, 9, 15)) },
-        new Dictionary<Guid, OverviewUnitCounts> { [ProjectId] = new(1, 2, 6) },
-        reports,
-        Array.Empty<OverviewStockRow>(),
-        new OverviewLabels(
-            new Dictionary<string, string> { [Floor2.ToString()] = "الثاني", [Floor3.ToString()] = "الثالث" },
-            new Dictionary<string, IReadOnlyDictionary<string, string>>
-            {
-                ["weather"] = new Dictionary<string, string> { ["clear"] = "صافٍ" },
-            }));
+    /// <summary>A report row and the stage block it came from (the same report, two views).</summary>
+    private sealed record R(OverviewReportRow Row, StageReportBlock Block);
 
-    private static OverviewReportRow Report(DateOnly date, Guid floor, int crew, bool met, string? cause = null) =>
-        new(ProjectId, date, OverviewProgressPlan.Structural, floor.ToString(), crew, "clear", cause is not null, cause, false, null, met);
+    private static OverviewInputs Inputs(params R[] reports)
+    {
+        var project = new StageProject(ProjectId, "119", "نزل الأخيار", "active", new DateOnly(2026, 1, 20), 1, 5, Shape);
+        var data = new ProjectStageData(project, DefaultStagePlan.Rows,
+            reports.Select(r => new StageBlockRow(r.Block.SubmissionId, ProjectId, r.Block)).ToList(), [], [], []);
+        return new(
+            new[] { new OverviewProjectRow(ProjectId, "119", "نزل الأخيار", "مكة", "محمد قاسم", "active", new DateOnly(2026, 1, 20), new DateOnly(2026, 9, 15)) },
+            new Dictionary<Guid, ProjectStageData> { [ProjectId] = data },
+            reports.Select(r => r.Row).ToList(),
+            Array.Empty<OverviewStockRow>(),
+            new OverviewLabels(
+                new Dictionary<string, string>(),
+                new Dictionary<string, IReadOnlyDictionary<string, string>>
+                {
+                    ["weather"] = new Dictionary<string, string> { ["clear"] = "صافٍ" },
+                },
+                DefaultStagePlan.Rows.GroupBy(r => r.StageCode).ToDictionary(g => g.Key, g => g.First().StageNameAr)));
+    }
+
+    private static R Report(DateOnly date, Guid floor, int crew, bool met, string? cause = null, string stage = StageCodes.Structure)
+    {
+        var id = Guid.NewGuid();
+        return new R(
+            new OverviewReportRow(ProjectId, date, stage, null, crew, "clear", cause is not null, cause, false, null, met, id),
+            new StageReportBlock(id, date, stage, null, [floor], [], met, false));
+    }
 
     [Fact]
-    public void Build_Daily_CountsTodaysReports_AndFindsTheUnitThatDidNotReport()
+    public void Build_Daily_CountsTodaysReports_AndFindsTheStageThatDidNotReport()
     {
         var saturday = new DateOnly(2026, 10, 31);
         var sunday = new DateOnly(2026, 11, 1);
         var inputs = Inputs(
-            Report(saturday, Floor2, 6, met: true),
+            Report(saturday, Floor2, 6, met: true, stage: StageCodes.Walls),
             Report(saturday, Floor3, 5, met: true),
             Report(sunday, Floor3, 4, met: false, cause: "تأخر توريد الخرسانة"));
 
@@ -108,16 +127,16 @@ public class StakeholderReportTests
         report.Portfolio.PlanMetPercentPrevious.Should().Be(100);
         report.Portfolio.PlanMetChangePoints.Should().Be(-100);
         var project = report.Projects.Single();
-        project.MissingUnits.Should().Equal("الطابق الثاني");
+        project.MissingUnits.Should().Equal(WallsName);
         project.UnitReports.Single().Should().Be(new ReportUnitDay(
-            "structural", "الهيكل الإنشائي", "الطابق الثالث", 4, "صافٍ", false, "تأخر توريد الخرسانة", null));
+            StageCodes.Structure, StructureName, "", 4, "صافٍ", false, "تأخر توريد الخرسانة", null));
         report.Issues.Select(i => i.Type).Should().BeEquivalentTo(new[] { "delay", "missing" });
         report.Series.Should().HaveCount(StakeholderReportBuilder.DailySeriesDays);
         report.Series.Should().NotContain(p => p.Date.DayOfWeek == DayOfWeek.Friday);
     }
 
     [Fact]
-    public void Build_Stages_CountTheDaysTheyLost()
+    public void Build_Stages_ComeFromTheProjectsPlan_AndCountTheDaysTheyLost()
     {
         var day = new DateOnly(2026, 11, 1);
         var inputs = Inputs(
@@ -127,9 +146,10 @@ public class StakeholderReportTests
             Report(day, Floor2, 6, met: true));
 
         var stage = StakeholderReportBuilder.Build(inputs, ReportRun.Daily, day)
-            .Projects.Single().Stages.Single(s => s.Stage == OverviewProgressPlan.Structural);
+            .Projects.Single().Stages.Single(s => s.Stage == StageCodes.Structure);
 
-        stage.PlannedDays.Should().Be(OverviewProgressPlan.FloorDays * 6);
+        stage.Label.Should().Be(StructureName);
+        stage.PlannedDays.Should().Be(10 * 6);
         stage.ReportDays.Should().Be(4);
         stage.EarnedDays.Should().Be(3);
         stage.LostDays.Should().Be(1);

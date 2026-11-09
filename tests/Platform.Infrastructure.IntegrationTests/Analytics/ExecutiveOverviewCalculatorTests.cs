@@ -33,95 +33,16 @@ public class ExecutiveOverviewCalculatorTests
         IReadOnlyCollection<OverviewProjectRow> projects,
         IReadOnlyCollection<OverviewReportRow> reports,
         IReadOnlyCollection<OverviewStockRow>? stock = null,
-        OverviewUnitCounts? units = null,
         Guid? selected = null,
         string? phase = null)
     {
-        var counts = projects.ToDictionary(p => p.Id, _ => units ?? new OverviewUnitCounts(Zones: 2, Footings: 0, Floors: 0));
+        // Progress has its own tests (StageOverviewTests); these cover the other panels.
         return ExecutiveOverviewCalculator.Calculate(
-            projects, counts, reports, stock ?? Array.Empty<OverviewStockRow>(), AsOf, selected, phase);
+            projects, new Dictionary<Guid, Platform.Application.StageProgress.ProjectStageData>(), reports,
+            stock ?? Array.Empty<OverviewStockRow>(), AsOf, selected, phase);
     }
 
     // --- work complete ---------------------------------------------------------------------
-
-    [Fact]
-    public void WorkComplete_EarnsOneDayPerPlanMetReport_AndNothingForAMissedDay()
-    {
-        // 2 zones x 18 planned days + 26 paperwork days = 62 planned. Zone 1: one met day and
-        // one missed day -> 1 day earned.
-        var result = Calculate(
-            new[] { Project(ProjectA, "A") },
-            new[]
-            {
-                Report(ProjectA, AsOf.AddDays(-1), "excavation", Zone1, planMet: true),
-                Report(ProjectA, AsOf, "excavation", Zone1, planMet: false),
-            });
-
-        var project = result.Projects.Single();
-        project.WorkComplete.Should().BeApproximately(1d / 62d, 1e-9);
-        project.Phases.Single(p => p.Phase == "excavation").Complete.Should().BeApproximately(1d / 36d, 1e-9);
-        project.PlanMet.Should().BeApproximately(0.5, 1e-9);
-    }
-
-    [Fact]
-    public void WorkComplete_CapsAUnitAtItsPlannedDays()
-    {
-        // Twenty met days on one zone still only earn that zone's 18 planned days.
-        var reports = Enumerable.Range(0, 20)
-            .Select(i => Report(ProjectA, AsOf.AddDays(-i), "excavation", Zone1, planMet: true))
-            .ToList();
-
-        var result = Calculate(new[] { Project(ProjectA, "A") }, reports);
-
-        result.Projects.Single().Phases.Single(p => p.Phase == "excavation").Complete.Should().BeApproximately(0.5, 1e-9);
-    }
-
-    [Fact]
-    public void WorkComplete_NeverExceedsOneHundredPercent_WhenReportsNameMoreUnitsThanAreRegistered()
-    {
-        // Only one zone is registered (18 planned days), but 10 met days were reported against
-        // each of two zones.
-        var result = Calculate(
-            new[] { Project(ProjectA, "A") },
-            Enumerable.Range(0, 20)
-                .Select(i => Report(ProjectA, AsOf.AddDays(-i), "excavation", i % 2 == 0 ? Zone1 : Zone2, true))
-                .ToList(),
-            units: new OverviewUnitCounts(Zones: 1, Footings: 0, Floors: 0));
-
-        result.Projects.Single().Phases.Single(p => p.Phase == "excavation").Complete.Should().Be(1d);
-    }
-
-    [Fact]
-    public void WorkComplete_UsesEachMilestonesOwnPlannedDays_AndIgnoresUnknownOrMissingUnits()
-    {
-        var result = Calculate(
-            new[] { Project(ProjectA, "A") },
-            new[]
-            {
-                Report(ProjectA, AsOf.AddDays(-6), "paperwork", "final_permit", true),
-                Report(ProjectA, AsOf.AddDays(-5), "paperwork", "final_permit", true),
-                Report(ProjectA, AsOf.AddDays(-4), "paperwork", "final_permit", true),
-                Report(ProjectA, AsOf.AddDays(-3), "paperwork", "final_permit", true),     // capped at 3
-                Report(ProjectA, AsOf.AddDays(-2), "paperwork", "design_approval", true),  // 1 of 10
-                Report(ProjectA, AsOf.AddDays(-1), "paperwork", "not_a_milestone", true),  // earns nothing
-                Report(ProjectA, AsOf, "paperwork", null, true),                           // earns nothing
-            });
-
-        var project = result.Projects.Single();
-        project.Phases.Single(p => p.Phase == "paperwork").Complete.Should().BeApproximately(4d / 26d, 1e-9);
-        project.ReportCount.Should().Be(7, "a report without a usable unit still counts as a report");
-    }
-
-    [Fact]
-    public void Phases_AreAlwaysAllFive_InWorkOrder()
-    {
-        var result = Calculate(new[] { Project(ProjectA, "A") }, new[] { Report(ProjectA, AsOf, "mep", "electrical@floor_1", true) });
-
-        result.Projects.Single().Phases.Select(p => p.Phase).Should()
-            .Equal("paperwork", "excavation", "foundation", "structural", "mep");
-    }
-
-    // --- schedule --------------------------------------------------------------------------
 
     [Fact]
     public void TimeElapsed_IsNull_WhenADateIsMissingOrTheSpanIsNotPositive()
@@ -199,26 +120,6 @@ public class ExecutiveOverviewCalculatorTests
         result.DelayedReportCount.Should().Be(0);
         result.DelayCauses.Should().BeEmpty();
     }
-
-    [Fact]
-    public void CurrentPhases_AreThePhasesReportedOnTheProjectsLastReportingDay()
-    {
-        var result = Calculate(
-            new[] { Project(ProjectA, "A") },
-            new[]
-            {
-                Report(ProjectA, AsOf.AddDays(-9), "excavation", Zone1, true),
-                Report(ProjectA, AsOf.AddDays(-2), "mep", "plumbing@floor_1", true),
-                Report(ProjectA, AsOf.AddDays(-2), "structural", Guid.NewGuid().ToString(), true),
-            });
-
-        var project = result.Projects.Single();
-        project.CurrentPhases.Should().Equal("structural", "mep");
-        project.LastReportDate.Should().Be(AsOf.AddDays(-2));
-        project.DaysSinceLastReport.Should().Be(2);
-    }
-
-    // --- tiles -----------------------------------------------------------------------------
 
     [Fact]
     public void Tiles_UseTheLast14Days_ThePrevious14_AndTheLast30()
@@ -448,54 +349,9 @@ public class ExecutiveOverviewCalculatorTests
         var excavation = Calculate(new[] { Project(ProjectA, "A") }, reports, phase: "excavation").Tiles;
         excavation.LateDays.Should().Be(2);
         excavation.WorkedDays.Should().Be(2);
+        // Stage days come from the project's stage plan (none in this test): see StageOverviewTests.
         excavation.StageEarnedDays.Should().Be(0);
-        excavation.StagePlannedDays.Should().Be(36);
-    }
-
-    [Fact]
-    public void Forecast_DividesTheWorkLeftByTheRecentPace_AndSkipsFridays()
-    {
-        // Paperwork only: 5 met + 5 missed days in the last 30 -> pace 50%; 26 - 5 = 21 days
-        // left -> 42 working days.
-        var reports = Enumerable.Range(1, 10)
-            .Select(i => Report(ProjectA, AsOf.AddDays(-i), "paperwork", "design_approval", planMet: i % 2 == 0))
-            .ToList();
-        var start = AsOf.AddDays(-10);
-
-        var tiles = Calculate(new[] { Project(ProjectA, "A", start: start) }, reports, phase: "paperwork").Tiles;
-
-        tiles.ForecastFinish.Should().Be(ExecutiveOverviewCalculator.AddWorkingDays(AsOf, 42));
-        tiles.ForecastFinished.Should().BeFalse();
-        // Planned end: 26 days + 10% = 29 working days from the start date, counting it.
-        tiles.ForecastTarget.Should().Be(ExecutiveOverviewCalculator.AddWorkingDays(start.AddDays(-1), 29));
-        tiles.ForecastDaysLate.Should().Be(tiles.ForecastFinish!.Value.DayNumber - tiles.ForecastTarget!.Value.DayNumber);
-        tiles.ForecastTone.Should().Be(tiles.ForecastDaysLate <= 30 ? "warn" : "bad");
-    }
-
-    [Fact]
-    public void Forecast_ForAFinishedStage_IsItsLastReport_AndTheWholeProjectIsJudgedOnItsExpectedDate()
-    {
-        var reports = new List<OverviewReportRow>();
-        var day = AsOf.AddDays(-60);
-        foreach (var (milestone, days) in OverviewProgressPlan.MilestoneDays)
-            for (var i = 0; i < days; i++, day = day.AddDays(1))
-                reports.Add(Report(ProjectA, day, "paperwork", milestone, planMet: true));
-        var paperworkDone = day.AddDays(-1);
-        reports.Add(Report(ProjectA, AsOf, "excavation", Zone1, planMet: true));
-
-        var units = new OverviewUnitCounts(Zones: 1, Footings: 0, Floors: 0);
-        var project = Project(ProjectA, "A", start: AsOf.AddDays(-60), expected: AsOf.AddDays(10));
-
-        var paperwork = Calculate(new[] { project }, reports, units: units, phase: "paperwork").Tiles;
-        paperwork.ForecastFinished.Should().BeTrue();
-        paperwork.ForecastFinish.Should().Be(paperworkDone);
-
-        // Whole project: 17 excavation days left at 100% pace, against the expected date.
-        var whole = Calculate(new[] { project }, reports, units: units).Tiles;
-        var finish = ExecutiveOverviewCalculator.AddWorkingDays(AsOf, 17);
-        whole.ForecastFinish.Should().Be(finish);
-        whole.ForecastTarget.Should().Be(AsOf.AddDays(10));
-        whole.ForecastDaysLate.Should().Be(finish.DayNumber - AsOf.AddDays(10).DayNumber);
+        excavation.StagePlannedDays.Should().Be(0);
     }
 
     [Theory]

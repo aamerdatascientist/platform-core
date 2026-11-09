@@ -57,7 +57,7 @@ public static class StakeholderReportBuilder
         var inPrevious = upToEnd.Where(r => r.Date >= previousFrom && r.Date <= previousTo).ToList();
 
         var overviewNow = ExecutiveOverviewCalculator.Calculate(
-            inputs.Projects, inputs.UnitCounts, upToEnd, inputs.Stock, to, null);
+            inputs.Projects, inputs.StageData, upToEnd, inputs.Stock, to, null);
 
         var projects = new List<ReportProject>();
         foreach (var dto in overviewNow.Projects)
@@ -136,10 +136,12 @@ public static class StakeholderReportBuilder
         var labels = inputs.Labels;
         var own = upToEnd.Where(r => r.ProjectId == project.Id).ToList();
         var inPeriod = own.Where(r => r.Date >= from).ToList();
-        var units = inputs.UnitCounts.GetValueOrDefault(project.Id) ?? new OverviewUnitCounts(0, 0, 0);
+        var progress = inputs.StageData.TryGetValue(project.Id, out var stageData)
+            ? StageProgress.ProjectProgressCalculator.Compute(stageData, to)
+            : null;
 
         var tilesNow = ExecutiveOverviewCalculator.Calculate(
-            inputs.Projects, inputs.UnitCounts, upToEnd, inputs.Stock, to, project.Id).Tiles;
+            inputs.Projects, inputs.StageData, upToEnd, inputs.Stock, to, project.Id).Tiles;
 
         // The same project as it stood the day before the period began.
         var before = upToEnd.Where(r => r.Date < from).ToList();
@@ -148,7 +150,7 @@ public static class StakeholderReportBuilder
         if (before.Any(r => r.ProjectId == project.Id))
         {
             var overviewStart = ExecutiveOverviewCalculator.Calculate(
-                inputs.Projects, inputs.UnitCounts, before, inputs.Stock, from.AddDays(-1), project.Id);
+                inputs.Projects, inputs.StageData, before, inputs.Stock, from.AddDays(-1), project.Id);
             dtoStart = overviewStart.Projects.FirstOrDefault(p => p.Id == project.Id);
             tilesStart = overviewStart.Tiles;
         }
@@ -156,16 +158,17 @@ public static class StakeholderReportBuilder
         var stages = new List<ReportStage>();
         foreach (var phase in dto.Phases)
         {
-            var planned = OverviewProgressPlan.PlannedDaysForPhase(phase.Phase, units);
+            var summary = progress?.Stages.FirstOrDefault(s => s.StageCode == phase.Phase);
+            var planned = summary?.PlannedDays ?? 0;
             var phaseReports = own.Where(r => r.Phase == phase.Phase).ToList();
             if (planned == 0 && phaseReports.Count == 0) continue;
             var reportDays = phaseReports.GroupBy(r => r.Date).ToList();
             var startComplete = dtoStart?.Phases.FirstOrDefault(p => p.Phase == phase.Phase)?.Complete ?? 0;
             stages.Add(new ReportStage(
                 Stage: phase.Phase,
-                Label: StageLabel(labels, phase.Phase),
+                Label: phase.NameAr ?? StageLabel(labels, phase.Phase),
                 PlannedDays: planned,
-                EarnedDays: RoundInt(phase.Complete * planned),
+                EarnedDays: summary?.EarnedDays ?? RoundInt(phase.Complete * planned),
                 ReportDays: reportDays.Count,
                 LostDays: reportDays.Count(d => !d.Any(r => r.PlanMet)),
                 CompletePercent: ExecutiveOverviewCalculator.ToPercent(phase.Complete),
@@ -186,7 +189,7 @@ public static class StakeholderReportBuilder
                 .Select(r => (r.Phase, r.UnitKey))
                 .Distinct()
                 .Where(u => !today.Contains(u))
-                .Select(u => labels.Unit(u.Phase, u.UnitKey))
+                .Select(u => StageLabel(labels, u.Phase))
                 .ToList();
             missing = missingUnits.Count;
         }
@@ -229,7 +232,7 @@ public static class StakeholderReportBuilder
             MissingReports: missing,
             UnitReports: kind == ReportRun.Daily
                 ? inPeriod
-                    .OrderBy(r => OverviewProgressPlan.Phases.ToList().IndexOf(r.Phase))
+                    .OrderBy(r => progress?.Schedule.Stages.ToList().FindIndex(s => s.StageCode == r.Phase) ?? 0)
                     .Select(r => new ReportUnitDay(
                         r.Phase, StageLabel(labels, r.Phase), labels.Unit(r.Phase, r.UnitKey), r.CrewCount,
                         labels.Option("weather", r.Weather), r.PlanMet,
@@ -325,7 +328,7 @@ public static class StakeholderReportBuilder
         return clean.Length <= max ? clean : clean[..(max - 1)].TrimEnd() + "…";
     }
 
-    public static bool IsWorkingDay(DateOnly day) => day.DayOfWeek != DayOfWeek.Friday;
+    public static bool IsWorkingDay(DateOnly day) => Platform.Application.StageProgress.WorkingWeek.IsWorkingDay(day);
 
     public static DateOnly PreviousWorkingDay(DateOnly day)
     {
@@ -343,14 +346,15 @@ public static class StakeholderReportBuilder
 
     private static string StageLabel(OverviewLabels labels, string phase)
     {
-        var label = labels.Option("phase", phase);
+        // A stage's name from the plans; an old (v1) phase by its option label.
+        var label = labels.Stage(phase);
         return label != phase ? label : phase switch
         {
-            OverviewProgressPlan.Paperwork => "الأعمال الورقية",
-            OverviewProgressPlan.Excavation => "الحفر",
-            OverviewProgressPlan.Foundation => "الأساسات",
-            OverviewProgressPlan.Structural => "الهيكل الإنشائي",
-            OverviewProgressPlan.Mep => "الأعمال الكهروميكانيكية",
+            "paperwork" => "الأعمال الورقية",
+            "excavation" => "الحفر",
+            "foundation" => "الأساسات",
+            "structural" => "الهيكل الإنشائي",
+            "mep" => "الأعمال الكهروميكانيكية",
             _ => phase,
         };
     }
