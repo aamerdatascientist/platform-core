@@ -26,6 +26,7 @@ public class DeleteFormCommandHandler : IRequestHandler<DeleteFormCommand>
 
         if (formDefinition is null)
             throw new NotFoundException(nameof(Platform.Domain.Forms.FormDefinition), request.FormDefinitionId);
+        formDefinition.ThrowIfSystemForm("deleting the form");
 
         // Neither Lookup fields nor WorkflowDefinition have a real foreign-key
         // relationship to FormDefinitions - deliberate, to keep those modules decoupled -

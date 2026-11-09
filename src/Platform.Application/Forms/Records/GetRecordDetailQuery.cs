@@ -19,10 +19,12 @@ public class GetRecordDetailQueryHandler : IRequestHandler<GetRecordDetailQuery,
 {
     private readonly IApplicationDbContext _db;
     private readonly IDynamicDataRepository _repository;
+    private readonly IFieldOptionsProviders _providers;
     private readonly ICurrentUserService _currentUser;
 
-    public GetRecordDetailQueryHandler(IApplicationDbContext db, IDynamicDataRepository repository, ICurrentUserService currentUser)
+    public GetRecordDetailQueryHandler(IApplicationDbContext db, IDynamicDataRepository repository, ICurrentUserService currentUser, IFieldOptionsProviders providers)
     {
+        _providers = providers;
         _db = db;
         _repository = repository;
         _currentUser = currentUser;
@@ -31,6 +33,7 @@ public class GetRecordDetailQueryHandler : IRequestHandler<GetRecordDetailQuery,
     public async Task<RecordDetailDto> Handle(GetRecordDetailQuery request, CancellationToken cancellationToken)
     {
         var form = await _db.FormDefinitions.Include(f => f.Versions).ThenInclude(v => v.Fields)
+        .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .SingleOrDefaultAsync(f => f.Id == request.FormDefinitionId, cancellationToken)
             ?? throw new NotFoundException(nameof(FormDefinition), request.FormDefinitionId);
         var version = form.GetPublishedVersion();
@@ -44,7 +47,7 @@ public class GetRecordDetailQueryHandler : IRequestHandler<GetRecordDetailQuery,
         if (!isAdmin && row.CreatedByUserId != _currentUser.UserId)
             throw new ForbiddenAccessException("Only the person who sent this record, or an administrator, can open it.");
 
-        var item = (await RecordViews.ToItemsAsync(_db, _repository, form.Id, fields, new[] { row }, cancellationToken))[0];
+        var item = (await RecordViews.ToItemsAsync(_db, _repository, form.Id, fields, new[] { row }, cancellationToken, _providers))[0];
         var files = await _db.FileMetadataEntries
             .Where(f => f.RecordId == row.Id)
             .OrderBy(f => f.CreatedAtUtc)

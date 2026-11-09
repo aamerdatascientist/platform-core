@@ -23,6 +23,9 @@ public static class DependencyInjection
         services.AddValidatorsFromAssembly(assembly);
         services.AddScoped<AssignmentNotifier>();
         services.AddScoped<TelegramLinker>();
+        services.AddScoped<Forms.SubmissionPreparer>();
+        services.AddScoped<Forms.IFieldOptionsProviders, Forms.FieldOptionsProviders>();
+        services.AddScoped<Forms.IFormSubmissionHooks, Forms.FormSubmissionHooks>();
 
         return services;
     }

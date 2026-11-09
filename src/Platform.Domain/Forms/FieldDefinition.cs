@@ -99,21 +99,50 @@ public class FieldDefinition : AuditableEntity
     /// OptionsJson/FieldType.Dropdown.</summary>
     public string? DynamicOptionsSourceFieldCode { get; private set; }
 
+    /// <summary>The repeatable section (same FormVersion) this field belongs to; null = the
+    /// form's header (the parent row). Decides which table holds the column - see FormSection.</summary>
+    public Guid? SectionId { get; private set; }
+
+    /// <summary>
+    /// "Show when the chosen row's setting matches" (added 2026-11-10): with this set, the
+    /// visibility condition compares not the controlling field's own value but one attribute of
+    /// the option or row it has chosen - e.g. the chosen stage's <c>unit_pick</c>. Attributes
+    /// come from the controlling field's options: an options provider's attributes, or a
+    /// Lookup row's field of that code. Null = compare the value itself (the original rule).
+    /// </summary>
+    public string? VisibleWhenAttribute { get; private set; }
+
+    /// <summary>Lookup / MultiLookup only: JSON {"field":"status","values":["active"]} - only
+    /// target rows whose field is one of the values are offered, and only they are accepted.</summary>
+    public string? RowFilterJson { get; private set; }
+
+    /// <summary>Number / Decimal only: a read-only calculated field. An arithmetic expression over
+    /// sibling number fields and constants (e.g. <c>plot_area_m2 * buildable_pct / 100</c>);
+    /// the server computes and stores it, ignoring any value sent.</summary>
+    public string? Formula { get; private set; }
+
+    /// <summary>
+    /// Dropdown / MultiSelect / Lookup / MultiLookup: the name of a server-side options provider
+    /// (registered by a module, e.g. <c>stage-plan.stages</c>) that computes this field's options
+    /// from the form's current values. Validation then accepts only what the provider offers.
+    /// </summary>
+    public string? OptionsProvider { get; private set; }
+
     private FieldDefinition() { }
 
     public static FieldDefinition Create(Guid formVersionId, string code, string label, FieldType fieldType,
         bool isRequired, int displayOrder, string? optionsJson, Guid? lookupFormDefinitionId,
         string? validationRulesJson, string? visibleWhenFieldCode = null, string? visibleWhenValuesJson = null,
         string? filterByFieldCode = null, Guid? dynamicOptionsSourceFormDefinitionId = null,
-        string? dynamicOptionsSourceFieldCode = null)
+        string? dynamicOptionsSourceFieldCode = null, string? optionsProvider = null)
     {
         var normalizedCode = NormalizeColumnName(code);
 
-        if (fieldType == FieldType.Dropdown && string.IsNullOrWhiteSpace(optionsJson)
-            && string.IsNullOrWhiteSpace(dynamicOptionsSourceFieldCode))
+        if (fieldType is FieldType.Dropdown or FieldType.MultiSelect && string.IsNullOrWhiteSpace(optionsJson)
+            && string.IsNullOrWhiteSpace(dynamicOptionsSourceFieldCode) && string.IsNullOrWhiteSpace(optionsProvider))
             throw new ArgumentException(
-                "Dropdown fields require either OptionsJson or a dynamic options source.", nameof(optionsJson));
-        if (fieldType == FieldType.Lookup && lookupFormDefinitionId is null)
+                "Dropdown fields require OptionsJson, a dynamic options source or an options provider.", nameof(optionsJson));
+        if (fieldType is FieldType.Lookup or FieldType.MultiLookup && lookupFormDefinitionId is null)
             throw new ArgumentException("Lookup fields require LookupFormDefinitionId.", nameof(lookupFormDefinitionId));
 
         ValidateVisibilityCondition(normalizedCode, visibleWhenFieldCode, visibleWhenValuesJson);
@@ -138,8 +167,42 @@ public class FieldDefinition : AuditableEntity
             VisibleWhenValuesJson = string.IsNullOrWhiteSpace(visibleWhenFieldCode) ? null : visibleWhenValuesJson,
             FilterByFieldCode = string.IsNullOrWhiteSpace(filterByFieldCode) ? null : filterByFieldCode,
             DynamicOptionsSourceFormDefinitionId = hasDynamicSource ? dynamicOptionsSourceFormDefinitionId : null,
-            DynamicOptionsSourceFieldCode = hasDynamicSource ? dynamicOptionsSourceFieldCode : null
+            DynamicOptionsSourceFieldCode = hasDynamicSource ? dynamicOptionsSourceFieldCode : null,
+            OptionsProvider = string.IsNullOrWhiteSpace(optionsProvider) ? null : optionsProvider.Trim()
         };
+    }
+
+    /// <summary>Safe: which section the field is in (the caller checks the section is on this version).</summary>
+    internal void SetSection(Guid? sectionId) => SectionId = sectionId;
+
+    /// <summary>Safe, like SetVisibilityCondition: compare an attribute of the controlling field's
+    /// chosen option instead of its value. Blank clears it.</summary>
+    public void SetVisibilityAttribute(string? attribute) =>
+        VisibleWhenAttribute = VisibleWhenFieldCode is null || string.IsNullOrWhiteSpace(attribute) ? null : attribute.Trim();
+
+    /// <summary>Safe: Lookup / MultiLookup only. Null or blank clears it.</summary>
+    public void SetRowFilter(string? rowFilterJson)
+    {
+        if (!string.IsNullOrWhiteSpace(rowFilterJson) && FieldType is not (FieldType.Lookup or FieldType.MultiLookup))
+            throw new ArgumentException("Only a Lookup field can filter its rows.", nameof(rowFilterJson));
+        RowFilterJson = string.IsNullOrWhiteSpace(rowFilterJson) ? null : rowFilterJson;
+    }
+
+    /// <summary>Safe: Number / Decimal only. Null or blank clears it (the field becomes an ordinary input).</summary>
+    public void SetFormula(string? formula)
+    {
+        if (!string.IsNullOrWhiteSpace(formula) && FieldType is not (FieldType.Number or FieldType.Decimal))
+            throw new ArgumentException("Only a number field can be calculated.", nameof(formula));
+        Formula = string.IsNullOrWhiteSpace(formula) ? null : formula.Trim();
+    }
+
+    /// <summary>Safe: a choice field's options come from a registered provider. Null or blank clears it.</summary>
+    public void SetOptionsProvider(string? provider)
+    {
+        if (!string.IsNullOrWhiteSpace(provider) &&
+            FieldType is not (FieldType.Dropdown or FieldType.MultiSelect or FieldType.Lookup or FieldType.MultiLookup))
+            throw new ArgumentException("Only a choice field can take its options from a provider.", nameof(provider));
+        OptionsProvider = string.IsNullOrWhiteSpace(provider) ? null : provider.Trim();
     }
 
     /// <summary>
@@ -187,7 +250,7 @@ public class FieldDefinition : AuditableEntity
     {
         if (string.IsNullOrWhiteSpace(filterByFieldCode)) return;
 
-        if (fieldType != FieldType.Lookup)
+        if (fieldType is not (FieldType.Lookup or FieldType.MultiLookup))
             throw new ArgumentException(
                 "Only a Lookup field can filter its candidates by another field.", nameof(filterByFieldCode));
         if (filterByFieldCode == ownCode)
@@ -277,7 +340,10 @@ public class FieldDefinition : AuditableEntity
     /// </summary>
     public void ChangeType(FieldType fieldType, string? optionsJson, Guid? lookupFormDefinitionId)
     {
-        if (fieldType == FieldType.Dropdown && string.IsNullOrWhiteSpace(optionsJson))
+        // An array column can't be converted to or from a single value without losing data.
+        if (fieldType is FieldType.MultiSelect or FieldType.MultiLookup || FieldType is FieldType.MultiSelect or FieldType.MultiLookup)
+            throw new InvalidOperationException("A multi-select field's type can't be changed.");
+        if (fieldType == FieldType.Dropdown && string.IsNullOrWhiteSpace(optionsJson) && OptionsProvider is null)
             throw new ArgumentException("Dropdown fields require OptionsJson.", nameof(optionsJson));
         if (fieldType == FieldType.Lookup && lookupFormDefinitionId is null)
             throw new ArgumentException("Lookup fields require LookupFormDefinitionId.", nameof(lookupFormDefinitionId));

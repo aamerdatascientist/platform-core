@@ -116,6 +116,10 @@ namespace Platform.Infrastructure.Migrations.Postgres
                     b.Property<Guid>("FormVersionId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Formula")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
@@ -146,11 +150,25 @@ namespace Platform.Infrastructure.Migrations.Postgres
                     b.Property<string>("OptionsJson")
                         .HasColumnType("text");
 
+                    b.Property<string>("OptionsProvider")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("RowFilterJson")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("SectionId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid?>("StepId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("ValidationRulesJson")
                         .HasColumnType("text");
+
+                    b.Property<string>("VisibleWhenAttribute")
+                        .HasMaxLength(63)
+                        .HasColumnType("character varying(63)");
 
                     b.Property<string>("VisibleWhenFieldCode")
                         .HasMaxLength(63)
@@ -160,6 +178,8 @@ namespace Platform.Infrastructure.Migrations.Postgres
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("SectionId");
 
                     b.HasIndex("StepId");
 
@@ -241,6 +261,16 @@ namespace Platform.Infrastructure.Migrations.Postgres
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsHidden")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsSystem")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<DateTime?>("ModifiedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -301,6 +331,62 @@ namespace Platform.Infrastructure.Migrations.Postgres
                     b.HasKey("FormDefinitionId", "UserId");
 
                     b.ToTable("FormDefinitionUsers", (string)null);
+                });
+
+            modelBuilder.Entity("Platform.Domain.Forms.FormSection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ChildTableName")
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("FormVersionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("MaxBlocks")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("MinBlocks")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("ModifiedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ModifiedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TitleAr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("TitleEn")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FormVersionId", "Code")
+                        .IsUnique();
+
+                    b.ToTable("FormSections", (string)null);
                 });
 
             modelBuilder.Entity("Platform.Domain.Forms.FormStep", b =>
@@ -898,6 +984,111 @@ namespace Platform.Infrastructure.Migrations.Postgres
                     b.ToTable("ReportRuns", (string)null);
                 });
 
+            modelBuilder.Entity("Platform.Domain.StageProgress.StageBaselineEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("EarnedDays")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("Finished")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("LevelId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ModifiedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ModifiedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int?>("Side")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("StageCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("SubstepCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("StageBaselines", (string)null);
+                });
+
+            modelBuilder.Entity("Platform.Domain.StageProgress.StageUnitReopening", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("LevelId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ModifiedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ModifiedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateOnly>("ReopenedOn")
+                        .HasColumnType("date");
+
+                    b.Property<int?>("Side")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("StageCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("SubstepCode")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("StageUnitReopenings", (string)null);
+                });
+
             modelBuilder.Entity("Platform.Domain.Workflow.WorkflowDefinition", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1117,6 +1308,11 @@ namespace Platform.Infrastructure.Migrations.Postgres
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Platform.Domain.Forms.FormSection", null)
+                        .WithMany()
+                        .HasForeignKey("SectionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Platform.Domain.Forms.FormStep", null)
                         .WithMany()
                         .HasForeignKey("StepId")
@@ -1152,6 +1348,15 @@ namespace Platform.Infrastructure.Migrations.Postgres
                     b.HasOne("Platform.Domain.Forms.FormDefinition", null)
                         .WithMany("AllowedUsers")
                         .HasForeignKey("FormDefinitionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Platform.Domain.Forms.FormSection", b =>
+                {
+                    b.HasOne("Platform.Domain.Forms.FormVersion", null)
+                        .WithMany("Sections")
+                        .HasForeignKey("FormVersionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
@@ -1240,6 +1445,8 @@ namespace Platform.Infrastructure.Migrations.Postgres
             modelBuilder.Entity("Platform.Domain.Forms.FormVersion", b =>
                 {
                     b.Navigation("Fields");
+
+                    b.Navigation("Sections");
 
                     b.Navigation("Steps");
                 });

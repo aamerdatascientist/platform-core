@@ -12,7 +12,9 @@ public record AddFieldDefinitionCommand(
     string? OptionsJson, Guid? LookupFormDefinitionId, string? ValidationRulesJson,
     string? VisibleWhenFieldCode = null, string? VisibleWhenValuesJson = null,
     string? FilterByFieldCode = null, Guid? DynamicOptionsSourceFormDefinitionId = null,
-    string? DynamicOptionsSourceFieldCode = null, string? LabelEn = null, Guid? StepId = null) : IRequest<Guid>;
+    string? DynamicOptionsSourceFieldCode = null, string? LabelEn = null, Guid? StepId = null,
+    Guid? SectionId = null, string? OptionsProvider = null, string? Formula = null, string? RowFilterJson = null,
+    string? VisibleWhenAttribute = null) : IRequest<Guid>;
 
 public class AddFieldDefinitionCommandValidator : AbstractValidator<AddFieldDefinitionCommand>
 {
@@ -32,9 +34,10 @@ public class AddFieldDefinitionCommandValidator : AbstractValidator<AddFieldDefi
         RuleFor(x => x.Label).NotEmpty().MaximumLength(200);
         RuleFor(x => x.LabelEn).MaximumLength(200);
         RuleFor(x => x.OptionsJson).NotEmpty()
-            .When(x => x.FieldType == FieldType.Dropdown && string.IsNullOrWhiteSpace(x.DynamicOptionsSourceFieldCode))
+            .When(x => x.FieldType is FieldType.Dropdown or FieldType.MultiSelect && string.IsNullOrWhiteSpace(x.DynamicOptionsSourceFieldCode)
+                       && string.IsNullOrWhiteSpace(x.OptionsProvider))
             .WithMessage("Dropdown fields require options (a static list, or a dynamic source).");
-        RuleFor(x => x.LookupFormDefinitionId).NotEmpty().When(x => x.FieldType == FieldType.Lookup)
+        RuleFor(x => x.LookupFormDefinitionId).NotEmpty().When(x => x.FieldType is FieldType.Lookup or FieldType.MultiLookup)
             .WithMessage("Lookup fields require a target form.");
         RuleFor(x => x.DynamicOptionsSourceFormDefinitionId).NotEmpty()
             .When(x => !string.IsNullOrWhiteSpace(x.DynamicOptionsSourceFieldCode))
@@ -49,7 +52,7 @@ public class AddFieldDefinitionCommandValidator : AbstractValidator<AddFieldDefi
             .WithMessage("A visibility condition needs at least one allowed value.");
         RuleFor(x => x.VisibleWhenFieldCode).NotEqual(x => x.Code).When(x => !string.IsNullOrWhiteSpace(x.VisibleWhenFieldCode))
             .WithMessage("A field can't control its own visibility.");
-        RuleFor(x => x.FilterByFieldCode).Empty().When(x => x.FieldType != FieldType.Lookup && !string.IsNullOrWhiteSpace(x.FilterByFieldCode))
+        RuleFor(x => x.FilterByFieldCode).Empty().When(x => x.FieldType is not (FieldType.Lookup or FieldType.MultiLookup) && !string.IsNullOrWhiteSpace(x.FilterByFieldCode))
             .WithMessage("Only a Lookup field can filter its candidates by another field.");
         RuleFor(x => x.FilterByFieldCode).NotEqual(x => x.Code).When(x => !string.IsNullOrWhiteSpace(x.FilterByFieldCode))
             .WithMessage("A field can't filter itself.");
@@ -60,17 +63,20 @@ public class AddFieldDefinitionCommandHandler : IRequestHandler<AddFieldDefiniti
 {
     private readonly IApplicationDbContext _db;
     private readonly IDynamicSchemaService _schemaService;
+    private readonly IFieldOptionsProviders _providers;
 
-    public AddFieldDefinitionCommandHandler(IApplicationDbContext db, IDynamicSchemaService schemaService)
+    public AddFieldDefinitionCommandHandler(IApplicationDbContext db, IDynamicSchemaService schemaService, IFieldOptionsProviders providers)
     {
         _db = db;
         _schemaService = schemaService;
+        _providers = providers;
     }
 
     public async Task<Guid> Handle(AddFieldDefinitionCommand request, CancellationToken cancellationToken)
     {
         var formDefinition = await _db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .Include(f => f.Versions).ThenInclude(v => v.Steps)
             .SingleOrDefaultAsync(f => f.Id == request.FormDefinitionId, cancellationToken);
 
@@ -94,6 +100,7 @@ public class AddFieldDefinitionCommandHandler : IRequestHandler<AddFieldDefiniti
         {
             var lookupTarget = await _db.FormDefinitions
                 .Include(f => f.Versions).ThenInclude(v => v.Fields)
+                .Include(f => f.Versions).ThenInclude(v => v.Sections)
                 .SingleOrDefaultAsync(f => f.Id == request.LookupFormDefinitionId, cancellationToken);
             var targetHasMatchingField = lookupTarget?.GetPublishedVersion()?.Fields
                 .Any(f => f.IsActive && f.Code == request.FilterByFieldCode) ?? false;
@@ -117,6 +124,7 @@ public class AddFieldDefinitionCommandHandler : IRequestHandler<AddFieldDefiniti
         {
             var optionsSourceForm = await _db.FormDefinitions
                 .Include(f => f.Versions).ThenInclude(v => v.Fields)
+                .Include(f => f.Versions).ThenInclude(v => v.Sections)
                 .SingleOrDefaultAsync(f => f.Id == request.DynamicOptionsSourceFormDefinitionId, cancellationToken);
             var sourceHasMatchingField = optionsSourceForm?.GetPublishedVersion()?.Fields
                 .Any(f => f.IsActive && f.Code == request.DynamicOptionsSourceFieldCode) ?? false;
@@ -139,7 +147,8 @@ public class AddFieldDefinitionCommandHandler : IRequestHandler<AddFieldDefiniti
                 request.OptionsJson, request.LookupFormDefinitionId, request.ValidationRulesJson,
                 request.VisibleWhenFieldCode, request.VisibleWhenValuesJson, request.FilterByFieldCode,
                 request.DynamicOptionsSourceFormDefinitionId, request.DynamicOptionsSourceFieldCode,
-                request.LabelEn, request.StepId);
+                request.LabelEn, request.StepId, request.SectionId, request.OptionsProvider);
+            FieldExtras.Apply(field, target.Version, _providers, request.Formula, request.RowFilterJson, request.VisibleWhenAttribute, request.OptionsProvider);
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("a visibility condition can only depend"))
         {
@@ -200,7 +209,15 @@ public class AddFieldDefinitionCommandHandler : IRequestHandler<AddFieldDefiniti
         // metadata only, all schema work batched into its first publish.
         if (target.IsLive && field.FieldType != FieldType.Attachment)
         {
-            await _schemaService.AddColumnForFieldAsync(target.LiveTableName, field, cancellationToken);
+            if (field.SectionId is { } sectionId)
+            {
+                // A section added to a live form gets its table here, with this first column.
+                var section = target.Version.FindSectionOrThrow(sectionId);
+                await _schemaService.EnsureSectionTableAsync(target.LiveTableName, section, [field], cancellationToken);
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+            else
+                await _schemaService.AddColumnForFieldAsync(target.LiveTableName, field, cancellationToken);
 
             var lookupTargets = await _db.LoadLookupTargetsAsync(target.Version, cancellationToken);
             await _schemaService.RefreshReportingViewAsync(

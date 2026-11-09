@@ -42,9 +42,11 @@ public class SearchRecordsQueryHandler : IRequestHandler<SearchRecordsQuery, Rec
 {
     private readonly IApplicationDbContext _db;
     private readonly IDynamicDataRepository _repository;
+    private readonly IFieldOptionsProviders _providers;
 
-    public SearchRecordsQueryHandler(IApplicationDbContext db, IDynamicDataRepository repository)
+    public SearchRecordsQueryHandler(IApplicationDbContext db, IDynamicDataRepository repository, IFieldOptionsProviders providers)
     {
+        _providers = providers;
         _db = db;
         _repository = repository;
     }
@@ -52,6 +54,7 @@ public class SearchRecordsQueryHandler : IRequestHandler<SearchRecordsQuery, Rec
     public async Task<RecordsPageDto> Handle(SearchRecordsQuery request, CancellationToken cancellationToken)
     {
         var form = await _db.FormDefinitions.Include(f => f.Versions).ThenInclude(v => v.Fields)
+        .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .SingleOrDefaultAsync(f => f.Id == request.FormDefinitionId, cancellationToken)
             ?? throw new NotFoundException(nameof(FormDefinition), request.FormDefinitionId);
         var version = form.GetPublishedVersion();
@@ -80,7 +83,7 @@ public class SearchRecordsQueryHandler : IRequestHandler<SearchRecordsQuery, Rec
             request.Page, request.PageSize, matches, request.Q,
             dateField, RecordFilterValues.SaudiDayStart(request.From, nameof(request.From)), RecordFilterValues.SaudiDayStart(request.To, nameof(request.To), nextDay: true)),
             cancellationToken);
-        var items = await RecordViews.ToItemsAsync(_db, _repository, form.Id, fields, page.Items, cancellationToken);
+        var items = await RecordViews.ToItemsAsync(_db, _repository, form.Id, fields, page.Items, cancellationToken, _providers);
         return new RecordsPageDto(items, page.TotalCount, page.Page, page.PageSize);
     }
 }

@@ -45,6 +45,59 @@ public class FakeDynamicDataRepository : IDynamicDataRepository
     /// <summary>Set to make the next InsertAsync fail (the offline-queue tests).</summary>
     public bool FailNextInsert { get; set; }
 
+    /// <summary>Blocks of repeatable sections, per child table.</summary>
+    public Dictionary<string, List<BlockRow>> Blocks { get; } = new();
+
+    /// <summary>The guard of the last section-aware write (lock key), for hook tests.</summary>
+    public List<string?> LockKeys { get; } = new();
+
+    public async Task<Guid> InsertWithSectionsAsync(
+        string tableName, IReadOnlyCollection<FieldDefinition> activeFields, IReadOnlyDictionary<string, object?> values,
+        IReadOnlyList<SectionRows> sections, Guid submittedByUserId, WriteGuard? guard = null,
+        CancellationToken cancellationToken = default)
+    {
+        LockKeys.Add(guard?.LockKey);
+        if (guard?.WhileLocked is not null) await guard.WhileLocked(cancellationToken);
+        var id = await InsertAsync(tableName, activeFields.Where(f => f.SectionId is null).ToList(), values, submittedByUserId, cancellationToken);
+        AddBlocks(sections, id);
+        return id;
+    }
+
+    public async Task<bool> UpdateWithSectionsAsync(
+        string tableName, IReadOnlyCollection<FieldDefinition> activeFields, Guid id, IReadOnlyDictionary<string, object?> values,
+        IReadOnlyList<SectionRows> sections, Guid modifiedByUserId, WriteGuard? guard = null,
+        CancellationToken cancellationToken = default)
+    {
+        LockKeys.Add(guard?.LockKey);
+        if (guard?.WhileLocked is not null) await guard.WhileLocked(cancellationToken);
+        var ok = await UpdateAsync(tableName, activeFields.Where(f => f.SectionId is null).ToList(), id, values, modifiedByUserId, cancellationToken);
+        if (!ok) return false;
+        foreach (var section in sections)
+            if (Blocks.TryGetValue(section.ChildTableName, out var list)) list.RemoveAll(b => b.ParentId == id);
+        AddBlocks(sections, id);
+        return true;
+    }
+
+    private void AddBlocks(IReadOnlyList<SectionRows> sections, Guid parentId)
+    {
+        foreach (var section in sections)
+        {
+            if (!Blocks.TryGetValue(section.ChildTableName, out var list)) Blocks[section.ChildTableName] = list = new();
+            for (var i = 0; i < section.Blocks.Count; i++)
+                list.Add(new BlockRow(Guid.NewGuid(), parentId, i, section.Blocks[i]));
+        }
+    }
+
+    public Task<IReadOnlyList<BlockRow>> GetBlocksAsync(
+        string childTableName, IReadOnlyCollection<FieldDefinition> sectionFields, IReadOnlyCollection<Guid> parentIds,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<BlockRow>>((Blocks.GetValueOrDefault(childTableName) ?? new()).Where(b => parentIds.Contains(b.ParentId)).ToList());
+
+    public Task<IReadOnlyList<BlockRow>> GetAllBlocksAsync(
+        string childTableName, string parentTableName, IReadOnlyCollection<FieldDefinition> sectionFields,
+        CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<BlockRow>>(Blocks.GetValueOrDefault(childTableName) ?? new());
+
     public Task<Guid> InsertAsync(
         string tableName, IReadOnlyCollection<FieldDefinition> activeFields,
         IReadOnlyDictionary<string, object?> values, Guid submittedByUserId,

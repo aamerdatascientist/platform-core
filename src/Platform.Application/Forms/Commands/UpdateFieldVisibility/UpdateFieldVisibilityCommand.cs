@@ -44,6 +44,7 @@ public class UpdateFieldVisibilityCommandHandler : IRequestHandler<UpdateFieldVi
     {
         var formDefinition = await _db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .SingleOrDefaultAsync(f => f.Id == request.FormDefinitionId, cancellationToken);
 
         if (formDefinition is null)
@@ -83,7 +84,7 @@ public class UpdateFieldVisibilityCommandHandler : IRequestHandler<UpdateFieldVi
         // A field that becomes conditional is left out of every submission that hides it, so
         // a NOT NULL column (created when it was unconditionally required at first publish)
         // must become nullable - otherwise those submissions fail with a raw database error.
-        if (target.IsLive && target.LiveTableName is { } tableName && field.VisibleWhenFieldCode is not null)
+        if (target.IsLive && target.LiveTableFor(field) is { } tableName && field.VisibleWhenFieldCode is not null)
             await _schemaService.DropNotNullAsync(tableName, field.Code, cancellationToken);
 
         await _db.SaveChangesAsync(cancellationToken);

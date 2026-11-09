@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Platform.Application.Forms.Commands.AddFieldDefinition;
+using Platform.Application.Forms.Commands.FormSections;
 using Platform.Application.Forms.Commands.CreateFormDefinition;
 using Platform.Application.Forms.Commands.DeleteForm;
 using Platform.Application.Forms.Commands.PublishFormVersion;
@@ -77,7 +78,9 @@ public class FormsController : ControllerBase
         string? OptionsJson, Guid? LookupFormDefinitionId, string? ValidationRulesJson,
         string? VisibleWhenFieldCode = null, string? VisibleWhenValuesJson = null,
         string? FilterByFieldCode = null, Guid? DynamicOptionsSourceFormDefinitionId = null,
-        string? DynamicOptionsSourceFieldCode = null, string? LabelEn = null, Guid? StepId = null);
+        string? DynamicOptionsSourceFieldCode = null, string? LabelEn = null, Guid? StepId = null,
+        Guid? SectionId = null, string? OptionsProvider = null, string? Formula = null, string? RowFilterJson = null,
+        string? VisibleWhenAttribute = null);
 
     [HttpPost("{id:guid}/fields")]
     [Authorize(Roles = "Administrator")]
@@ -88,7 +91,8 @@ public class FormsController : ControllerBase
             request.OptionsJson, request.LookupFormDefinitionId, request.ValidationRulesJson,
             request.VisibleWhenFieldCode, request.VisibleWhenValuesJson, request.FilterByFieldCode,
             request.DynamicOptionsSourceFormDefinitionId, request.DynamicOptionsSourceFieldCode,
-            request.LabelEn, request.StepId), cancellationToken);
+            request.LabelEn, request.StepId, request.SectionId, request.OptionsProvider, request.Formula,
+            request.RowFilterJson, request.VisibleWhenAttribute), cancellationToken);
 
         return Ok(new { id = fieldId });
     }
@@ -257,10 +261,79 @@ public class FormsController : ControllerBase
     /// GetLookupOptionsQuery. Checked against access to THIS form, not the Lookup's target,
     /// so a form can be filled in by people who can't open the master-data form it points at.
     /// filterValue is the value picked in the sibling field a cascading Lookup is narrowed by.</summary>
+    /// <remarks>Since 2026-11-10 this also serves fields whose options come from a provider
+    /// (any choice field), applies a Lookup's row filter, and returns each option's attributes
+    /// that other fields' visibility depends on. <c>v=code:value</c> (repeatable) passes the
+    /// form's current values a provider needs - e.g. the project and the stage of a block.</remarks>
     [HttpGet("{id:guid}/fields/{fieldId:guid}/lookup-options")]
     public async Task<ActionResult<IReadOnlyList<LookupOptionDto>>> GetLookupOptions(
-        Guid id, Guid fieldId, [FromQuery] string? filterValue, CancellationToken cancellationToken) =>
-        Ok(await _sender.Send(new GetLookupOptionsQuery(id, fieldId, filterValue), cancellationToken));
+        Guid id, Guid fieldId, [FromQuery] string? filterValue, [FromQuery(Name = "v")] string[]? values, CancellationToken cancellationToken)
+    {
+        var current = (values ?? [])
+            .Select(v => v.Split(':', 2))
+            .Where(p => p.Length == 2 && p[0].Length is > 0 and <= 63)
+            .GroupBy(p => p[0])
+            .ToDictionary(g => g.Key, g => (string?)g.Last()[1]);
+        return Ok(await _sender.Send(new GetLookupOptionsQuery(id, fieldId, filterValue, current), cancellationToken));
+    }
+
+    // ------------------------------------------------------------ repeatable sections (2026-11-10)
+
+    public record SectionRequest(string? Code, string TitleAr, string? TitleEn, int MinBlocks, int MaxBlocks);
+
+    [HttpPost("{id:guid}/sections")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<ActionResult<FormSectionDto>> AddSection(Guid id, SectionRequest request, CancellationToken cancellationToken) =>
+        Ok(await _sender.Send(new AddFormSectionCommand(id, request.Code ?? string.Empty, request.TitleAr, request.TitleEn, request.MinBlocks, request.MaxBlocks), cancellationToken));
+
+    [HttpPut("{id:guid}/sections/{sectionId:guid}")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<ActionResult<FormSectionDto>> UpdateSection(Guid id, Guid sectionId, SectionRequest request, CancellationToken cancellationToken) =>
+        Ok(await _sender.Send(new UpdateFormSectionCommand(id, sectionId, request.TitleAr, request.TitleEn, request.MinBlocks, request.MaxBlocks), cancellationToken));
+
+    [HttpDelete("{id:guid}/sections/{sectionId:guid}")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> RemoveSection(Guid id, Guid sectionId, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new RemoveFormSectionCommand(id, sectionId), cancellationToken);
+        return NoContent();
+    }
+
+    public record MoveToSectionRequest(Guid? SectionId);
+
+    [HttpPut("{id:guid}/fields/{fieldId:guid}/section")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> MoveFieldToSection(Guid id, Guid fieldId, MoveToSectionRequest request, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new MoveFieldToSectionCommand(id, fieldId, request.SectionId), cancellationToken);
+        return NoContent();
+    }
+
+    public record FieldSettingsRequest(string? Formula, string? RowFilterJson, string? VisibleWhenAttribute, string? OptionsProvider);
+
+    /// <summary>Safe: a field's formula, row filter, visibility attribute and options provider (blank clears each).</summary>
+    [HttpPut("{id:guid}/fields/{fieldId:guid}/settings")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> UpdateFieldSettings(Guid id, Guid fieldId, FieldSettingsRequest request, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new UpdateFieldSettingsCommand(id, fieldId, request.Formula, request.RowFilterJson, request.VisibleWhenAttribute, request.OptionsProvider), cancellationToken);
+        return NoContent();
+    }
+
+    public record FormFlagsRequest(bool IsSystem, bool IsHidden);
+
+    [HttpPut("{id:guid}/flags")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> SetFlags(Guid id, FormFlagsRequest request, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new SetFormFlagsCommand(id, request.IsSystem, request.IsHidden), cancellationToken);
+        return NoContent();
+    }
+
+    [HttpGet("options-providers")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<ActionResult<IReadOnlyList<OptionsProviderDto>>> GetOptionsProviders(CancellationToken cancellationToken) =>
+        Ok(await _sender.Send(new GetOptionsProvidersQuery(), cancellationToken));
 
     public record ReorderFieldsRequest(IReadOnlyList<Guid> OrderedFieldIds);
 

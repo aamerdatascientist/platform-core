@@ -56,6 +56,24 @@ public class FormDefinition : AuditableEntity
         return definition;
     }
 
+    /// <summary>
+    /// A system form (added 2026-11-10) is one a calculation reads by field code - projects,
+    /// floors, the stage plans, the daily report, the pause log. Its fields can be relabelled
+    /// but not renamed, retyped, archived or deleted, and the form itself can't be deleted, so
+    /// a builder edit can't silently break progress figures.
+    /// </summary>
+    public bool IsSystem { get; private set; }
+
+    /// <summary>Hidden from the menus (the records and builder stay reachable for administrators).
+    /// Used to retire a form without touching its data, e.g. project-zones.</summary>
+    public bool IsHidden { get; private set; }
+
+    public void SetFlags(bool isSystem, bool isHidden)
+    {
+        IsSystem = isSystem;
+        IsHidden = isHidden;
+    }
+
     /// <summary>Safe: metadata only - the table name was fixed at first publish and never follows Name.</summary>
     public void Rename(string name, string? nameEn)
     {

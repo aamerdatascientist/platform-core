@@ -51,10 +51,20 @@ public static class SqlTypeMapper
         FieldType.DateTime => "timestamptz",
         FieldType.Dropdown => "varchar(200)",
         FieldType.Lookup => "uuid",
+        FieldType.MultiSelect => "text[]",
+        FieldType.MultiLookup => "uuid[]",
         FieldType.Attachment => throw new InvalidOperationException(
             "Attachment fields never get a physical column - resolve via the File Management module."),
         _ => throw new NotSupportedException($"Unmapped FieldType '{fieldType}'.")
     };
+
+    /// <summary>The child table of a repeatable section: <c>{parent}__{PascalCase(section code)}</c>.</summary>
+    public static string ToChildTableName(string parentTableName, string sectionCode)
+    {
+        var name = $"{parentTableName}__{ToPascalCase(sectionCode)}";
+        AssertSafePostgresIdentifier(name);
+        return name;
+    }
 
     /// <summary>
     /// The character limit baked into <see cref="ToPostgresColumnType"/> for the length-capped

@@ -39,6 +39,7 @@ public class UpdateFieldLookupFilterCommandHandler : IRequestHandler<UpdateField
     {
         var formDefinition = await _db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .SingleOrDefaultAsync(f => f.Id == request.FormDefinitionId, cancellationToken);
 
         if (formDefinition is null)
@@ -74,6 +75,7 @@ public class UpdateFieldLookupFilterCommandHandler : IRequestHandler<UpdateField
             // Code too, or the filter would silently match nothing once used.
             var lookupTarget = await _db.FormDefinitions
                 .Include(f => f.Versions).ThenInclude(v => v.Fields)
+                .Include(f => f.Versions).ThenInclude(v => v.Sections)
                 .SingleOrDefaultAsync(f => f.Id == field.LookupFormDefinitionId, cancellationToken);
             var targetHasMatchingField = lookupTarget?.GetPublishedVersion()?.Fields
                 .Any(f => f.IsActive && f.Code == request.FilterByFieldCode) ?? false;

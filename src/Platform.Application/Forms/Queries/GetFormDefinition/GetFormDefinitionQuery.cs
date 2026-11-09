@@ -26,6 +26,7 @@ public class GetFormDefinitionQueryHandler : IRequestHandler<GetFormDefinitionQu
     {
         var formDefinition = await _db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .Include(f => f.Versions).ThenInclude(v => v.Steps)
             .Include(f => f.AllowedRoles)
             .Include(f => f.AllowedUsers)
@@ -51,7 +52,8 @@ public class GetFormDefinitionQueryHandler : IRequestHandler<GetFormDefinitionQu
             formDefinition.Id, formDefinition.Code, formDefinition.Name, formDefinition.Description,
             formDefinition.ModuleName, formDefinition.Status, formDefinition.TableName,
             ToDto(draft), ToDto(published), formDefinition.AllowedRoles.Select(ar => ar.RoleId).ToList(),
-            formDefinition.AllowedUsers.Select(au => au.UserId).ToList(), formDefinition.NameEn);
+            formDefinition.AllowedUsers.Select(au => au.UserId).ToList(), formDefinition.NameEn,
+            formDefinition.IsSystem, formDefinition.IsHidden);
     }
 
     private static FormVersionDto? ToDto(FormVersion? version)
@@ -64,13 +66,18 @@ public class GetFormDefinitionQueryHandler : IRequestHandler<GetFormDefinitionQu
                 f.Id, f.Code, f.Label, f.FieldType, f.IsRequired, f.IsActive,
                 f.DisplayOrder, f.OptionsJson, f.LookupFormDefinitionId, f.ValidationRulesJson,
                 f.VisibleWhenFieldCode, f.VisibleWhenValuesJson, f.FilterByFieldCode,
-                f.DynamicOptionsSourceFormDefinitionId, f.DynamicOptionsSourceFieldCode, f.LabelEn, f.StepId))
+                f.DynamicOptionsSourceFormDefinitionId, f.DynamicOptionsSourceFieldCode, f.LabelEn, f.StepId,
+                f.SectionId, f.VisibleWhenAttribute, f.RowFilterJson, f.Formula, f.OptionsProvider))
             .ToList();
         var steps = version.Steps
             .OrderBy(s => s.DisplayOrder)
             .Select(s => new FormStepDto(s.Id, s.TitleAr, s.TitleEn, s.DisplayOrder))
             .ToList();
 
-        return new FormVersionDto(version.Id, version.VersionNumber, version.Status, version.PublishedAtUtc, fields, steps);
+        var sections = version.Sections
+            .Select(s => new FormSectionInfoDto(s.Id, s.Code, s.TitleAr, s.TitleEn, s.MinBlocks, s.MaxBlocks))
+            .ToList();
+
+        return new FormVersionDto(version.Id, version.VersionNumber, version.Status, version.PublishedAtUtc, fields, steps, sections);
     }
 }

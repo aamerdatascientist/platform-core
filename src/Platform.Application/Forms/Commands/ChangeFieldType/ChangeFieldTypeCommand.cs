@@ -52,6 +52,7 @@ public class ChangeFieldTypeCommandHandler : IRequestHandler<ChangeFieldTypeComm
     {
         var formDefinition = await _db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .SingleOrDefaultAsync(f => f.Id == request.FormDefinitionId, cancellationToken);
 
         if (formDefinition is null)
@@ -59,6 +60,8 @@ public class ChangeFieldTypeCommandHandler : IRequestHandler<ChangeFieldTypeComm
 
         var target = formDefinition.ResolveFieldEditTarget();
         var field = target.Version.FindFieldOrThrow(request.FieldDefinitionId);
+        formDefinition.ThrowIfSystemForm("changing a field's type");
+        field.ThrowIfSectionField("Changing the type");
         var oldType = field.FieldType;
 
         if (oldType == request.NewFieldType)
@@ -86,7 +89,7 @@ public class ChangeFieldTypeCommandHandler : IRequestHandler<ChangeFieldTypeComm
         if (target.IsLive)
         {
             var failingRowIds = await _schemaService.FindRowsFailingTypeChangeAsync(
-                target.LiveTableName, field, request.NewFieldType, MaxReportedFailingRows, cancellationToken);
+                target.LiveTableFor(field), field, request.NewFieldType, MaxReportedFailingRows, cancellationToken);
 
             if (failingRowIds.Count > 0)
                 throw new Common.Exceptions.ValidationException(new[]

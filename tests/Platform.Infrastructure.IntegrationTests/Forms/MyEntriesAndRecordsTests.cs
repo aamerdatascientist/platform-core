@@ -89,13 +89,13 @@ public class MyEntriesAndRecordsTests
     private static Task<RecordDetailDto> Detail(World w, Caller caller, Guid formId, Guid recordId)
     {
         var q = new GetRecordDetailQuery(formId, recordId);
-        return Send(w, caller, q, () => new GetRecordDetailQueryHandler(w.Db, w.Repo, caller).Handle(q, CancellationToken.None));
+        return Send(w, caller, q, () => new GetRecordDetailQueryHandler(w.Db, w.Repo, caller, TestPipeline.Providers()).Handle(q, CancellationToken.None));
     }
 
     private static Task<MyEntriesPageDto> Mine(World w, Caller caller, Guid? formId = null, string? before = null, int pageSize = 20)
     {
         var q = new GetMyEntriesQuery(formId, before, pageSize);
-        return Send(w, caller, q, () => new GetMyEntriesQueryHandler(w.Db, w.Repo, caller).Handle(q, CancellationToken.None));
+        return Send(w, caller, q, () => new GetMyEntriesQueryHandler(w.Db, w.Repo, caller, TestPipeline.Providers()).Handle(q, CancellationToken.None));
     }
 
     // ---------------------------------------------------------------- record detail
@@ -191,7 +191,7 @@ public class MyEntriesAndRecordsTests
     {
         var w = await CreateAsync();
         var q = new SearchRecordsQuery(w.Restricted.Id, Q: "late", From: "2026-11-01", To: "2026-11-07", Filters: new[] { "crew_count:10" });
-        var page = await Send(w, w.AdminCaller, q, () => new SearchRecordsQueryHandler(w.Db, w.Repo).Handle(q, CancellationToken.None));
+        var page = await Send(w, w.AdminCaller, q, () => new SearchRecordsQueryHandler(w.Db, w.Repo, TestPipeline.Providers()).Handle(q, CancellationToken.None));
         var s = w.Repo.LastSearch["Data_Restricted"];
         s.Text.Should().Be("late");
         s.Matches!.Single().Should().Be(new Platform.Application.Common.Interfaces.DynamicRowFilter("crew_count", 10));
@@ -207,7 +207,7 @@ public class MyEntriesAndRecordsTests
     {
         var w = await CreateAsync();
         var q = new SearchRecordsQuery(w.Restricted.Id, Filters: new[] { filter });
-        var act = () => new SearchRecordsQueryHandler(w.Db, w.Repo).Handle(q, CancellationToken.None);
+        var act = () => new SearchRecordsQueryHandler(w.Db, w.Repo, TestPipeline.Providers()).Handle(q, CancellationToken.None);
         await act.Should().ThrowAsync<ValidationException>();
     }
 
@@ -220,7 +220,7 @@ public class MyEntriesAndRecordsTests
         w.Db.Users.Add(user);
         await w.Db.SaveChangesAsync();
         var q = new SearchRecordsQuery(w.Restricted.Id);
-        var page = await new SearchRecordsQueryHandler(w.Db, w.Repo).Handle(q, CancellationToken.None);
+        var page = await new SearchRecordsQueryHandler(w.Db, w.Repo, TestPipeline.Providers()).Handle(q, CancellationToken.None);
         var mine = page.Items.Single(i => i.Id == w.PmRow.Id);
         (mine.CreatedByName, mine.AttachmentCount).Should().Be(("Hazim", 1));
         page.TotalCount.Should().Be(3);

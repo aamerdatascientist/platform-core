@@ -40,6 +40,20 @@ public record RecordSearch(
 
 /// <summary>One submission: who created the row and when (UTC).</summary>
 /// <summary>Who sent a row, when, and its id (the tracking grid opens that entry - redesign 23).</summary>
+/// <summary>The blocks of one repeatable section, to write with their parent row.</summary>
+public record SectionRows(string ChildTableName, IReadOnlyCollection<FieldDefinition> Fields, IReadOnlyList<IReadOnlyDictionary<string, object?>> Blocks);
+
+/// <summary>One stored block of a repeatable section.</summary>
+public record BlockRow(Guid Id, Guid ParentId, int BlockIndex, IReadOnlyDictionary<string, object?> Values);
+
+/// <summary>
+/// Options for a write that must be atomic with checks made against other rows: the write
+/// takes a Postgres advisory lock on <paramref name="LockKey"/> for its transaction and runs
+/// <paramref name="WhileLocked"/> before writing, so two submissions on the same key are
+/// checked and written one after the other (2026-11-10: stage eligibility rules).
+/// </summary>
+public record WriteGuard(string? LockKey, Func<CancellationToken, Task>? WhileLocked);
+
 public record SubmissionStamp(Guid UserId, DateTime CreatedAtUtc, Guid? RecordId = null);
 
 /// <summary>
@@ -63,6 +77,44 @@ public interface IDynamicDataRepository
     /// full-record shape InsertAsync takes) and stamps ModifiedAtUtc/ModifiedByUserId. False
     /// when no such row exists (never existed, or deleted).
     /// </summary>
+    /// <summary>Inserts the parent row and every section's blocks in one transaction. Fields
+    /// in a section never go to the parent table, whatever <paramref name="activeFields"/> holds.</summary>
+    Task<Guid> InsertWithSectionsAsync(
+        string tableName,
+        IReadOnlyCollection<FieldDefinition> activeFields,
+        IReadOnlyDictionary<string, object?> values,
+        IReadOnlyList<SectionRows> sections,
+        Guid submittedByUserId,
+        WriteGuard? guard = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Updates the parent row and replaces every given section's blocks (old blocks
+    /// are soft-deleted, the new ones inserted) in one transaction.</summary>
+    Task<bool> UpdateWithSectionsAsync(
+        string tableName,
+        IReadOnlyCollection<FieldDefinition> activeFields,
+        Guid id,
+        IReadOnlyDictionary<string, object?> values,
+        IReadOnlyList<SectionRows> sections,
+        Guid modifiedByUserId,
+        WriteGuard? guard = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>The live blocks of the given parents, ordered by parent then block index.</summary>
+    Task<IReadOnlyList<BlockRow>> GetBlocksAsync(
+        string childTableName,
+        IReadOnlyCollection<FieldDefinition> sectionFields,
+        IReadOnlyCollection<Guid> parentIds,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Every live block of a section with its parent's id - for calculations that read
+    /// a whole form (parent rows come from the usual queries).</summary>
+    Task<IReadOnlyList<BlockRow>> GetAllBlocksAsync(
+        string childTableName,
+        string parentTableName,
+        IReadOnlyCollection<FieldDefinition> sectionFields,
+        CancellationToken cancellationToken = default);
+
     Task<bool> UpdateAsync(
         string tableName,
         IReadOnlyCollection<FieldDefinition> activeFields,

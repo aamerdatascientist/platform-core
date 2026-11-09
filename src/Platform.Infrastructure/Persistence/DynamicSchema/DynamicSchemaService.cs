@@ -27,7 +27,7 @@ public class DynamicSchemaService : IDynamicSchemaService
         var tableName = formDefinition.TableName ?? $"Data_{SqlTypeMapper.ToPascalCase(formDefinition.Code)}";
         SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
 
-        var activeFields = version.Fields.Where(f => f.IsActive && f.FieldType != FieldType.Attachment).ToList();
+        var activeFields = version.Fields.Where(f => f.IsActive && f.FieldType != FieldType.Attachment && f.SectionId is null).ToList();
 
         await using var connection = new NpgsqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken);
@@ -65,8 +65,74 @@ public class DynamicSchemaService : IDynamicSchemaService
             }
         }
 
+        // Each repeatable section's child table, in the same transaction. The section takes its
+        // table name here (the caller saves it with the form's own TableName).
+        foreach (var section in version.Sections)
+        {
+            var childTable = section.ChildTableName ?? SqlTypeMapper.ToChildTableName(tableName, section.Code);
+            section.AssignChildTable(childTable);
+            var sectionFields = version.Fields.Where(f => f.IsActive && f.FieldType != FieldType.Attachment && f.SectionId == section.Id).ToList();
+            await EnsureChildTableAsync(connection, transaction, tableName, childTable, sectionFields, cancellationToken);
+        }
+
         await transaction.CommitAsync(cancellationToken);
         return tableName;
+    }
+
+    public async Task<string> EnsureSectionTableAsync(
+        string parentTableName, FormSection section, IReadOnlyCollection<FieldDefinition> sectionFields,
+        CancellationToken cancellationToken = default)
+    {
+        SqlTypeMapper.AssertSafePostgresIdentifier(parentTableName);
+        var childTable = section.ChildTableName ?? SqlTypeMapper.ToChildTableName(parentTableName, section.Code);
+        section.AssignChildTable(childTable);
+        await using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+        await EnsureChildTableAsync(connection, transaction, parentTableName, childTable,
+            sectionFields.Where(f => f.IsActive && f.FieldType != FieldType.Attachment).ToList(), cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return childTable;
+    }
+
+    private async Task EnsureChildTableAsync(
+        NpgsqlConnection connection, NpgsqlTransaction transaction, string parentTable, string childTable,
+        IReadOnlyCollection<FieldDefinition> fields, CancellationToken ct)
+    {
+        await TakeTableLockAsync(connection, transaction, childTable, ct);
+        if (!await TableExistsAsync(connection, transaction, childTable, ct))
+        {
+            var columns = new StringBuilder();
+            foreach (var field in fields)
+            {
+                SqlTypeMapper.AssertSafePostgresIdentifier(field.Code);
+                var isUnconditionallyRequired = field.IsRequired && string.IsNullOrWhiteSpace(field.VisibleWhenFieldCode);
+                columns.Append($",\n    \"{field.Code}\" {SqlTypeMapper.ToPostgresColumnType(field.FieldType)} {(isUnconditionallyRequired ? "NOT NULL" : "NULL")}");
+            }
+            var sql = $"""
+                CREATE TABLE "{childTable}" (
+                    "Id" uuid NOT NULL PRIMARY KEY,
+                    "ParentId" uuid NOT NULL REFERENCES "{parentTable}" ("Id"),
+                    "BlockIndex" integer NOT NULL,
+                    "CreatedAtUtc" timestamptz NOT NULL,
+                    "CreatedByUserId" uuid NOT NULL,
+                    "ModifiedAtUtc" timestamptz NULL,
+                    "ModifiedByUserId" uuid NULL,
+                    "IsDeleted" boolean NOT NULL DEFAULT false{columns}
+                );
+                """;
+            await using (var command = new NpgsqlCommand(sql, connection, transaction))
+                await command.ExecuteNonQueryAsync(ct);
+            await using (var index = new NpgsqlCommand($"CREATE INDEX ON \"{childTable}\" (\"ParentId\") WHERE \"IsDeleted\" = false;", connection, transaction))
+                await index.ExecuteNonQueryAsync(ct);
+            _logger.LogInformation("Created section table {TableName} under {ParentTable}", childTable, parentTable);
+            return;
+        }
+        foreach (var field in fields)
+        {
+            if (!await ColumnExistsAsync(connection, transaction, childTable, field.Code, ct))
+                await AddColumnAsync(connection, transaction, childTable, field, ct);
+        }
     }
 
     public async Task RefreshReportingViewAsync(
@@ -85,6 +151,11 @@ public class DynamicSchemaService : IDynamicSchemaService
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
 
         await RebuildViewAsync(connection, transaction, viewName, selectSql, cancellationToken);
+        foreach (var section in version.Sections.Where(s => s.ChildTableName is not null))
+        {
+            var (sectionView, sectionSql) = BuildSectionViewSql(formDefinition, version, section, lookupTargets);
+            await RebuildViewAsync(connection, transaction, sectionView, sectionSql, cancellationToken);
+        }
 
         await transaction.CommitAsync(cancellationToken);
 
@@ -119,7 +190,7 @@ public class DynamicSchemaService : IDynamicSchemaService
         SqlTypeMapper.AssertSafePostgresIdentifier(tableName);
 
         var activeFields = version.Fields
-            .Where(f => f.IsActive && f.FieldType != FieldType.Attachment)
+            .Where(f => f.IsActive && f.FieldType != FieldType.Attachment && f.SectionId is null)
             .Where(f => excludeFieldCode is null || !string.Equals(f.Code, excludeFieldCode, StringComparison.Ordinal))
             .ToList();
 
@@ -140,35 +211,7 @@ public class DynamicSchemaService : IDynamicSchemaService
             "Record Id", "Submitted At", "Submitted By"
         };
 
-        foreach (var field in activeFields)
-        {
-            SqlTypeMapper.AssertSafePostgresIdentifier(field.Code);
-
-            var displayLabel = BuildSafeDisplayAlias(field.Label, field.Code, usedColumnNames);
-
-            // Labels are free text, not identifiers - double-quoted aliases don't need to be
-            // valid identifiers, but an embedded '"' must still be escaped to close the quote
-            // safely (Postgres's quoted-identifier escape is "" , not SQL Server's ]] ).
-            var escapedLabel = displayLabel.Replace("\"", "\"\"");
-
-            var displaySource = field.FieldType == FieldType.Lookup
-                ? ResolveLookupDisplaySource(field, lookupTargets)
-                : null;
-
-            if (displaySource is null)
-            {
-                selectColumns.Append($",\n        d.\"{field.Code}\" AS \"{escapedLabel}\"");
-            }
-            else
-            {
-                var (targetTable, displayColumn) = displaySource.Value;
-                var joinAlias = BuildSafeJoinAlias(field.Code);
-                SqlTypeMapper.AssertSafePostgresIdentifier(joinAlias);
-
-                joins.Append($"\n        LEFT JOIN \"{targetTable}\" \"{joinAlias}\" ON \"{joinAlias}\".\"Id\" = d.\"{field.Code}\"");
-                selectColumns.Append($",\n        \"{joinAlias}\".\"{displayColumn}\" AS \"{escapedLabel}\"");
-            }
-        }
+        AppendDisplayColumns(activeFields, "d", lookupTargets, usedColumnNames, selectColumns, joins);
 
         var selectSql = $"""
             SELECT
@@ -179,6 +222,88 @@ public class DynamicSchemaService : IDynamicSchemaService
             """;
 
         return (viewName, selectSql);
+    }
+
+    /// <summary>
+    /// A section's reporting view: one row per live block, carrying the parent's header
+    /// columns, so analytics can treat each block as a report of its own (2026-11-10).
+    /// </summary>
+    private static (string ViewName, string SelectSql) BuildSectionViewSql(
+        FormDefinition formDefinition, FormVersion version, FormSection section,
+        IReadOnlyDictionary<Guid, FormDefinition>? lookupTargets)
+    {
+        var tableName = formDefinition.TableName!;
+        var childTable = section.ChildTableName!;
+        var viewName = $"Report_{SqlTypeMapper.ToPascalCase(formDefinition.Code)}__{SqlTypeMapper.ToPascalCase(section.Code)}";
+        SqlTypeMapper.AssertSafePostgresIdentifier(viewName);
+        SqlTypeMapper.AssertSafePostgresIdentifier(childTable);
+
+        var header = version.Fields.Where(f => f.IsActive && f.FieldType != FieldType.Attachment && f.SectionId is null).ToList();
+        var blockFields = version.Fields.Where(f => f.IsActive && f.FieldType != FieldType.Attachment && f.SectionId == section.Id).ToList();
+
+        var selectColumns = new StringBuilder();
+        var joins = new StringBuilder();
+        selectColumns.Append("        c.\"Id\" AS \"Block Id\",\n");
+        selectColumns.Append("        c.\"BlockIndex\" + 1 AS \"Block\",\n");
+        selectColumns.Append("        d.\"Id\" AS \"Record Id\",\n");
+        selectColumns.Append("        d.\"CreatedAtUtc\" AS \"Submitted At\",\n");
+        selectColumns.Append("        creator.\"DisplayName\" AS \"Submitted By\"");
+        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Block Id", "Block", "Record Id", "Submitted At", "Submitted By" };
+        AppendDisplayColumns(header, "d", lookupTargets, used, selectColumns, joins);
+        AppendDisplayColumns(blockFields, "c", lookupTargets, used, selectColumns, joins);
+
+        var selectSql = $"""
+            SELECT
+            {selectColumns}
+            FROM "{childTable}" c
+            JOIN "{tableName}" d ON d."Id" = c."ParentId"
+            LEFT JOIN "Users" creator ON creator."Id" = d."CreatedByUserId"{joins}
+            WHERE c."IsDeleted" = false AND d."IsDeleted" = false
+            """;
+        return (viewName, selectSql);
+    }
+
+    private static void AppendDisplayColumns(
+        IEnumerable<FieldDefinition> fields, string rowAlias, IReadOnlyDictionary<Guid, FormDefinition>? lookupTargets,
+        HashSet<string> usedColumnNames, StringBuilder selectColumns, StringBuilder joins)
+    {
+        foreach (var field in fields)
+        {
+            SqlTypeMapper.AssertSafePostgresIdentifier(field.Code);
+
+            var displayLabel = BuildSafeDisplayAlias(field.Label, field.Code, usedColumnNames);
+
+            var escapedLabel = displayLabel.Replace("\"", "\"\"");
+
+            var displaySource = field.FieldType is FieldType.Lookup or FieldType.MultiLookup
+                ? ResolveLookupDisplaySource(field, lookupTargets)
+                : null;
+
+            if (field.FieldType == FieldType.MultiSelect)
+            {
+                selectColumns.Append($",\n        array_to_string({rowAlias}.\"{field.Code}\", ', ') AS \"{escapedLabel}\"");
+            }
+            else if (field.FieldType == FieldType.MultiLookup)
+            {
+                // Lookup values must read as names, never raw GUIDs (CLAUDE.md) - arrays included.
+                selectColumns.Append(displaySource is { } multi
+                    ? $",\n        (SELECT string_agg(t.\"{multi.DisplayColumn}\", ', ') FROM \"{multi.TargetTable}\" t WHERE t.\"Id\" = ANY({rowAlias}.\"{field.Code}\")) AS \"{escapedLabel}\""
+                    : $",\n        array_to_string({rowAlias}.\"{field.Code}\", ', ') AS \"{escapedLabel}\"");
+            }
+            else if (displaySource is null)
+            {
+                selectColumns.Append($",\n        {rowAlias}.\"{field.Code}\" AS \"{escapedLabel}\"");
+            }
+            else
+            {
+                var (targetTable, displayColumn) = displaySource.Value;
+                var joinAlias = BuildSafeJoinAlias(rowAlias == "d" ? field.Code : "b_" + field.Code);
+                SqlTypeMapper.AssertSafePostgresIdentifier(joinAlias);
+
+                joins.Append($"\n        LEFT JOIN \"{targetTable}\" \"{joinAlias}\" ON \"{joinAlias}\".\"Id\" = {rowAlias}.\"{field.Code}\"");
+                selectColumns.Append($",\n        \"{joinAlias}\".\"{displayColumn}\" AS \"{escapedLabel}\"");
+            }
+        }
     }
 
     /// <summary>

@@ -53,6 +53,7 @@ public class DeleteFieldCommandHandler : IRequestHandler<DeleteFieldCommand>
     {
         var formDefinition = await _db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .SingleOrDefaultAsync(f => f.Id == request.FormDefinitionId, cancellationToken);
 
         if (formDefinition is null)
@@ -60,6 +61,8 @@ public class DeleteFieldCommandHandler : IRequestHandler<DeleteFieldCommand>
 
         var target = formDefinition.ResolveFieldEditTarget();
         var field = target.Version.FindFieldOrThrow(request.FieldDefinitionId);
+        formDefinition.ThrowIfSystemForm("deleting a field");
+        field.ThrowIfSectionField("Deleting a field for good");
 
         if (target.IsLive && !string.Equals(request.ConfirmFieldCode?.Trim(), field.Code, StringComparison.Ordinal))
             throw new Common.Exceptions.ValidationException(new[]

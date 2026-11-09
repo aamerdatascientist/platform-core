@@ -42,6 +42,7 @@ public class RestoreFieldCommandHandler : IRequestHandler<RestoreFieldCommand>
     {
         var formDefinition = await _db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .SingleOrDefaultAsync(f => f.Id == request.FormDefinitionId, cancellationToken);
 
         if (formDefinition is null)
@@ -57,7 +58,7 @@ public class RestoreFieldCommandHandler : IRequestHandler<RestoreFieldCommand>
 
         if (target.IsLive && field.FieldType != FieldType.Attachment)
         {
-            await _schemaService.AddColumnForFieldAsync(target.LiveTableName, field, cancellationToken);
+            await _schemaService.AddColumnForFieldAsync(target.LiveTableFor(field), field, cancellationToken);
 
             var lookupTargets = await _db.LoadLookupTargetsAsync(target.Version, cancellationToken);
             await _schemaService.RefreshReportingViewAsync(

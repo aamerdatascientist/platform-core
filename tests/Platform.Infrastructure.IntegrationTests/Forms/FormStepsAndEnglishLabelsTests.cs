@@ -216,13 +216,13 @@ public class FormStepsAndEnglishLabelsTests
         var (_, progress, _) = await ThreeStepsAsync(s);
         var schema = new FakeDynamicSchemaService();
 
-        var id = await new AddFieldDefinitionCommandHandler(s.Db, schema).Handle(new AddFieldDefinitionCommand(
+        var id = await new AddFieldDefinitionCommandHandler(s.Db, schema, TestPipeline.Providers()).Handle(new AddFieldDefinitionCommand(
             s.Form.Id, "extra_photo", "صورة إضافية", FieldType.Attachment, false, null, null, null, LabelEn: "Extra photo", StepId: progress), default);
 
         var f = (await Read(s)).PublishedVersion!.Fields.Single(x => x.Id == id);
         (f.LabelEn, f.StepId).Should().Be(("Extra photo", progress));
 
-        var wrong = () => new AddFieldDefinitionCommandHandler(s.Db, schema).Handle(new AddFieldDefinitionCommand(
+        var wrong = () => new AddFieldDefinitionCommandHandler(s.Db, schema, TestPipeline.Providers()).Handle(new AddFieldDefinitionCommand(
             s.Form.Id, "notes2", "x", FieldType.ShortText, false, null, null, null, StepId: Guid.NewGuid()), default);
         await wrong.Should().ThrowAsync<ValidationException>();
     }

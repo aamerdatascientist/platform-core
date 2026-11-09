@@ -26,6 +26,7 @@ public static class SubmissionDataChecks
     public const string ChoiceMissingCode = "submission.choiceMissing";
     public const string ChoiceMismatchCode = "submission.choiceMismatch";
     public const string DuplicateCode = "submission.duplicate";
+    public const string ChoiceNotAllowedCode = "submission.choiceNotAllowed";
 
     public static async Task ThrowIfInvalidAsync(
         IApplicationDbContext db,
@@ -44,23 +45,50 @@ public static class SubmissionDataChecks
             throw new Common.Exceptions.ValidationException(failures[0].Code, failures.Select(f => f.Failure));
     }
 
+    /// <summary>
+    /// The lookup checks for one block of a repeatable section, run on the header and block
+    /// values together (a block's lookup can be filtered by a header field such as project).
+    /// Failures are keyed <c>{section}[{index}].{field}</c>.
+    /// </summary>
+    public static async Task ThrowIfBlockInvalidAsync(
+        IApplicationDbContext db,
+        IDynamicDataRepository repository,
+        IReadOnlyCollection<FieldDefinition> sectionFields,
+        IReadOnlyCollection<FieldDefinition> allFields,
+        IReadOnlyDictionary<string, object?> mergedValues,
+        string keyPrefix,
+        CancellationToken cancellationToken)
+    {
+        var failures = await CheckLookupsAsync(db, repository, sectionFields, mergedValues, cancellationToken, allFields);
+        if (failures.Count != 0)
+            throw new Common.Exceptions.ValidationException(failures[0].Item1,
+                failures.Select(f => new ValidationFailure(keyPrefix + f.Item2.PropertyName, f.Item2.ErrorMessage)));
+    }
+
     private static async Task<List<(string, ValidationFailure)>> CheckLookupsAsync(
         IApplicationDbContext db,
         IDynamicDataRepository repository,
         IReadOnlyCollection<FieldDefinition> activeFields,
         IReadOnlyDictionary<string, object?> values,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyCollection<FieldDefinition>? labelFields = null)
     {
+        // Single lookups give one id, multi lookups one entry per picked id.
         var chosen = activeFields
-            .Where(f => f.FieldType == FieldType.Lookup && f.LookupFormDefinitionId is not null)
-            .Select(f => (Field: f, Id: values.GetValueOrDefault(f.Code) as Guid?))
-            .Where(x => x.Id is not null)
+            .Where(f => f.FieldType is FieldType.Lookup or FieldType.MultiLookup && f.LookupFormDefinitionId is not null)
+            .SelectMany(f => values.GetValueOrDefault(f.Code) switch
+            {
+                Guid one => new[] { (Field: f, Id: (Guid?)one) },
+                IEnumerable<Guid> many => many.Select(id => (Field: f, Id: (Guid?)id)).ToArray(),
+                _ => Array.Empty<(FieldDefinition Field, Guid? Id)>(),
+            })
             .ToList();
         if (chosen.Count == 0) return [];
 
         var targetIds = chosen.Select(x => x.Field.LookupFormDefinitionId!.Value).Distinct().ToList();
         var targets = await db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .Where(f => targetIds.Contains(f.Id))
             .ToDictionaryAsync(f => f.Id, cancellationToken);
 
@@ -76,15 +104,21 @@ public static class SubmissionDataChecks
                 ? null
                 : targetFields.SingleOrDefault(f =>
                     string.Equals(f.Code, x.Field.FilterByFieldCode, StringComparison.OrdinalIgnoreCase));
-            var row = await repository.GetByIdAsync(
-                target.TableName, filterField is null ? [] : [filterField], x.Id!.Value, cancellationToken);
+            var rowFilter = RowFilter.Parse(x.Field.RowFilterJson);
+            var rowFilterField = rowFilter is null ? null : targetFields.SingleOrDefault(f => f.Code == rowFilter.Field);
+            var readFields = new[] { filterField, rowFilterField }.OfType<FieldDefinition>().Distinct().ToList();
+            var row = await repository.GetByIdAsync(target.TableName, readFields, x.Id!.Value, cancellationToken);
             if (row is null)
                 return Missing(x.Field);
+
+            if (rowFilter is not null && (rowFilterField is null || !rowFilter.Allows(row.Values.GetValueOrDefault(rowFilterField.Code))))
+                return ((string, ValidationFailure)?)(ChoiceNotAllowedCode, new ValidationFailure(x.Field.Code,
+                    $"The '{x.Field.Label}' you picked can't be chosen here."));
 
             if (filterField is not null &&
                 !Equals(row.Values.GetValueOrDefault(filterField.Code), values.GetValueOrDefault(x.Field.FilterByFieldCode!)))
                 return ((string, ValidationFailure)?)(ChoiceMismatchCode, new ValidationFailure(x.Field.Code,
-                    $"The '{x.Field.Label}' you picked doesn't belong to the chosen '{SiblingLabel(activeFields, x.Field.FilterByFieldCode!)}'."));
+                    $"The '{x.Field.Label}' you picked doesn't belong to the chosen '{SiblingLabel(labelFields ?? activeFields, x.Field.FilterByFieldCode!)}'."));
 
             return null;
         });
@@ -129,4 +163,38 @@ public static class SubmissionDataChecks
 
     private static string SiblingLabel(IEnumerable<FieldDefinition> fields, string code) =>
         fields.FirstOrDefault(f => string.Equals(f.Code, code, StringComparison.OrdinalIgnoreCase))?.Label ?? code;
+}
+
+/// <summary>A Lookup's row filter (FieldDefinition.RowFilterJson): only target rows whose
+/// <see cref="Field"/> is one of <see cref="Values"/> are offered and accepted.</summary>
+public sealed record RowFilter(string Field, IReadOnlyList<string> Values)
+{
+    public static RowFilter? Parse(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            if (!root.TryGetProperty("field", out var f) || f.GetString() is not { Length: > 0 } field) return null;
+            var values = root.TryGetProperty("values", out var v) && v.ValueKind == System.Text.Json.JsonValueKind.Array
+                ? v.EnumerateArray().Select(e => e.ValueKind == System.Text.Json.JsonValueKind.String ? e.GetString() : e.GetRawText())
+                    .OfType<string>().ToList()
+                : new List<string>();
+            return new RowFilter(field, values);
+        }
+        catch (System.Text.Json.JsonException) { return null; }
+    }
+
+    public bool Allows(object? value)
+    {
+        var text = value switch
+        {
+            null => null,
+            bool b => b ? "true" : "false",
+            IFormattable formattable => formattable.ToString(null, System.Globalization.CultureInfo.InvariantCulture),
+            _ => value.ToString(),
+        };
+        return text is not null && Values.Contains(text, StringComparer.Ordinal);
+    }
 }

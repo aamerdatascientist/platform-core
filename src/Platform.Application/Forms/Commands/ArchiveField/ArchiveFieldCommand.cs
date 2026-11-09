@@ -44,6 +44,7 @@ public class ArchiveFieldCommandHandler : IRequestHandler<ArchiveFieldCommand>
     {
         var formDefinition = await _db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .SingleOrDefaultAsync(f => f.Id == request.FormDefinitionId, cancellationToken);
 
         if (formDefinition is null)
@@ -51,6 +52,7 @@ public class ArchiveFieldCommandHandler : IRequestHandler<ArchiveFieldCommand>
 
         var target = formDefinition.ResolveFieldEditTarget();
         var field = target.Version.FindFieldOrThrow(request.FieldDefinitionId);
+        formDefinition.ThrowIfSystemForm("archiving a field");
 
         if (!field.IsActive) return;
 
@@ -67,7 +69,7 @@ public class ArchiveFieldCommandHandler : IRequestHandler<ArchiveFieldCommand>
         // unconditionally required field at first publish) would reject every later
         // submission. DDL first: if the metadata save then fails, a nullable column on a
         // still-active field is harmless (the validator still enforces "required").
-        if (target.IsLive && target.LiveTableName is { } tableName)
+        if (target.IsLive && target.LiveTableFor(field) is { } tableName)
             await _schemaService.DropNotNullAsync(tableName, field.Code, cancellationToken);
 
         field.Deactivate();

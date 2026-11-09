@@ -17,7 +17,11 @@ public enum FieldType
     DateTime = 5,
     Dropdown = 6,
     Lookup = 7,
-    Attachment = 8
+    Attachment = 8,
+    /// <summary>Several of a fixed (or provider-given) option list; stored as text[] (added 2026-11-10).</summary>
+    MultiSelect = 9,
+    /// <summary>Several rows of another form; stored as uuid[] (added 2026-11-10).</summary>
+    MultiLookup = 10
 }
 
 public enum FormStatus

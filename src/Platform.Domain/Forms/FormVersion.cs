@@ -24,6 +24,9 @@ public class FormVersion : AuditableEntity
     /// <summary>The filling steps, in any order - sort by DisplayOrder. Empty = one default step.</summary>
     public IReadOnlyCollection<FormStep> Steps => _steps.AsReadOnly();
 
+    private readonly List<FormSection> _sections = new();
+    public IReadOnlyCollection<FormSection> Sections => _sections.AsReadOnly();
+
     private FormVersion() { }
 
     public static FormVersion CreateInitialDraft(Guid formDefinitionId) => new()
@@ -55,6 +58,16 @@ public class FormVersion : AuditableEntity
             stepMap[step.Id] = copy.Id;
         }
 
+        // Sections too (new ids, same child table) - a field copied without its section would
+        // silently move from the child table's column to a parent column that doesn't exist.
+        var sectionMap = new Dictionary<Guid, Guid>();
+        foreach (var section in previous._sections)
+        {
+            var copy = FormSection.CopyFor(draft.Id, section);
+            draft._sections.Add(copy);
+            sectionMap[section.Id] = copy.Id;
+        }
+
         foreach (var field in previous._fields.Where(f => f.IsActive))
         {
             // VisibleWhenFieldCode/VisibleWhenValuesJson/FilterByFieldCode carried forward
@@ -66,9 +79,13 @@ public class FormVersion : AuditableEntity
                 draft.Id, field.Code, field.Label, field.FieldType, field.IsRequired,
                 field.DisplayOrder, field.OptionsJson, field.LookupFormDefinitionId, field.ValidationRulesJson,
                 field.VisibleWhenFieldCode, field.VisibleWhenValuesJson, field.FilterByFieldCode,
-                field.DynamicOptionsSourceFormDefinitionId, field.DynamicOptionsSourceFieldCode));
+                field.DynamicOptionsSourceFormDefinitionId, field.DynamicOptionsSourceFieldCode, field.OptionsProvider));
             var copied = draft._fields[^1];
             copied.UpdateLabelEn(field.LabelEn);
+            copied.SetVisibilityAttribute(field.VisibleWhenAttribute);
+            copied.SetRowFilter(field.RowFilterJson);
+            copied.SetFormula(field.Formula);
+            copied.SetSection(field.SectionId is { } secId && sectionMap.TryGetValue(secId, out var newSecId) ? newSecId : null);
             copied.SetStep(field.StepId is { } sid && stepMap.TryGetValue(sid, out var newSid) ? newSid : null);
         }
 
@@ -88,8 +105,12 @@ public class FormVersion : AuditableEntity
         string? optionsJson, Guid? lookupFormDefinitionId, string? validationRulesJson,
         string? visibleWhenFieldCode = null, string? visibleWhenValuesJson = null,
         string? filterByFieldCode = null, Guid? dynamicOptionsSourceFormDefinitionId = null,
-        string? dynamicOptionsSourceFieldCode = null, string? labelEn = null, Guid? stepId = null)
+        string? dynamicOptionsSourceFieldCode = null, string? labelEn = null, Guid? stepId = null,
+        Guid? sectionId = null, string? optionsProvider = null)
     {
+        if (sectionId is { } secId && _sections.All(s => s.Id != secId))
+            throw new InvalidOperationException("That section isn't on this form version.");
+
         if (_fields.Any(f => f.Code == code))
             throw new InvalidOperationException($"Field code '{code}' already exists on this version.");
 
@@ -116,7 +137,8 @@ public class FormVersion : AuditableEntity
         var field = FieldDefinition.Create(Id, code, label, type, isRequired,
             NextDisplayOrder(), optionsJson, lookupFormDefinitionId, validationRulesJson,
             visibleWhenFieldCode, visibleWhenValuesJson, filterByFieldCode,
-            dynamicOptionsSourceFormDefinitionId, dynamicOptionsSourceFieldCode);
+            dynamicOptionsSourceFormDefinitionId, dynamicOptionsSourceFieldCode, optionsProvider);
+        field.SetSection(sectionId);
         if (stepId is { } sid && _steps.All(s => s.Id != sid))
             throw new InvalidOperationException("That step isn't on this form version.");
         field.UpdateLabelEn(labelEn);
@@ -221,6 +243,49 @@ public class FormVersion : AuditableEntity
         var field = _fields.SingleOrDefault(f => f.Id == fieldId)
             ?? throw new KeyNotFoundException($"Field {fieldId} is not on this form version.");
         field.SetStep(stepId);
+    }
+
+    // --------------------------------------------------------- repeatable sections
+    // Safe metadata, like steps; a returned section is new and must be Added explicitly.
+    // Adding a section to a live form also needs its child table (the handler creates it).
+
+    public FormSection AddSection(string code, string titleAr, string? titleEn, int minBlocks, int maxBlocks)
+    {
+        var section = FormSection.Create(Id, code, titleAr, titleEn, minBlocks, maxBlocks);
+        if (_sections.Any(s => s.Code == section.Code))
+            throw new InvalidOperationException($"A section with code '{section.Code}' already exists on this form.");
+        _sections.Add(section);
+        return section;
+    }
+
+    public FormSection FindSectionOrThrow(Guid sectionId) =>
+        _sections.SingleOrDefault(s => s.Id == sectionId)
+        ?? throw new KeyNotFoundException($"Section {sectionId} is not on this form version.");
+
+    /// <summary>
+    /// Moving a field in or out of a section moves where its column lives, so it's only
+    /// allowed before the form is published (no table yet). On a live form, a section's
+    /// fields are added to it directly (AddField with sectionId).
+    /// </summary>
+    public void MoveFieldToSection(Guid fieldId, Guid? sectionId)
+    {
+        if (Status != FormStatus.Draft)
+            throw new InvalidOperationException("A field can only be moved in or out of a section before the form is published.");
+        if (sectionId is { } id && _sections.All(s => s.Id != id))
+            throw new KeyNotFoundException($"Section {id} is not on this form version.");
+        var field = _fields.SingleOrDefault(f => f.Id == fieldId)
+            ?? throw new KeyNotFoundException($"Field {fieldId} is not on this form version.");
+        field.SetSection(sectionId);
+    }
+
+    /// <summary>A section with no fields left can be removed (its child table, if any, stays).</summary>
+    public FormSection RemoveSection(Guid sectionId)
+    {
+        var section = FindSectionOrThrow(sectionId);
+        if (_fields.Any(f => f.SectionId == sectionId))
+            throw new InvalidOperationException("A section can only be removed once it has no fields at all (archived fields keep their data in it).");
+        _sections.Remove(section);
+        return section;
     }
 
     public void MarkPublished()

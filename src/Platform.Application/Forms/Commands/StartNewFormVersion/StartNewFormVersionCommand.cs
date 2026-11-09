@@ -23,6 +23,7 @@ public class StartNewFormVersionCommandHandler : IRequestHandler<StartNewFormVer
     {
         var formDefinition = await _db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .Include(f => f.Versions).ThenInclude(v => v.Steps)
             .SingleOrDefaultAsync(f => f.Id == request.FormDefinitionId, cancellationToken);
 

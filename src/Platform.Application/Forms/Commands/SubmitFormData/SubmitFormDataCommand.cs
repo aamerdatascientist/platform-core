@@ -33,13 +33,18 @@ public class SubmitFormDataCommandHandler : IRequestHandler<SubmitFormDataComman
     private readonly IApplicationDbContext _db;
     private readonly IDynamicDataRepository _dynamicDataRepository;
     private readonly ICurrentUserService _currentUser;
+    private readonly SubmissionPreparer _preparer;
+    private readonly IFormSubmissionHooks _hooks;
 
     public SubmitFormDataCommandHandler(
-        IApplicationDbContext db, IDynamicDataRepository dynamicDataRepository, ICurrentUserService currentUser)
+        IApplicationDbContext db, IDynamicDataRepository dynamicDataRepository, ICurrentUserService currentUser,
+        SubmissionPreparer preparer, IFormSubmissionHooks hooks)
     {
         _db = db;
         _dynamicDataRepository = dynamicDataRepository;
         _currentUser = currentUser;
+        _preparer = preparer;
+        _hooks = hooks;
     }
 
     public static readonly TimeSpan EnteredAtMaxAge = TimeSpan.FromDays(3);
@@ -62,6 +67,7 @@ public class SubmitFormDataCommandHandler : IRequestHandler<SubmitFormDataComman
 
         var formDefinition = await _db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .Include(f => f.AllowedRoles)
             .Include(f => f.AllowedUsers)
             .SingleOrDefaultAsync(f => f.Id == request.FormDefinitionId, cancellationToken);
@@ -87,16 +93,13 @@ public class SubmitFormDataCommandHandler : IRequestHandler<SubmitFormDataComman
                     nameof(request.FormDefinitionId), "This form has no published version to submit data against.")
             });
 
-        var activeFields = publishedVersion.Fields.Where(f => f.IsActive).ToList();
-
-        var validationErrors = SubmissionValueValidator.Validate(activeFields, request.Values);
-        if (validationErrors.Count != 0)
-            throw new Platform.Application.Common.Exceptions.ValidationException(validationErrors.SelectMany(kv =>
-                kv.Value.Select(msg => new FluentValidation.Results.ValidationFailure(kv.Key, msg))));
-
-        var values = SubmissionValueValidator.Normalize(activeFields, request.Values);
-        await SubmissionDataChecks.ThrowIfInvalidAsync(
-            _db, _dynamicDataRepository, formDefinition.TableName, activeFields, values, null, cancellationToken);
+        // Validation, normalization and the data checks - per block for repeatable sections.
+        var prepared = await _preparer.PrepareAsync(formDefinition, publishedVersion, request.Values, cancellationToken);
+        var hooks = _hooks.For(formDefinition.Code);
+        var hookContext = new SubmissionHookContext(prepared, request.SubmittedByUserId, _currentUser.Roles, null);
+        var guard = hooks.Count == 0 ? null : new WriteGuard(
+            hooks.Select(h => h.LockKey(hookContext)).FirstOrDefault(k => k is not null),
+            async ct => { foreach (var hook in hooks) await hook.ValidateAsync(hookContext, ct); });
 
         // Claim the key (and keep the phone's time) BEFORE writing the row: the unique index
         // lets only one of two simultaneous retries through.
@@ -123,8 +126,9 @@ public class SubmitFormDataCommandHandler : IRequestHandler<SubmitFormDataComman
         Guid newRecordId;
         try
         {
-            newRecordId = await _dynamicDataRepository.InsertAsync(
-                formDefinition.TableName, activeFields, values, request.SubmittedByUserId, cancellationToken);
+            newRecordId = await _dynamicDataRepository.InsertWithSectionsAsync(
+                formDefinition.TableName, prepared.HeaderFields, prepared.Header, prepared.ToSectionRows(),
+                request.SubmittedByUserId, guard, cancellationToken);
         }
         catch when (receipt is not null)
         {
@@ -138,6 +142,8 @@ public class SubmitFormDataCommandHandler : IRequestHandler<SubmitFormDataComman
             receipt.Complete(newRecordId);
             await _db.SaveChangesAsync(cancellationToken);
         }
+
+        foreach (var hook in hooks) await hook.AfterSaveAsync(hookContext, newRecordId, CancellationToken.None);
 
         var publishedWorkflow = await _db.WorkflowDefinitions
             .Include(w => w.States)

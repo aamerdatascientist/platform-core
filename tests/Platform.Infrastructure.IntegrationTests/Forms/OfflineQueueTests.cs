@@ -56,7 +56,7 @@ public class OfflineQueueTests
         JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(JsonSerializer.Serialize(new { crew_count = crew }))!.ToDictionary(kv => kv.Key, kv => (object?)kv.Value);
 
     private static Task<Guid> Submit(World w, Guid formId, string? key, DateTime? enteredAt = null, Guid? user = null) =>
-        new SubmitFormDataCommandHandler(w.Db, w.Repo, new Caller(user ?? w.User))
+        new SubmitFormDataCommandHandler(w.Db, w.Repo, new Caller(user ?? w.User), TestPipeline.Preparer(w.Db, w.Repo), TestPipeline.Hooks())
             .Handle(new SubmitFormDataCommand(formId, Values(5), user ?? w.User, key, enteredAt), CancellationToken.None);
 
     [Fact]

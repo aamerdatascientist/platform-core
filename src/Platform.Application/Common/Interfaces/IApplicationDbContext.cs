@@ -23,6 +23,9 @@ public interface IApplicationDbContext
     DbSet<FormVersion> FormVersions { get; }
     DbSet<FieldDefinition> FieldDefinitions { get; }
     DbSet<FormStep> FormSteps { get; }
+    DbSet<FormSection> FormSections { get; }
+    DbSet<Platform.Domain.StageProgress.StageBaselineEntry> StageBaselines { get; }
+    DbSet<Platform.Domain.StageProgress.StageUnitReopening> StageUnitReopenings { get; }
     DbSet<SubmissionReceipt> SubmissionReceipts { get; }
     DbSet<Platform.Domain.Forms.FormDefinitionRole> FormDefinitionRoles { get; }
     DbSet<Platform.Domain.Forms.FormDefinitionUser> FormDefinitionUsers { get; }

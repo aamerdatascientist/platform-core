@@ -22,10 +22,12 @@ public class GetMyEntriesQueryHandler : IRequestHandler<GetMyEntriesQuery, MyEnt
 {
     private readonly IApplicationDbContext _db;
     private readonly IDynamicDataRepository _repository;
+    private readonly IFieldOptionsProviders _providers;
     private readonly ICurrentUserService _currentUser;
 
-    public GetMyEntriesQueryHandler(IApplicationDbContext db, IDynamicDataRepository repository, ICurrentUserService currentUser)
+    public GetMyEntriesQueryHandler(IApplicationDbContext db, IDynamicDataRepository repository, ICurrentUserService currentUser, IFieldOptionsProviders providers)
     {
+        _providers = providers;
         _db = db;
         _repository = repository;
         _currentUser = currentUser;
@@ -39,6 +41,7 @@ public class GetMyEntriesQueryHandler : IRequestHandler<GetMyEntriesQuery, MyEnt
 
         var forms = await _db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .Include(f => f.AllowedRoles).Include(f => f.AllowedUsers)
             .Where(f => f.Status == FormStatus.Published && f.TableName != null)
             .ToListAsync(cancellationToken);
@@ -73,7 +76,7 @@ public class GetMyEntriesQueryHandler : IRequestHandler<GetMyEntriesQuery, MyEnt
         foreach (var group in pageRows.GroupBy(x => x.Form))
         {
             var fields = group.Key.GetPublishedVersion()!.Fields.Where(f => f.IsActive).ToList();
-            items.AddRange(await RecordViews.ToItemsAsync(_db, _repository, group.Key.Id, fields, group.Select(x => x.Row).ToList(), cancellationToken));
+            items.AddRange(await RecordViews.ToItemsAsync(_db, _repository, group.Key.Id, fields, group.Select(x => x.Row).ToList(), cancellationToken, _providers));
         }
         items = items.OrderByDescending(i => i.CreatedAtUtc).ThenByDescending(i => i.Id).ToList();
         var next = ordered.Count > pageSize && pageRows.Count > 0

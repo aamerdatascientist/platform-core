@@ -77,13 +77,13 @@ public class GetLookupOptionsQueryHandlerTests
     public async Task Handle_ReturnsEveryTargetRow_LabelledByItsFirstShortTextField()
     {
         var s = await CreateAsync();
-        var handler = new GetLookupOptionsQueryHandler(s.Db, s.Data);
+        var handler = new GetLookupOptionsQueryHandler(s.Db, s.Data, TestPipeline.Providers());
 
         var result = await handler.Handle(new GetLookupOptionsQuery(s.Report.Id, s.ProjectFieldId), CancellationToken.None);
 
         result.Should().HaveCount(2);
-        result.Single(o => o.Id == s.ProjectA).Label.Should().Be("PRJ-A");
-        result.Single(o => o.Id == s.ProjectB).Label.Should().Be(s.ProjectB.ToString(),
+        result.Single(o => o.Id == s.ProjectA.ToString()).Label.Should().Be("PRJ-A");
+        result.Single(o => o.Id == s.ProjectB.ToString()).Label.Should().Be(s.ProjectB.ToString(),
             "a row with no value in the label field falls back to its Id, same as the form did before");
     }
 
@@ -91,7 +91,7 @@ public class GetLookupOptionsQueryHandlerTests
     public async Task Handle_NarrowsACascadingLookup_ToTheSiblingValue()
     {
         var s = await CreateAsync();
-        var handler = new GetLookupOptionsQueryHandler(s.Db, s.Data);
+        var handler = new GetLookupOptionsQueryHandler(s.Db, s.Data, TestPipeline.Providers());
 
         var result = await handler.Handle(
             new GetLookupOptionsQuery(s.Report.Id, s.ZoneFieldId, s.ProjectA.ToString()), CancellationToken.None);
@@ -106,7 +106,7 @@ public class GetLookupOptionsQueryHandlerTests
     public async Task Handle_ReturnsNothing_ForACascadingLookupWithoutAUsableSiblingValue(string? filterValue)
     {
         var s = await CreateAsync();
-        var handler = new GetLookupOptionsQueryHandler(s.Db, s.Data);
+        var handler = new GetLookupOptionsQueryHandler(s.Db, s.Data, TestPipeline.Providers());
 
         var result = await handler.Handle(new GetLookupOptionsQuery(s.Report.Id, s.ZoneFieldId, filterValue), CancellationToken.None);
 
@@ -117,7 +117,7 @@ public class GetLookupOptionsQueryHandlerTests
     public async Task Handle_ReturnsNothing_ForAFieldThatIsNotALookup()
     {
         var s = await CreateAsync();
-        var handler = new GetLookupOptionsQueryHandler(s.Db, s.Data);
+        var handler = new GetLookupOptionsQueryHandler(s.Db, s.Data, TestPipeline.Providers());
 
         var result = await handler.Handle(new GetLookupOptionsQuery(s.Report.Id, s.NotesFieldId), CancellationToken.None);
 
@@ -131,7 +131,7 @@ public class GetLookupOptionsQueryHandlerTests
         s.Data.Rows["Data_Projects"] = Enumerable.Range(1, 450)
             .Select(i => new DynamicRow(Guid.NewGuid(), new Dictionary<string, object?> { ["project_code"] = $"P{i}" }))
             .ToList();
-        var handler = new GetLookupOptionsQueryHandler(s.Db, s.Data);
+        var handler = new GetLookupOptionsQueryHandler(s.Db, s.Data, TestPipeline.Providers());
 
         var result = await handler.Handle(new GetLookupOptionsQuery(s.Report.Id, s.ProjectFieldId), CancellationToken.None);
 

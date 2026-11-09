@@ -23,6 +23,7 @@ internal static class ExecutiveOverviewSupport
     {
         var form = await db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .SingleOrDefaultAsync(f => f.Code == code, cancellationToken);
 
         return form?.TableName is null ? null : form;

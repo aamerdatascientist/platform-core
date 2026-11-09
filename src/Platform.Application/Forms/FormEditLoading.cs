@@ -15,6 +15,7 @@ public static class FormEditLoading
         this IApplicationDbContext db, Guid formDefinitionId, CancellationToken cancellationToken) =>
         await db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .Include(f => f.Versions).ThenInclude(v => v.Steps)
             .SingleOrDefaultAsync(f => f.Id == formDefinitionId, cancellationToken)
         ?? throw new NotFoundException(nameof(FormDefinition), formDefinitionId);

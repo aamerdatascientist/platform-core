@@ -25,6 +25,8 @@ public class FormDefinitionConfiguration : IEntityTypeConfiguration<FormDefiniti
         builder.Property(f => f.NameEn).HasMaxLength(200);
         builder.Property(f => f.ModuleName).IsRequired().HasMaxLength(100);
         builder.Property(f => f.TableName).HasMaxLength(128);
+        builder.Property(f => f.IsSystem).HasDefaultValue(false);
+        builder.Property(f => f.IsHidden).HasDefaultValue(false);
 
         builder.HasMany(f => f.Versions).WithOne().HasForeignKey(v => v.FormDefinitionId)
             .OnDelete(DeleteBehavior.Cascade);
@@ -47,6 +49,25 @@ public class FormVersionConfiguration : IEntityTypeConfiguration<FormVersion>
         builder.HasMany(v => v.Steps).WithOne().HasForeignKey(s => s.FormVersionId)
             .OnDelete(DeleteBehavior.Cascade);
         builder.Navigation(v => v.Steps).UsePropertyAccessMode(PropertyAccessMode.Field);
+
+        builder.HasMany(v => v.Sections).WithOne().HasForeignKey(s => s.FormVersionId)
+            .OnDelete(DeleteBehavior.Cascade);
+        builder.Navigation(v => v.Sections).UsePropertyAccessMode(PropertyAccessMode.Field);
+    }
+}
+
+/// <summary>Repeatable sections (2026-11-10): each names a child table of the form's data table.</summary>
+public class FormSectionConfiguration : IEntityTypeConfiguration<FormSection>
+{
+    public void Configure(EntityTypeBuilder<FormSection> builder)
+    {
+        builder.ToTable("FormSections");
+        builder.HasKey(s => s.Id);
+        builder.Property(s => s.Code).IsRequired().HasMaxLength(40);
+        builder.Property(s => s.TitleAr).IsRequired().HasMaxLength(200);
+        builder.Property(s => s.TitleEn).HasMaxLength(200);
+        builder.Property(s => s.ChildTableName).HasMaxLength(128);
+        builder.HasIndex(s => new { s.FormVersionId, s.Code }).IsUnique();
     }
 }
 
@@ -86,5 +107,10 @@ public class FieldDefinitionConfiguration : IEntityTypeConfiguration<FieldDefini
         // text on Npgsql), so leaving it unset gets the right column type on both without
         // provider-conditional code.
         builder.HasIndex(fd => new { fd.FormVersionId, fd.Code }).IsUnique();
+        // FormVersion.RemoveSection refuses while any field is in it; Restrict is the backstop.
+        builder.HasOne<FormSection>().WithMany().HasForeignKey(fd => fd.SectionId).OnDelete(DeleteBehavior.Restrict);
+        builder.Property(fd => fd.VisibleWhenAttribute).HasMaxLength(63);
+        builder.Property(fd => fd.Formula).HasMaxLength(500);
+        builder.Property(fd => fd.OptionsProvider).HasMaxLength(100);
     }
 }

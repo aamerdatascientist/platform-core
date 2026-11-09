@@ -43,6 +43,7 @@ public class UpdateFieldDynamicOptionsSourceCommandHandler : IRequestHandler<Upd
     {
         var formDefinition = await _db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .SingleOrDefaultAsync(f => f.Id == request.FormDefinitionId, cancellationToken);
 
         if (formDefinition is null)
@@ -66,6 +67,7 @@ public class UpdateFieldDynamicOptionsSourceCommandHandler : IRequestHandler<Upd
             // offer an empty option list once used.
             var sourceForm = await _db.FormDefinitions
                 .Include(f => f.Versions).ThenInclude(v => v.Fields)
+                .Include(f => f.Versions).ThenInclude(v => v.Sections)
                 .SingleOrDefaultAsync(f => f.Id == request.SourceFormDefinitionId, cancellationToken);
             var sourceHasMatchingField = sourceForm?.GetPublishedVersion()?.Fields
                 .Any(f => f.IsActive && f.Code == request.SourceFieldCode) ?? false;

@@ -8,7 +8,7 @@ namespace Platform.Application.Forms.Queries.GetFormsList;
 
 /// <summary>Lightweight on purpose - this drives a nav list, not a detail view. Full field
 /// definitions come from GetFormDefinitionQuery once a specific form is selected.</summary>
-public record FormSummaryDto(Guid Id, string Code, string Name, string ModuleName, FormStatus Status, string? NameEn = null);
+public record FormSummaryDto(Guid Id, string Code, string Name, string ModuleName, FormStatus Status, string? NameEn = null, bool IsHidden = false, bool IsSystem = false);
 
 public record GetFormsListQuery(string? ModuleName = null) : IRequest<IReadOnlyList<FormSummaryDto>>;
 
@@ -43,7 +43,7 @@ public class GetFormsListQueryHandler : IRequestHandler<GetFormsListQuery, IRead
                     _currentUser.Roles,
                     _currentUser.UserId);
             })
-            .Select(f => new FormSummaryDto(f.Id, f.Code, f.Name, f.ModuleName, f.Status, f.NameEn))
+            .Select(f => new FormSummaryDto(f.Id, f.Code, f.Name, f.ModuleName, f.Status, f.NameEn, f.IsHidden, f.IsSystem))
             .ToList();
     }
 }

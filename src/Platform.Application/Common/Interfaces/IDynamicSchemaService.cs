@@ -37,6 +37,12 @@ public interface IDynamicSchemaService
     /// Fields loaded) - when a Lookup field's target is present there, the view instead joins
     /// to the target form's table and shows its first active ShortText field.
     /// </summary>
+    /// <summary>Creates (or adds missing columns to) a section's child table on a live form,
+    /// assigning the section its table name; the caller saves the section.</summary>
+    Task<string> EnsureSectionTableAsync(
+        string parentTableName, FormSection section, IReadOnlyCollection<FieldDefinition> sectionFields,
+        CancellationToken cancellationToken = default);
+
     Task RefreshReportingViewAsync(
         FormDefinition formDefinition, FormVersion version,
         IReadOnlyDictionary<Guid, FormDefinition>? lookupTargets = null,

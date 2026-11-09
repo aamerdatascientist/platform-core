@@ -19,14 +19,14 @@ namespace Platform.Infrastructure.IntegrationTests;
 /// </summary>
 public class DynamicSchemaServiceTests : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _postgresContainer = new PostgreSqlBuilder().Build();
+    private TestPostgres _postgres = default!;
     private DynamicSchemaService _sut = default!;
     private string _connectionString = default!;
 
     public async Task InitializeAsync()
     {
-        await _postgresContainer.StartAsync();
-        _connectionString = _postgresContainer.GetConnectionString();
+        _postgres = await TestPostgres.StartAsync();
+        _connectionString = _postgres.ConnectionString;
 
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -46,7 +46,7 @@ public class DynamicSchemaServiceTests : IAsyncLifetime
         await command.ExecuteNonQueryAsync();
     }
 
-    public async Task DisposeAsync() => await _postgresContainer.DisposeAsync();
+    public async Task DisposeAsync() => await _postgres.DisposeAsync();
 
     [Fact]
     public async Task EnsureTableForPublishedVersionAsync_CreatesTableWithColumnsForActiveFields()

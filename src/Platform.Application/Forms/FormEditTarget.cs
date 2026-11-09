@@ -29,6 +29,13 @@ public record FormEditTarget(FormVersion Version, bool IsLive, string? TableName
         ?? throw new InvalidOperationException(
             "A published form must have a TableName - this form is published but has none, " +
             "which means its first publish did not complete.");
+
+    /// <summary>The live table that holds this field's column: the form's own table, or its
+    /// section's child table (sections must be loaded with the version).</summary>
+    public string LiveTableFor(FieldDefinition field) => field.SectionId is { } sectionId
+        ? Version.Sections.SingleOrDefault(s => s.Id == sectionId)?.ChildTableName
+          ?? throw new InvalidOperationException("This field's section has no table yet - publish the form first.")
+        : LiveTableName;
 }
 
 public static class FormEditTargetResolver
@@ -74,7 +81,7 @@ public static class FormEditTargetResolver
         this IApplicationDbContext db, FormVersion version, CancellationToken cancellationToken)
     {
         var targetIds = version.Fields
-            .Where(f => f.IsActive && f.FieldType == FieldType.Lookup)
+            .Where(f => f.IsActive && f.FieldType is FieldType.Lookup or FieldType.MultiLookup)
             .Select(f => f.LookupFormDefinitionId!.Value)
             .Distinct()
             .ToList();
@@ -83,6 +90,7 @@ public static class FormEditTargetResolver
 
         var targets = await db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .Where(f => targetIds.Contains(f.Id))
             .ToListAsync(cancellationToken);
 

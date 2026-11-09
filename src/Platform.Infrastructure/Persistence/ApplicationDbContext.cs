@@ -35,6 +35,9 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<FormVersion> FormVersions => Set<FormVersion>();
     public DbSet<FieldDefinition> FieldDefinitions => Set<FieldDefinition>();
     public DbSet<FormStep> FormSteps => Set<FormStep>();
+    public DbSet<FormSection> FormSections => Set<FormSection>();
+    public DbSet<Platform.Domain.StageProgress.StageBaselineEntry> StageBaselines => Set<Platform.Domain.StageProgress.StageBaselineEntry>();
+    public DbSet<Platform.Domain.StageProgress.StageUnitReopening> StageUnitReopenings => Set<Platform.Domain.StageProgress.StageUnitReopening>();
     public DbSet<SubmissionReceipt> SubmissionReceipts => Set<SubmissionReceipt>();
     public DbSet<Platform.Domain.Forms.FormDefinitionRole> FormDefinitionRoles => Set<Platform.Domain.Forms.FormDefinitionRole>();
     public DbSet<Platform.Domain.Forms.FormDefinitionUser> FormDefinitionUsers => Set<Platform.Domain.Forms.FormDefinitionUser>();

@@ -61,16 +61,54 @@ public static class SubmissionValueValidator
             {
                 result[code] = Guid.TryParse(lookupText, out var lookupId) ? lookupId : null;
             }
+            else if (type is FieldType.MultiSelect && TryGetStrings(raw, out var texts))
+            {
+                var picked = texts.Select(t => t.Trim()).Where(t => t.Length > 0).Distinct(StringComparer.Ordinal).ToArray();
+                result[code] = picked.Length == 0 ? null : picked;
+            }
+            else if (type is FieldType.MultiLookup && TryGetStrings(raw, out var idTexts))
+            {
+                var ids = idTexts.Select(t => Guid.TryParse(t, out var g) ? g : (Guid?)null).OfType<Guid>().Distinct().ToArray();
+                result[code] = ids.Length == 0 ? null : ids;
+            }
             else
             {
                 result[code] = raw;
             }
         }
+        ApplyFormulas(activeFields, result);
         return result;
     }
 
+    /// <summary>
+    /// Calculated fields are the server's to fill: whatever was sent is replaced by the
+    /// formula's result over the (normalized) values, or null when an input is missing.
+    /// </summary>
+    public static void ApplyFormulas(IEnumerable<FieldDefinition> activeFields, Dictionary<string, object?> values)
+    {
+        foreach (var field in activeFields.Where(f => !string.IsNullOrWhiteSpace(f.Formula)))
+        {
+            decimal? result;
+            try
+            {
+                result = FieldFormula.Evaluate(field.Formula!, code =>
+                    values.TryGetValue(code, out var v) && TryGetDecimal(v, out var d) ? d : null);
+            }
+            catch (FormatException) { result = null; }
+            values[field.Code] = result is null ? null
+                : field.FieldType == FieldType.Number ? (object)(int)decimal.Round(result.Value, 0, MidpointRounding.AwayFromZero)
+                : result.Value;
+        }
+    }
+
+
+    /// <param name="attributeOf">For fields shown by an attribute of another field's chosen
+    /// option (VisibleWhenAttribute): (controlling field code, attribute) -> that attribute's
+    /// value for what was chosen, resolved beforehand by SubmissionAttributes. Without it such
+    /// fields count as hidden.</param>
     public static IDictionary<string, string[]> Validate(
-        IEnumerable<FieldDefinition> activeFields, IReadOnlyDictionary<string, object?> values)
+        IEnumerable<FieldDefinition> activeFields, IReadOnlyDictionary<string, object?> values,
+        Func<string, string, string?>? attributeOf = null)
     {
         var errors = new Dictionary<string, List<string>>();
         void AddError(string code, string message)
@@ -83,13 +121,15 @@ public static class SubmissionValueValidator
             list.Add(message);
         }
 
-        foreach (var field in activeFields.Where(f => f.FieldType != FieldType.Attachment))
+        foreach (var field in activeFields.Where(f => f.FieldType != FieldType.Attachment && string.IsNullOrWhiteSpace(f.Formula)))
         {
             values.TryGetValue(field.Code, out var raw);
             // Blank or whitespace-only text counts as not answered: "   " in a required
             // description is not a description.
             var isPresent = raw is not null && raw is not JsonElement { ValueKind: JsonValueKind.Null } &&
-                            !(TryGetString(raw, out var asText) && string.IsNullOrWhiteSpace(asText));
+                            !(TryGetString(raw, out var asText) && string.IsNullOrWhiteSpace(asText)) &&
+                            !(field.FieldType is FieldType.MultiSelect or FieldType.MultiLookup &&
+                              TryGetStrings(raw, out var asList) && asList.All(string.IsNullOrWhiteSpace));
 
             // A conditionally-hidden field (its controlling field's submitted value doesn't
             // match VisibleWhenValuesJson) is inapplicable to this submission, so it's never
@@ -98,7 +138,7 @@ public static class SubmissionValueValidator
             // every branch's fields being required on every submission. Type/range checks
             // below still run if a value was sent anyway (defensive; the real frontend never
             // sends one for a field it isn't showing).
-            if (field.IsRequired && !isPresent && IsFieldVisible(field, values))
+            if (field.IsRequired && !isPresent && IsFieldVisible(field, values, attributeOf))
             {
                 AddError(field.Code, $"'{field.Label}' is required.");
                 continue;
@@ -156,10 +196,25 @@ public static class SubmissionValueValidator
                     // the Lookup case below).
                     if (!TryGetString(raw, out var optVal))
                         AddError(field.Code, $"'{field.Label}' must be one of the allowed options.");
-                    else if (field.DynamicOptionsSourceFormDefinitionId is null && !IsAllowedDropdownValue(field.OptionsJson, optVal))
+                    // A provider's options depend on the other values - SubmissionDataChecks asks it.
+                    else if (field.DynamicOptionsSourceFormDefinitionId is null && field.OptionsProvider is null &&
+                             !IsAllowedDropdownValue(field.OptionsJson, optVal))
                         AddError(field.Code, $"'{field.Label}' must be one of the allowed options.");
                     break;
 
+                case FieldType.MultiSelect:
+                    if (!TryGetStrings(raw, out var picks))
+                        AddError(field.Code, $"'{field.Label}' must be a list of options.");
+                    else if (field.OptionsProvider is null && field.DynamicOptionsSourceFormDefinitionId is null &&
+                             picks.Any(p => !IsAllowedDropdownValue(field.OptionsJson, p.Trim())))
+                        AddError(field.Code, $"'{field.Label}' must be one of the allowed options.");
+                    else if (picks.Any(p => p.Trim().Length > 200))
+                        AddError(field.Code, $"'{field.Label}' has an option that is too long.");
+                    break;
+                case FieldType.MultiLookup:
+                    if (!TryGetStrings(raw, out var refs) || refs.Any(r => !Guid.TryParse(r, out _)))
+                        AddError(field.Code, $"'{field.Label}' must reference valid records.");
+                    break;
                 case FieldType.Lookup:
                     // GUID-format check only - confirming the referenced record actually
                     // exists needs a query against the TARGET form's dynamic table, which
@@ -272,6 +327,29 @@ public static class SubmissionValueValidator
         }
     }
 
+    /// <summary>A list of texts: a JSON array of strings, or already-normalized string[]/Guid[].</summary>
+    internal static bool TryGetStrings(object? raw, out IReadOnlyList<string> values)
+    {
+        switch (raw)
+        {
+            case JsonElement { ValueKind: JsonValueKind.Array } je when je.EnumerateArray().All(e => e.ValueKind == JsonValueKind.String):
+                values = je.EnumerateArray().Select(e => e.GetString() ?? string.Empty).ToList();
+                return true;
+            case string:
+                values = Array.Empty<string>();
+                return false;
+            case IEnumerable<string> list:
+                values = list.ToList();
+                return true;
+            case IEnumerable<Guid> ids:
+                values = ids.Select(g => g.ToString()).ToList();
+                return true;
+            default:
+                values = Array.Empty<string>();
+                return false;
+        }
+    }
+
     private static bool TryGetBool(object? raw, out bool value)
     {
         switch (raw)
@@ -306,13 +384,19 @@ public static class SubmissionValueValidator
     /// used to reject, leaving those fields never required. FormRenderer.tsx's
     /// parseAllowedValues must read them the same way.
     /// </summary>
-    private static bool IsFieldVisible(FieldDefinition field, IReadOnlyDictionary<string, object?> values)
+    public static bool IsFieldVisible(
+        FieldDefinition field, IReadOnlyDictionary<string, object?> values, Func<string, string, string?>? attributeOf = null)
     {
         if (string.IsNullOrWhiteSpace(field.VisibleWhenFieldCode)) return true;
 
         if (!values.TryGetValue(field.VisibleWhenFieldCode, out var controllingRaw) ||
             ToComparableText(controllingRaw) is not { } controllingValue)
             return false;
+        if (!string.IsNullOrWhiteSpace(field.VisibleWhenAttribute))
+        {
+            if (attributeOf?.Invoke(field.VisibleWhenFieldCode, field.VisibleWhenAttribute) is not { } attributeValue) return false;
+            controllingValue = attributeValue;
+        }
 
         return ParseAllowedValues(field.VisibleWhenValuesJson).Contains(controllingValue);
     }

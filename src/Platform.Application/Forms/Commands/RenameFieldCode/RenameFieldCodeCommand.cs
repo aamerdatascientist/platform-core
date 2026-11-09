@@ -48,6 +48,7 @@ public class RenameFieldCodeCommandHandler : IRequestHandler<RenameFieldCodeComm
     {
         var formDefinition = await _db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .SingleOrDefaultAsync(f => f.Id == request.FormDefinitionId, cancellationToken);
 
         if (formDefinition is null)
@@ -55,6 +56,7 @@ public class RenameFieldCodeCommandHandler : IRequestHandler<RenameFieldCodeComm
 
         var target = formDefinition.ResolveFieldEditTarget();
         var field = target.Version.FindFieldOrThrow(request.FieldDefinitionId);
+        formDefinition.ThrowIfSystemForm("renaming a field code");
         var oldCode = field.Code;
 
         // Same cap AddFieldDefinitionCommandValidator applies, for the same reason - a Lookup
@@ -98,7 +100,7 @@ public class RenameFieldCodeCommandHandler : IRequestHandler<RenameFieldCodeComm
             return;
         }
 
-        await _schemaService.RenameColumnAsync(target.LiveTableName, oldCode, field.Code, cancellationToken);
+        await _schemaService.RenameColumnAsync(target.LiveTableFor(field), oldCode, field.Code, cancellationToken);
 
         try
         {
@@ -111,7 +113,7 @@ public class RenameFieldCodeCommandHandler : IRequestHandler<RenameFieldCodeComm
             // submission against this form. Rename the column back so the form stays working,
             // then report the original failure. This is the one operation here where the
             // compensating action is itself safe and lossless; a type change or a drop isn't.
-            await _schemaService.RenameColumnAsync(target.LiveTableName, field.Code, oldCode, CancellationToken.None);
+            await _schemaService.RenameColumnAsync(target.LiveTableFor(field), field.Code, oldCode, CancellationToken.None);
             throw;
         }
 

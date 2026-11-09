@@ -29,6 +29,12 @@ public class FakeDynamicSchemaService : IDynamicSchemaService
     }
 
     public Task<string> EnsureTableForPublishedVersionAsync(FormDefinition formDefinition, FormVersion version, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    public Task<string> EnsureSectionTableAsync(string parentTableName, FormSection section, IReadOnlyCollection<FieldDefinition> sectionFields, CancellationToken cancellationToken = default)
+    {
+        var name = section.ChildTableName ?? $"{parentTableName}__{section.Code}";
+        section.AssignChildTable(name);
+        return Task.FromResult(name);
+    }
     public Task<bool> ColumnExistsAsync(string tableName, string columnCode, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task AddColumnForFieldAsync(string tableName, FieldDefinition field, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     public Task RenameColumnAsync(string tableName, string fromCode, string toCode, CancellationToken cancellationToken = default) => throw new NotSupportedException();

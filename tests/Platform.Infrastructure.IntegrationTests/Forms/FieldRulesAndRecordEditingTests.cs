@@ -133,7 +133,7 @@ public class FieldRulesAndRecordEditingTests
         var editor = Guid.NewGuid();
         var data = new FakeDynamicDataRepository();
         data.Rows[Table] = new List<DynamicRow> { new(recordId, new Dictionary<string, object?> { ["crew_count"] = 3 }) };
-        var handler = new UpdateSubmissionCommandHandler(s.Db, data);
+        var handler = new UpdateSubmissionCommandHandler(s.Db, data, TestPipeline.Preparer(s.Db, data), TestPipeline.Hooks(), new TestPipeline.Caller("Administrator"));
 
         await handler.Handle(
             new UpdateSubmissionCommand(s.Form.Id, recordId, Values(new { crew_count = 7, report_date = "2026-10-01", notes = "  fixed  " }), editor),
@@ -151,7 +151,7 @@ public class FieldRulesAndRecordEditingTests
         var s = await CreateLiveFormAsync();
         var data = new FakeDynamicDataRepository();
         data.Rows[Table] = new List<DynamicRow>();
-        var handler = new UpdateSubmissionCommandHandler(s.Db, data);
+        var handler = new UpdateSubmissionCommandHandler(s.Db, data, TestPipeline.Preparer(s.Db, data), TestPipeline.Hooks(), new TestPipeline.Caller("Administrator"));
 
         var missing = () => handler.Handle(
             new UpdateSubmissionCommand(s.Form.Id, Guid.NewGuid(), Values(new { crew_count = 1, report_date = "2026-10-01", notes = " " }), Guid.NewGuid()),
@@ -171,7 +171,7 @@ public class FieldRulesAndRecordEditingTests
         var recordId = Guid.NewGuid();
         var data = new FakeDynamicDataRepository();
         data.Rows[Table] = new List<DynamicRow> { new(recordId, new Dictionary<string, object?>()) };
-        var handler = new DeleteSubmissionCommandHandler(s.Db, data);
+        var handler = new DeleteSubmissionCommandHandler(s.Db, data, TestPipeline.Hooks());
 
         await handler.Handle(new DeleteSubmissionCommand(s.Form.Id, recordId, Guid.NewGuid()), CancellationToken.None);
         data.Rows[Table].Should().BeEmpty();

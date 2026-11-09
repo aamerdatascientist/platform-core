@@ -32,17 +32,26 @@ public class UpdateSubmissionCommandHandler : IRequestHandler<UpdateSubmissionCo
 {
     private readonly IApplicationDbContext _db;
     private readonly IDynamicDataRepository _dynamicDataRepository;
+    private readonly SubmissionPreparer _preparer;
+    private readonly IFormSubmissionHooks _hooks;
+    private readonly ICurrentUserService _currentUser;
 
-    public UpdateSubmissionCommandHandler(IApplicationDbContext db, IDynamicDataRepository dynamicDataRepository)
+    public UpdateSubmissionCommandHandler(
+        IApplicationDbContext db, IDynamicDataRepository dynamicDataRepository, SubmissionPreparer preparer,
+        IFormSubmissionHooks hooks, ICurrentUserService currentUser)
     {
         _db = db;
         _dynamicDataRepository = dynamicDataRepository;
+        _preparer = preparer;
+        _hooks = hooks;
+        _currentUser = currentUser;
     }
 
     public async Task Handle(UpdateSubmissionCommand request, CancellationToken cancellationToken)
     {
         var formDefinition = await _db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .SingleOrDefaultAsync(f => f.Id == request.FormDefinitionId, cancellationToken);
 
         if (formDefinition is null)
@@ -52,20 +61,19 @@ public class UpdateSubmissionCommandHandler : IRequestHandler<UpdateSubmissionCo
         if (publishedVersion is null || formDefinition.TableName is null)
             throw new NotFoundException("Record", request.RecordId);
 
-        var activeFields = publishedVersion.Fields.Where(f => f.IsActive).ToList();
+        // The whole record, sections included, validated like a new submission.
+        _preparer.ExcludeRecordId = request.RecordId;
+        var prepared = await _preparer.PrepareAsync(formDefinition, publishedVersion, request.Values, cancellationToken);
+        var hooks = _hooks.For(formDefinition.Code);
+        var hookContext = new SubmissionHookContext(prepared, request.ModifiedByUserId, _currentUser.Roles, request.RecordId);
+        var guard = hooks.Count == 0 ? null : new WriteGuard(
+            hooks.Select(h => h.LockKey(hookContext)).FirstOrDefault(k => k is not null),
+            async ct => { foreach (var hook in hooks) await hook.ValidateAsync(hookContext, ct); });
 
-        var validationErrors = SubmissionValueValidator.Validate(activeFields, request.Values);
-        if (validationErrors.Count != 0)
-            throw new Common.Exceptions.ValidationException(validationErrors.SelectMany(kv =>
-                kv.Value.Select(msg => new FluentValidation.Results.ValidationFailure(kv.Key, msg))));
-
-        var values = SubmissionValueValidator.Normalize(activeFields, request.Values);
-        await SubmissionDataChecks.ThrowIfInvalidAsync(
-            _db, _dynamicDataRepository, formDefinition.TableName, activeFields, values, request.RecordId, cancellationToken);
-
-        var updated = await _dynamicDataRepository.UpdateAsync(
-            formDefinition.TableName, activeFields, request.RecordId, values, request.ModifiedByUserId, cancellationToken);
-
+        var updated = await _dynamicDataRepository.UpdateWithSectionsAsync(
+            formDefinition.TableName, prepared.HeaderFields, request.RecordId, prepared.Header, prepared.ToSectionRows(),
+            request.ModifiedByUserId, guard, cancellationToken);
         if (!updated) throw new NotFoundException("Record", request.RecordId);
+        foreach (var hook in hooks) await hook.AfterSaveAsync(hookContext, request.RecordId, CancellationToken.None);
     }
 }

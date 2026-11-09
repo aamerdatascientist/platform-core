@@ -68,6 +68,7 @@ public class UpdateFieldRulesCommandHandler : IRequestHandler<UpdateFieldRulesCo
     {
         var formDefinition = await _db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.Versions).ThenInclude(v => v.Sections)
             .SingleOrDefaultAsync(f => f.Id == request.FormDefinitionId, cancellationToken);
 
         if (formDefinition is null)
@@ -122,7 +123,7 @@ public class UpdateFieldRulesCommandHandler : IRequestHandler<UpdateFieldRulesCo
         // DDL first (see the class summary): a nullable column under a still-required field
         // is harmless if the metadata save below then fails.
         if (target.IsLive && !request.IsRequired && field.IsRequired)
-            await _schemaService.DropNotNullAsync(target.LiveTableName, field.Code, cancellationToken);
+            await _schemaService.DropNotNullAsync(target.LiveTableFor(field), field.Code, cancellationToken);
 
         field.SetRequired(request.IsRequired);
         field.SetValidationRules(hasAny ? JsonSerializer.Serialize(rules, RulesJson) : null);
