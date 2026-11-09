@@ -481,7 +481,12 @@ public static class SubmissionValueValidator
     /// records with the same value in the UniqueWithin field (zone codes within one project) -
     /// checked against the table by SubmissionDataChecks, not here.
     /// </summary>
+    /// <param name="BlockWhenAttribute">With <paramref name="BlockWhenValues"/> (2026-11-10): a
+    /// choice whose option or row has this attribute at one of these values can't be sent - the
+    /// form shows <paramref name="BlockMessage"/> / <paramref name="BlockMessageEn"/> under the
+    /// field and disables Send, and the server refuses it (e.g. a paused project).</param>
     internal record ValidationRules(
         double? Min, double? Max, string? Regex, bool? NoFutureDates = null, bool? MinExclusive = null,
-        bool? Unique = null, string? UniqueWithin = null);
+        bool? Unique = null, string? UniqueWithin = null,
+        string? BlockWhenAttribute = null, string[]? BlockWhenValues = null, string? BlockMessage = null, string? BlockMessageEn = null);
 }

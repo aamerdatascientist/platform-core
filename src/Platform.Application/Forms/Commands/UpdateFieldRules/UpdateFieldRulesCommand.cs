@@ -109,6 +109,7 @@ public class UpdateFieldRulesCommandHandler : IRequestHandler<UpdateFieldRulesCo
                     $"'{uniqueWithin}' isn't another field on this form.")
             });
 
+        var previous = SubmissionValueValidator.ParseRules(field.ValidationRulesJson);
         var rules = new StoredRules(
             isNumeric ? request.Min : null,
             isNumeric ? request.Max : null,
@@ -116,9 +117,16 @@ public class UpdateFieldRulesCommandHandler : IRequestHandler<UpdateFieldRulesCo
             isDate && request.NoFutureDates ? true : null,
             isNumeric && request.Min is not null && request.MinExclusive ? true : null,
             unique ? true : null,
-            uniqueWithin);
+            uniqueWithin)
+        {
+            // Rules this screen doesn't edit are kept as they were (the block-when rule, 2026-11-10).
+            BlockWhenAttribute = previous?.BlockWhenAttribute,
+            BlockWhenValues = previous?.BlockWhenValues,
+            BlockMessage = previous?.BlockMessage,
+            BlockMessageEn = previous?.BlockMessageEn,
+        };
         var hasAny = rules.Min is not null || rules.Max is not null || rules.Regex is not null ||
-                     rules.NoFutureDates is not null || rules.Unique is not null;
+                     rules.NoFutureDates is not null || rules.Unique is not null || rules.BlockWhenAttribute is not null;
 
         // DDL first (see the class summary): a nullable column under a still-required field
         // is harmless if the metadata save below then fails.
@@ -131,5 +139,6 @@ public class UpdateFieldRulesCommandHandler : IRequestHandler<UpdateFieldRulesCo
     }
 
     private record StoredRules(
-        double? Min, double? Max, string? Regex, bool? NoFutureDates, bool? MinExclusive, bool? Unique, string? UniqueWithin);
+        double? Min, double? Max, string? Regex, bool? NoFutureDates, bool? MinExclusive, bool? Unique, string? UniqueWithin,
+        string? BlockWhenAttribute = null, string[]? BlockWhenValues = null, string? BlockMessage = null, string? BlockMessageEn = null);
 }

@@ -74,6 +74,11 @@ public sealed class SubmissionPreparer(IApplicationDbContext db, IDynamicDataRep
         }
         if (errors.Count != 0) throw new Common.Exceptions.ValidationException(errors);
 
+        await CheckBlockedChoicesAsync(form, active, headerFields, header, "", cancellationToken);
+        foreach (var (section, blocks) in rawBlocks)
+            for (var i = 0; i < blocks.Count; i++)
+                await CheckBlockedChoicesAsync(form, active, active.Where(f => f.SectionId == section.Id).ToList(), Merge(header, blocks[i]), $"{section.Code}[{i}].", cancellationToken);
+
         var normalizedHeader = SubmissionValueValidator.Normalize(headerFields, header);
         await SubmissionDataChecksForHeaderAsync(form, headerFields, normalizedHeader, cancellationToken);
         await CheckProviderChoicesAsync(form, headerFields, header, "", cancellationToken);
@@ -198,6 +203,25 @@ public sealed class SubmissionPreparer(IApplicationDbContext db, IDynamicDataRep
                 ?? new Dictionary<string, string>();
         }
         return new Dictionary<string, string>();
+    }
+
+    public const string BlockedCode = "submission.blocked";
+
+    /// <summary>A choice field's block-when rule: the chosen option's attribute must not be one of the blocking values.</summary>
+    private async Task CheckBlockedChoicesAsync(
+        FormDefinition form, IReadOnlyCollection<FieldDefinition> all, IReadOnlyCollection<FieldDefinition> fields,
+        IReadOnlyDictionary<string, object?> values, string prefix, CancellationToken ct)
+    {
+        foreach (var field in fields)
+        {
+            var rules = SubmissionValueValidator.ParseRules(field.ValidationRulesJson);
+            if (rules?.BlockWhenAttribute is not { Length: > 0 } attribute || rules.BlockWhenValues is not { Length: > 0 } blocking) continue;
+            if (Text(values.GetValueOrDefault(field.Code)) is not { } chosen) continue;
+            var attributes = await AttributesOfChoiceAsync(form, field, chosen, values, [attribute], ct);
+            if (attributes.GetValueOrDefault(attribute) is { } value && blocking.Contains(value, StringComparer.Ordinal))
+                throw new Common.Exceptions.ValidationException(BlockedCode,
+                    [new ValidationFailure(prefix + field.Code, rules.BlockMessageEn ?? rules.BlockMessage ?? $"'{field.Label}' can't be chosen right now.")]);
+        }
     }
 
     /// <summary>A provider-backed field accepts only what its provider offers for these values.</summary>

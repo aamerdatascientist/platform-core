@@ -108,6 +108,7 @@ public class GetLookupOptionsQueryHandler : IRequestHandler<GetLookupOptionsQuer
         var attributeCodes = version.Fields
             .Where(f => f.IsActive && f.VisibleWhenFieldCode == field.Code && !string.IsNullOrWhiteSpace(f.VisibleWhenAttribute))
             .Select(f => f.VisibleWhenAttribute!)
+            .Concat(SubmissionValueValidator.ParseRules(field.ValidationRulesJson)?.BlockWhenAttribute is { Length: > 0 } blockAttribute ? [blockAttribute] : [])
             .Where(code => targetFields.Any(t => t.Code == code))
             .Distinct()
             .ToList();
