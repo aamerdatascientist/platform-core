@@ -19,4 +19,9 @@
     <ProjectReference Include="..\Platform.Domain\Platform.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The default stage plan: read by DefaultStagePlan and by scripts/data/seed-stage-progress-forms.mjs. -->
+    <EmbeddedResource Include="StageProgress\default-stage-plan.json" />
+  </ItemGroup>
+
 </Project>
