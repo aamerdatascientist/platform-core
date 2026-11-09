@@ -15,7 +15,8 @@ const TONES = {
 /**
  * Same mark as Logo, animated - each of the three bars builds in from below,
  * holds, then dissolves upward, staggered 0.2s apart so the motion reads as
- * "layer, then layer, then layer" rather than all three moving in lockstep.
+ * "layer, then layer, then layer" rather than all three moving in lockstep. Under reduced
+ * motion the bars stand still (the animation ends on a faded frame, so it can't just be cut short).
  */
 export function LoadingSpinner({ size = 'md', tone = 'default' }: LoadingSpinnerProps) {
   const px = SIZES[size];
@@ -40,7 +41,7 @@ export function LoadingSpinner({ size = 'md', tone = 'default' }: LoadingSpinner
             rx="3"
             fill={colors[i]}
             fillOpacity={opacities[i]}
-            className="origin-center animate-layer-build"
+            className="origin-center animate-layer-build motion-reduce:animate-none"
             style={{ animationDelay: p.delay }}
           />
         ))}

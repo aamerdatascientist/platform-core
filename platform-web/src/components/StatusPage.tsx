@@ -47,7 +47,7 @@ export function StatusPage({ kind, onSignIn }: StatusPageProps) {
 
   const card = (
     <div role="alert" className="flex w-full max-w-md flex-col items-center rounded border border-border bg-panel px-8 py-10 text-center shadow-recessed">
-      {code && <p className="font-display text-xs font-semibold uppercase tracking-[0.1em] text-ink-soft">{t('errors.page.code', { code })}</p>}
+      {code && <p className="font-display text-xs font-semibold text-ink-soft">{t('errors.page.code', { code })}</p>}
       <h1 className="mt-2 font-display text-lg font-semibold text-ink">{t(`errors.page.${kind}.title`)}</h1>
       <p className="mt-3 text-sm leading-relaxed text-ink-soft">{t(`errors.page.${kind}.body`)}</p>
       <div className="mt-6">{action}</div>

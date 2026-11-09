@@ -17,6 +17,10 @@
 #     quantity               required, more than 0
 #   projects
 #     total_floors           optional, at least 0
+#     project_code           required, no duplicates
+#   project-zones, project-floors, project-footings
+#     zone_code / floor_code / footing_code
+#                            required, no duplicates within the same project
 #
 # It also rewrites any visibility condition stored as a bare JSON string ("true") as a
 # JSON array (["true"]), the documented shape. The server reads both since this release;
@@ -79,6 +83,16 @@ $wanted = @{
     }
     "projects" = @{
         "total_floors" = @{ isRequired = $false; min = 0; max = $null; minExclusive = $false; noFutureDates = $false }
+        "project_code" = @{ isRequired = $true;  min = $null; max = $null; minExclusive = $false; noFutureDates = $false; unique = $true }
+    }
+    "project-zones" = @{
+        "zone_code" = @{ isRequired = $true; min = $null; max = $null; minExclusive = $false; noFutureDates = $false; unique = $true; uniqueWithin = "project" }
+    }
+    "project-floors" = @{
+        "floor_code" = @{ isRequired = $true; min = $null; max = $null; minExclusive = $false; noFutureDates = $false; unique = $true; uniqueWithin = "project" }
+    }
+    "project-footings" = @{
+        "footing_code" = @{ isRequired = $true; min = $null; max = $null; minExclusive = $false; noFutureDates = $false; unique = $true; uniqueWithin = "project" }
     }
 }
 
@@ -107,9 +121,12 @@ foreach ($summary in $forms) {
                 # keep any pattern already set on a text field
                 regex         = if ($existing.regex) { $existing.regex } else { $null }
                 noFutureDates = $rule.noFutureDates
+                unique        = [bool]$rule.unique
+                uniqueWithin  = $rule.uniqueWithin
             }
-            Write-Host ("  {0,-24} {1,-20} required={2} min={3} more-than={4} no-future={5}" -f `
-                $summary.code, $field.code, $rule.isRequired, $rule.min, $rule.minExclusive, $rule.noFutureDates)
+            Write-Host ("  {0,-24} {1,-20} required={2} min={3} more-than={4} no-future={5} unique={6} within={7}" -f `
+                $summary.code, $field.code, $rule.isRequired, $rule.min, $rule.minExclusive, $rule.noFutureDates,
+                [bool]$rule.unique, $rule.uniqueWithin)
             if ($Apply) { Send-Json "Put" "$BaseUrl/api/forms/$($summary.id)/fields/$($field.id)/rules" $body }
             $changed++
         }

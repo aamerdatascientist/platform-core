@@ -128,6 +128,188 @@ first. Push it (`git push origin chore/staging-environment:staging`) once the se
 exist, then check: open the staging site, sign in, open a form, submit a test record, attach
 a file (it should land in `attachments-staging`, not `attachments`).
 
+## Staging data since 2026-11-02 - not a plain copy of production any more
+
+- 2026-11-02: staging backed up (`asas-staging-backup-2026-11-02-before-replace.dump`, repo root),
+  its form data replaced with production's (project 119 and its zones/footings/floors, the one
+  real report of 2026-11-02), then the **273 generated project 119 reports** added (tag
+  `Extensions = '{"backfill":"2026-11-02"}'`, generator `scripts/data/backfill-project-119.mjs`).
+  Production got the same 273 rows on 2026-11-03.
+- Production's real reports from 2026-11-03 on are **not** on staging.
+- Project 119 expected completion: 2026-09-15 (same as production).
+- Schema is **ahead of production**: `AddFormAssignments` and `AddWhatsAppNotifications` applied
+  2026-11-03 (scripted with `dotnet ef migrations script <prev> <new>` and run with psql).
+- One extra user exists on staging only (6 users vs production's 5).
+- A test assignment (Qasim, daily progress report) ran on 2026-11-03 and was stopped.
+
+## Telegram (form assignment notifications) - the channel in use since 2026-11-05
+
+Chosen over WhatsApp (Meta setup didn't work out) and SMS (sender-name registration, paid):
+Telegram is free, needs no templates or approval, and takes ~5 minutes. The one difference: a
+bot can't message someone by phone number - each person opens their "Connect Telegram" link
+once and presses **Start**, which links that chat to their Asas account.
+
+1. In Telegram, open **@BotFather** > `/newbot`. Name e.g. "Asas Staging"; username e.g.
+   `AsasStagingBot` (must end in `bot`). BotFather replies with the **token** - a secret.
+   **Make a separate bot for production later**: the API reads the bot by polling, and two
+   servers polling one bot steal each other's messages (`TelegramBotService` logs a 409).
+2. Optional, in BotFather: `/setuserpic`, `/setdescription` (shown before Start), e.g.
+   «تذكيرات النماذج اليومية من أساس».
+3. Apply the migration `AddTelegramNotifications` to the staging database **before** deploying
+   the code (adds `Users.TelegramChatId`/`TelegramLinkCode`/`TelegramLinkCodeExpiresAtUtc`).
+4. `asas-api-staging` > Environment variables:
+
+| Setting | Value |
+| --- | --- |
+| `Telegram__BotToken` | from BotFather (secret - the owner pastes it, never into chat) |
+| `Telegram__BotUsername` | e.g. `AsasStagingBot` (no `@`) |
+| `Notifications__AppUrl` | `https://staging.asasksa.co` (links and the button in messages) |
+| `Notifications__ReminderTimes__0` / `__1` | optional; unset = `09:00` / `14:00` Saudi. Setting them **replaces** the defaults (fixed 2026-11-05 - the array used to start pre-filled). |
+
+5. **The usual way (owner's choice, 2026-11-05) - engineers do nothing:** in Telegram the
+   administrator creates a small group per engineer (administrator + engineer, added by phone
+   number), then on staging **Users > Telegram > Link to a group** and picks that group. The bot
+   joins and posts «تم ربط هذه المجموعة بحساب ...»; press Refresh, then **Send a test message**.
+   The bot stays silent in groups otherwise, and `/stop` there is ignored (disconnect on the
+   Users page). If someone's Telegram privacy blocks being added to groups, Telegram sends them
+   an invite instead, which they accept once.
+   Alternatives: **Settings > Reminders > Connect Telegram** (any user, private chat, press
+   Start), or **Users > Telegram > Private link instead** to send someone (valid 7 days; a new
+   link replaces the old). `/stop` in a private chat unlinks.
+
+What gets sent: on assignment «مرحباً {name}، تم تكليفك بتعبئة نموذج «{form}» ...» with a «مهامي»
+button; reminders at the reminder times on working days to anyone whose form isn't filled yet,
+with a «تعبئة النموذج» button to the form. Each is a `NotificationLog` row (Channel `telegram`),
+and the tracking page's "Reminders" column counts them. A user linked to Telegram **and** with
+a WhatsApp number (once WhatsApp is configured) gets each message on both.
+
+## WhatsApp (form assignment notifications) - live on staging since 2026-11-07
+
+**Status 2026-11-07:** Meta approved all three templates (`form_assigned`, `form_reminder`,
+`stakeholder_report`, Arabic); `WhatsApp__PhoneNumberId` and `WhatsApp__AccessToken` are set on
+`asas-api-staging`; the app's switch (`platform-web/src/config/whatsapp.ts`, `WHATSAPP_READY`) is on;
+the owner confirmed messages arrive. Staging still sends from **Meta's test number**, so each
+recipient must be added and confirmed under WhatsApp > API Setup > "To" (5 at most) **and** saved on
+the person in the app (Users > person > WhatsApp number > Test message).
+
+The steps below are how it was set up; "Moving to a business number" after them is the next step.
+
+The code is on staging (commit `43dd17b`); without the settings below it sends nothing. Since
+2026-11-05 the link base and reminder times are the shared `Notifications__AppUrl` /
+`Notifications__ReminderTimes__N` (see Telegram above), not `WhatsApp__...`.
+
+1. developers.facebook.com > My Apps > Create app > **Business**, add the **WhatsApp** product.
+   Meta gives a free **test number**, which can message only up to **5 verified recipient
+   numbers** - add them under WhatsApp > API Setup > "To".
+2. Copy the **Phone number ID** from API Setup.
+3. WhatsApp Manager > Message templates: create two, category **Utility**, language **Arabic**
+   (a body may not start or end with a variable; Meta wants an example for each):
+   - `form_assigned`: `مرحباً {{1}}، تم تكليفك بتعبئة نموذج «{{2}}» في كل يوم عمل ابتداءً من {{3}}. يمكنك متابعة مهامك من هنا: {{4}} شكراً لك.`
+     - parameters sent: name, form, start date, `{AppUrl}/assignments`
+   - `form_reminder`: `مرحباً {{1}}، تذكير بأن نموذج «{{2}}» لهذا اليوم ({{3}}) لم تتم تعبئته بعد. للتعبئة: {{4}} شكراً لك.`
+     - parameters sent: name, form, date, `{AppUrl}/forms/{formId}`
+4. business.facebook.com > Settings > System users: an Admin system user with the app and the
+   WhatsApp account assigned; generate a token with `whatsapp_business_messaging` and
+   `whatsapp_business_management`, **never expires**.
+5. `asas-api-staging` > Environment variables (the owner sets these; the token is a secret):
+
+| Setting | Value |
+| --- | --- |
+| `WhatsApp__PhoneNumberId` | from step 2 |
+| `WhatsApp__AccessToken` | from step 4 |
+| `Notifications__AppUrl` | `https://staging.asasksa.co` (shared with Telegram) |
+| `WhatsApp__TemplateLanguage`, `WhatsApp__AssignedTemplate`, `WhatsApp__ReminderTemplate`, `WhatsApp__ApiVersion` | optional, defaults `ar`, `form_assigned`, `form_reminder`, `v23.0` |
+
+6. On staging: Users > a user > **WhatsApp** > save the number (05XXXXXXXX or +966...) > **Send a
+   test message**; Meta's error, if any, shows there. The tracking page shows reminders sent/failed.
+
+Staging users are copies of real people - only save numbers of people who agreed to test.
+Production later needs business verification, a real number not already on the WhatsApp app,
+an approved display name and a payment method (~0.04 SAR per utility message).
+
+### Moving to a business number (needed for production; owner asked 2026-11-07)
+
+Meta doesn't sell numbers - you register one you own:
+1. Get a number not in use on WhatsApp or WhatsApp Business: a new prepaid SIM (STC, Mobily, Zain)
+   or a company number (a landline works; Meta can verify by voice call). The phone is only needed
+   once, for the code.
+2. WhatsApp Manager > **Phone numbers > Add phone number**, in the **same WhatsApp account** that
+   holds the approved templates (templates belong to the account, so they carry over). Enter the
+   display name (e.g. "Asas", reviewed by Meta) and verify by SMS or call.
+3. Add a payment method to the WhatsApp account (business-number messages are charged per message;
+   check Meta's current Saudi rates). For higher daily limits complete business verification in
+   Meta Business Settings.
+4. Copy the new number's **Phone number ID** (API Setup) into `WhatsApp__PhoneNumberId` - staging first,
+   later `nexus-platform-api`. The access token stays if it's the same account.
+5. Users > a person > **Test message**. With a business number nobody needs adding in Meta; saving
+   the number in the app is enough.
+
+## Stakeholder reports (PDF on WhatsApp) - added 2026-11-06
+
+Daily (working days), weekly (Thursday) and monthly (last day of the month) PDF reports with a
+written analysis by Claude, sent at 18:00 Saudi time to the recipients on **Settings > Stakeholder
+reports**. One report covers all projects. The phone-sized PDF is sent; the A4 one is kept for
+download. Three things to set up, in this order:
+
+1. **PDF service (Gotenberg) on Railway** - Railway project > New > Docker Image
+   `gotenberg/gotenberg:8`. Variables: `GOTENBERG_API_BASIC_AUTH_USERNAME` and
+   `GOTENBERG_API_BASIC_AUTH_PASSWORD` (the owner picks them; secret). Settings > Deploy >
+   Custom Start Command: `gotenberg --api-enable-basic-auth`. Settings > Networking > Generate
+   Domain (port 3000). One service serves staging and production. ~$1-5/month.
+2. **Anthropic API key** - console.anthropic.com > Settings > API keys > Create key. Also set
+   a spend limit there (Limits) as a second guard; the app's own cap is `Reports__MonthlyBudgetUsd`.
+3. **WhatsApp template** `stakeholder_report` - Utility, Arabic, **Header: Document**, body:
+   `مرحباً {{1}}، مرفق {{2}} لمشاريع أساس عن {{3}}. للاطلاع على التفاصيل افتح الملف المرفق. شكراً لك.`
+   (1 name, 2 report title, 3 period). On Meta's test number the recipient's number must be on
+   the API Setup "To" list.
+
+`asas-api-staging` > Environment variables (the owner sets these; the key and password are secrets):
+
+| Setting | Value |
+| --- | --- |
+| `Reports__PdfServiceUrl` | the Railway domain, `https://...up.railway.app` |
+| `Reports__PdfServiceUsername` / `Reports__PdfServicePassword` | as on Railway |
+| `Reports__AnthropicApiKey` | from step 2; unset = reports go out without the analysis |
+| `Reports__AnthropicBaseUrl` | the Claude relay, `https://{relay-domain}/{RELAY_KEY}` (see below) |
+| `Reports__MonthlyBudgetUsd` | optional, default `15` (owner, 2026-11-06) |
+| `Reports__SendTime` / `Reports__Model` / `Reports__WhatsAppTemplate` | optional, defaults `18:00` / `claude-opus-5-5` / `stakeholder_report` |
+
+**Claude relay (needed because the API runs in Azure Hong Kong).** Anthropic's API refuses
+requests from Hong Kong (403 "Request not allowed", seen 2026-11-06), so the API calls Claude
+through a small Caddy relay on Railway (Singapore). Owner's choice over Microsoft Foundry, to keep
+the Anthropic key and credit. Railway > New > Docker Image `caddy:2`; variables `PORT` = `8080`,
+`RELAY_KEY` = a long random secret (the owner makes it), `CADDYFILE` = the config below (no
+secret in it); Custom Start Command
+`sh -c 'printf "%s" "$CADDYFILE" > /tmp/Caddyfile && caddy run --config /tmp/Caddyfile --adapter caddyfile'`;
+Generate Domain on port 8080. Then `Reports__AnthropicBaseUrl` = `https://{relay-domain}/{RELAY_KEY}`.
+Anything without the key in the path gets a 404. The relay doesn't hide where calls come from;
+if Anthropic ever refuses it, switch to Claude on Microsoft Foundry.
+
+```
+{
+	admin off
+}
+:{$PORT}
+handle_path /{$RELAY_KEY}/* {
+	reverse_proxy https://api.anthropic.com {
+		header_up Host api.anthropic.com
+	}
+}
+handle {
+	respond 404
+}
+```
+
+**Hardening (owner, 2026-11-06):** Gotenberg start command
+`gotenberg --api-enable-basic-auth --chromium-disable-javascript=true --chromium-allow-list=^file:///tmp/.* --libreoffice-disable-routes=true --webhook-disable=true`
+(only the HTML-to-PDF route is used; Chromium may read only the files sent with the page). If the
+service fails to start after a Gotenberg upgrade, check the flag names in its log. On
+console.anthropic.com set a monthly spend limit of $15 as well - the app's cap is the first guard,
+that one the last.
+
+Migration `AddStakeholderReports` (three new tables) must be applied first. Then on the page:
+add the recipient, **Preview** (no send) to check the PDFs, then **Send now** once.
+
 ## Day-to-day use
 
 - Try a change on staging: push the branch to `staging`

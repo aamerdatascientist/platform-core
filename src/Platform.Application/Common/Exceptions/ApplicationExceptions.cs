@@ -30,6 +30,10 @@ public class ValidationException : Exception
         Code = code;
         Errors = new Dictionary<string, string[]>();
     }
+
+    /// <summary>Field-addressed failures that also carry a translatable identity (the first one's, when they differ).</summary>
+    public ValidationException(string code, IEnumerable<ValidationFailure> failures) : this(failures) =>
+        Code = code;
 }
 
 public class NotFoundException : Exception

@@ -16,6 +16,9 @@ interface AddFieldFormProps {
    *  filtering by another Lookup (e.g. "zone" filtered by "project"). */
   filterableFields: FieldDefinitionDto[];
   onAdded: () => void;
+  /** The form's steps (redesign §9.2) - the new field goes into the chosen one. */
+  steps?: { id: string; title: string }[];
+  defaultStepId?: string | null;
 }
 
 function parseFieldOptions(
@@ -54,14 +57,18 @@ export function AddFieldForm({
   controllableFields,
   filterableFields,
   onAdded,
+  steps = [],
+  defaultStepId = null,
 }: AddFieldFormProps) {
   const { t } = useTranslation();
   const [label, setLabel] = useState('');
+  const [labelEn, setLabelEn] = useState('');
+  const [stepId, setStepId] = useState<string>(defaultStepId ?? steps[0]?.id ?? '');
   const [code, setCode] = useState('');
   const [codeTouched, setCodeTouched] = useState(false);
   const [fieldType, setFieldType] = useState<FieldType>('ShortText');
   const [isRequired, setIsRequired] = useState(false);
-  const [options, setOptions] = useState<{ value: string; label: string }[]>([{ value: '', label: '' }]);
+  const [options, setOptions] = useState<{ value: string; label: string; labelEn?: string }[]>([{ value: '', label: '' }]);
   const [lookupTargetId, setLookupTargetId] = useState('');
   // Filtered/cascading Lookup ("only show candidates where..."), set at creation time.
   // Empty string = no filter, which is the default/original behaviour.
@@ -91,7 +98,7 @@ export function AddFieldForm({
     if (!codeTouched) setCode(slugify(value));
   }
 
-  function updateOption(index: number, key: 'value' | 'label', value: string) {
+  function updateOption(index: number, key: 'value' | 'label' | 'labelEn', value: string) {
     setOptions((prev) => prev.map((o, i) => (i === index ? { ...o, [key]: value } : o)));
   }
 
@@ -125,14 +132,21 @@ export function AddFieldForm({
         isRequired,
         optionsJson:
           fieldType === 'Dropdown'
-            ? JSON.stringify(options.filter((o) => o.value.trim() && o.label.trim()))
+            ? JSON.stringify(
+                options
+                  .filter((o) => o.value.trim() && o.label.trim())
+                  .map((o) => (o.labelEn?.trim() ? { value: o.value, label: o.label, labelEn: o.labelEn.trim() } : { value: o.value, label: o.label })),
+              )
             : null,
         lookupFormDefinitionId: fieldType === 'Lookup' ? lookupTargetId : null,
         visibleWhenFieldCode: hasCondition ? conditionFieldCode : null,
         visibleWhenValuesJson: hasCondition ? JSON.stringify([...conditionValues]) : null,
         filterByFieldCode: fieldType === 'Lookup' && filterByFieldCode ? filterByFieldCode : null,
+        labelEn: labelEn.trim() || null,
+        stepId: stepId || null,
       });
       setLabel('');
+      setLabelEn('');
       setCode('');
       setCodeTouched(false);
       setFieldType('ShortText');
@@ -151,10 +165,10 @@ export function AddFieldForm({
     }
   }
 
-  const inputClass = 'w-full border border-border rounded bg-bg px-2 py-1.5 text-sm focus:border-accent focus:outline-none';
+  const inputClass = 'h-[44px] w-full rounded-ui-md border border-border bg-panel px-3 text-[15px] text-ink focus:border-accent focus:shadow-focus-ring focus:outline-none';
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 border border-border rounded bg-panel p-4 shadow-recessed">
+    <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label className="mb-1 block text-xs text-ink-soft">{t('addField.fieldName')}</label>
@@ -164,6 +178,10 @@ export function AddFieldForm({
             onChange={(e) => handleLabelChange(e.target.value)}
             placeholder={t('addField.fieldNamePlaceholder')}
           />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs text-ink-soft">{t('builderV2.nameEn')}</label>
+          <input className={inputClass} dir="ltr" value={labelEn} onChange={(e) => setLabelEn(e.target.value)} />
         </div>
         <div>
           <label className="mb-1 block text-xs text-ink-soft">{t('addField.code')}</label>
@@ -194,6 +212,18 @@ export function AddFieldForm({
           <input type="checkbox" checked={isRequired} onChange={(e) => setIsRequired(e.target.checked)} />
           {t('addField.required')}
         </label>
+        {steps.length > 0 && (
+          <div>
+            <label className="mb-1 block text-xs text-ink-soft">{t('builderV2.moveToStep')}</label>
+            <select className={inputClass} value={stepId} onChange={(e) => setStepId(e.target.value)}>
+              {steps.map((st, i) => (
+                <option key={st.id} value={st.id}>
+                  {t('builderV2.stepHeading', { n: i + 1, title: st.title })}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {fieldType === 'Dropdown' && (
@@ -214,13 +244,21 @@ export function AddFieldForm({
                   value={opt.label}
                   onChange={(e) => updateOption(i, 'label', e.target.value)}
                 />
+                <input
+                  className={inputClass}
+                  dir="ltr"
+                  placeholder={t('builderV2.optionLabelEn')}
+                  aria-label={t('builderV2.optionLabelEn')}
+                  value={opt.labelEn ?? ''}
+                  onChange={(e) => updateOption(i, 'labelEn', e.target.value)}
+                />
               </div>
             ))}
           </div>
           <button
             type="button"
             onClick={() => setOptions((prev) => [...prev, { value: '', label: '' }])}
-            className="mt-2 text-label uppercase tracking-wide text-ink-soft hover:text-ink"
+            className="mt-2 text-label text-ink-soft hover:text-ink"
           >
             {t('addField.addOption')}
           </button>
@@ -322,7 +360,7 @@ export function AddFieldForm({
       <button
         type="submit"
         disabled={submitting}
-        className="bg-accent rounded px-3 py-1.5 text-sm font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
+        className="h-[42px] rounded-ui-lg bg-accent px-4 text-[15px] font-bold text-accent-ink hover:brightness-110 disabled:opacity-50"
       >
         {submitting ? t('addField.adding') : t('addField.addField')}
       </button>

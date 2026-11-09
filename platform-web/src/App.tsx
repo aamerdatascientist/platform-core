@@ -8,11 +8,18 @@ import { ExecutiveOverview } from './routes/ExecutiveOverview';
 import { FormBuilder } from './routes/FormBuilder';
 import { FormView } from './routes/FormView';
 import { Layout } from './routes/Layout';
+import { FormAssignments } from './routes/FormAssignments';
+import { StakeholderReports } from './routes/StakeholderReports';
+import { Today } from './routes/Today';
 import { Settings } from './routes/Settings';
 import { SignIn } from './routes/SignIn';
 import { UserManagement } from './routes/UserManagement';
-import { Welcome } from './routes/Welcome';
+import { Account } from './routes/Account';
+import { FormsList } from './routes/FormsList';
+import { MyEntries } from './routes/MyEntries';
+import { EntryDetail } from './routes/EntryDetail';
 import { RequireAdmin } from './components/RequireAdmin';
+import { DevGallery } from './routes/DevGallery';
 
 /**
  * Real routing now (React Router) - refreshing or bookmarking /forms/{id} keeps your
@@ -38,6 +45,9 @@ export default function App() {
   // share key - no sign-in either. It is checked before the sign-in gate for that reason.
   if (isDashboardPath(location.pathname)) return <ExecutiveOverview token={accessToken} />;
 
+  // Development only: the redesign component gallery (never in a production build).
+  if (import.meta.env.DEV && location.pathname === '/dev/ui') return <DevGallery />;
+
   if (!accessToken && showSessionEnded) {
     return (
       <StatusPage
@@ -54,14 +64,22 @@ export default function App() {
   return (
     <Routes>
       <Route element={<Layout token={accessToken} />}>
-        <Route index element={<Welcome />} />
+        <Route index element={<Today />} />
+        <Route path="assignments" element={<Navigate to="/" replace />} />
+        <Route path="forms" element={<FormsList />} />
         <Route path="forms/:formId" element={<FormView token={accessToken} />} />
+        <Route path="entries" element={<MyEntries token={accessToken} />} />
+        <Route path="entries/:formId/:recordId" element={<EntryDetail token={accessToken} />} />
         <Route path="settings" element={<Settings token={accessToken} />} />
-        <Route path="account" element={<Navigate to="/settings" replace />} />
+        <Route path="account" element={<Account token={accessToken} />} />
         <Route element={<RequireAdmin token={accessToken} />}>
           <Route path="builder" element={<BuilderHome token={accessToken} />} />
           <Route path="builder/:formId" element={<FormBuilder token={accessToken} />} />
           <Route path="admin/users" element={<UserManagement token={accessToken} />} />
+          <Route path="admin/assignments" element={<FormAssignments token={accessToken} />} />
+          {/* Merged into /admin/assignments (screen 23, phase 8). */}
+          <Route path="admin/assignments/status" element={<Navigate to="/admin/assignments" replace />} />
+          <Route path="admin/reports" element={<StakeholderReports token={accessToken} />} />
         </Route>
         <Route path="*" element={<StatusPage kind="notFound" />} />
       </Route>

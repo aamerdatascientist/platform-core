@@ -48,6 +48,10 @@ function statusMessageKey(status: number): string | null {
 }
 
 // fetch() rejects with a TypeError when no response arrives at all: offline, DNS, the API down.
+// A response from the server (an ApiError) is never a network problem, whatever the phone
+// reports - iOS can say "offline" while answers are arriving, which turned a wrong password
+// into "couldn't reach the server".
 function isNetworkError(err: unknown): boolean {
+  if (err instanceof ApiError) return false;
   return err instanceof TypeError || (typeof navigator !== 'undefined' && navigator.onLine === false);
 }

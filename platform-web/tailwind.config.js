@@ -37,6 +37,27 @@ export default {
         border: 'var(--border)',
         success: 'var(--success)',
         danger: 'var(--danger)',
+
+        // Redesign tokens (docs/redesign/tokens.css, 2026-11-06).
+        'accent-strong': 'var(--accent-strong)',
+        'accent-soft': 'var(--accent-soft)',
+        'accent-row': 'var(--accent-row)',
+        divider: 'var(--divider)',
+        'table-head': 'var(--table-head)',
+        'field-muted': 'var(--field-muted)',
+        'success-soft': 'var(--success-soft)',
+        'success-strong': 'var(--success-strong)',
+        warning: 'var(--warning)',
+        'warning-soft': 'var(--warning-soft)',
+        'warning-strong': 'var(--warning-strong)',
+        'danger-soft': 'var(--danger-soft)',
+        'danger-border': 'var(--danger-border)',
+        missed: 'var(--missed)',
+        off: 'var(--off)',
+        'sheet-handle': 'var(--sheet-handle)',
+        'logo-1': 'var(--logo-1)',
+        'logo-2': 'var(--logo-2)',
+        'logo-3': 'var(--logo-3)',
       },
       // Tajawal for everything that is read, in both languages - one family that covers
       // Arabic and Latin, so the app looks the same on every device instead of falling back
@@ -71,9 +92,22 @@ export default {
       },
       borderRadius: {
         DEFAULT: '2px',
+        // Redesign radii, by token name (rounded-ui-xl = 14px ...; "ui-" so no key collides with Tailwind's rounded-r-* = right-side corners).
+        'ui-xs': 'var(--radius-xs)',
+        'ui-sm': 'var(--radius-sm)',
+        'ui-md': 'var(--radius-md)',
+        'ui-lg': 'var(--radius-lg)',
+        'ui-xl': 'var(--radius-xl)',
+        'ui-2xl': 'var(--radius-2xl)',
+        'ui-3xl': 'var(--radius-3xl)',
+        'ui-4xl': 'var(--radius-4xl)',
+        'ui-sheet': 'var(--radius-sheet)',
+        'ui-pill': 'var(--radius-pill)',
       },
       boxShadow: {
         recessed: 'var(--shadow-recessed)',
+        'elev-1': 'var(--elev-1)',
+        'focus-ring': 'var(--focus-ring)',
       },
       keyframes: {
         layerBuild: {

@@ -7,7 +7,7 @@
    document's scrollable width, letting the user pan into empty space beside the layout.
    This is the safety net; Layout.tsx's drawer separately collapses its own box to zero
    width when closed, which removes the phantom width at source rather than just hiding the
-   symptom. Deliberately scoped to html/body - SubmissionsTable's own overflow-x-auto box
+   symptom. Deliberately scoped to html/body - the records table's own overflow-x-auto box
    scrolls independently and is unaffected, since this constrains the document root only.
 
    overscroll-behavior-x backs up overflow-x rather than duplicating it: they stop two
@@ -32,6 +32,10 @@
 html,
 body {
   overflow-x: hidden;
+  /* clip, where supported: hides the same overflow without making body a scroll container -
+     with hidden on both html and body, body scrolls itself and position: sticky (the form's
+     step header and Send footer) never sticks to the screen. */
+  overflow-x: clip;
   overscroll-behavior-x: none;
   touch-action: pan-y;
 }
@@ -48,61 +52,148 @@ body {
    width iOS actually cares about, so desktop's smaller, denser text is untouched - this
    changes nothing about how the app looks or reads above that breakpoint. */
 @media (max-width: 767px) {
-  input,
-  select,
+  input:not([data-own-size]),
+  select {
+    font-size: 17px !important;
+  }
+  /* 05: the long-text box is 16px. */
   textarea {
     font-size: 16px !important;
   }
+  /* The number stepper's value is 24px/700 (03, 11) - already over 16px, so no zoom. */
+  input[data-own-size] {
+    font-size: 24px !important;
+  }
 }
 
-/* "Structural steel" design tokens. Light values are the :root default; the dark
-   set overrides them under [data-mode="dark"] (set on <html> - see
-   src/theme/mode.ts and index.html's pre-mount script). Referenced from
-   tailwind.config.js's theme.extend.colors as var(--...), so they're usable as
-   normal Tailwind utility classes (bg-panel, text-ink, border-border, ...) rather
-   than inline styles. */
+/* Design tokens - copied as-is from docs/redesign/tokens.css (approved redesign, 2026-11-06).
+   Referenced from tailwind.config.js as var(--...). Edit the handoff file first, then copy. */
+/*
+  Asas redesign — design tokens.
+  Drop-in replacement for the :root / :root[data-mode="dark"] blocks in platform-web's global stylesheet.
+  Existing variable NAMES are kept (so current components keep working); values are updated; new variables are added.
+  Every colour pair used for text was chosen to pass WCAG AA (4.5:1) on its intended background.
+*/
+
 :root {
-  --sidebar: #E4E7EA;
-  --sidebar-ink: #4A535C;
-  --sidebar-ink-strong: #161A1E;
-  --panel: #FFFFFF;
-  --bg: #EEF0F2;
-  --ink: #161A1E;
-  --ink-soft: #5C6670;
-  --accent: #3A7CB0;
-  --accent-ink: #FFFFFF;
-  --accent2: #C98826;
-  --border: #D5D9DD;
-  --success: #2F7D50;
-  --danger: #B14A3B;
-  /* Light values look muddy smeared on white - stronger highlight, softer shadow. */
-  --shadow-recessed: inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -1px 0 rgba(0, 0, 0, 0.05);
-  /* Sign-in background texture (dot grid + center vignette) - light mode uses dark
-     dots and a white vignette; the reference file specifies these as inverses of the
-     dark-mode values below (same vignette color, different opacity; opposite dot
-     color), not independently derived. */
-  --signin-texture: radial-gradient(rgba(0, 0, 0, 0.045) 1.5px, transparent 1.6px),
-    radial-gradient(ellipse at center, rgba(255, 255, 255, 0.7), transparent 60%);
+  /* ---- existing names, new values ---- */
+  --bg: #F3F5F7;              /* page background */
+  --panel: #FFFFFF;           /* cards, sheets, bars, inputs */
+  --sidebar: #FFFFFF;         /* desktop side menu */
+  --sidebar-ink: #5A6571;
+  --sidebar-ink-strong: #13171C;
+  --ink: #13171C;             /* primary text */
+  --ink-soft: #5A6571;        /* secondary text, captions, table headers */
+  --accent: #2E6A9E;          /* primary buttons, selected state, links (darker than before for contrast) */
+  --accent-ink: #FFFFFF;      /* text on --accent */
+  --accent2: #C98826;         /* kept for charts/brand only — not for text */
+  --border: #DEE2E7;
+  --success: #2B7449;
+  --danger: #A8432F;
+  --shadow-recessed: none;    /* the inset/recessed look is retired */
+
+  /* ---- new ---- */
+  --accent-strong: #1F4F78;   /* text on --accent-soft, link hover */
+  --accent-soft: #E7F0F8;     /* selected chip/segment fill, info banners, active nav */
+  --accent-row: #EEF5FB;      /* selected table row / selected list item */
+  --divider: #EEF0F3;         /* row separators inside cards */
+  --table-head: #F7F8FA;
+  --field-muted: #F3F5F7;     /* search fields, lookup value box */
+  --success-soft: #E5F3EA;
+  --success-strong: #1E5A36;
+  --warning: #8F5A0C;         /* "due today", delay, "new" badge text */
+  --warning-soft: #FBF1E1;
+  --warning-strong: #6E4508;
+  --danger-soft: #FBEAE6;
+  --danger-border: #F0C9C0;   /* outline of danger buttons */
+  --missed: #C9553F;          /* "not filled" cells/dots (fill only, never text) */
+  --off: #EEF0F3;             /* Friday / outside assignment cells */
+  --scrim: rgba(15, 20, 26, 0.45);
+  --sheet-handle: #C9CFD6;
+  --elev-1: 0 1px 2px rgba(19, 23, 28, 0.12); /* selected segment in a segmented control */
+  --focus-ring: 0 0 0 4px #E7F0F8;
+  --logo-1: #7FA9D6; --logo-2: #4C82BC; --logo-3: #2E6A9E;
+
+  /* ---- shape & size ---- */
+  --radius-xs: 6px;   /* kbd hint */
+  --radius-sm: 8px;   /* small buttons, code chip */
+  --radius-md: 10px;  /* desktop inputs/buttons, nav items */
+  --radius-lg: 12px;  /* date buttons, segmented controls, desktop primary buttons */
+  --radius-xl: 14px;  /* phone inputs, lookup rows, tiles */
+  --radius-2xl: 16px; /* desktop cards, phone primary button */
+  --radius-3xl: 18px; /* phone cards (secondary) */
+  --radius-4xl: 20px; /* phone cards (primary), icon tiles */
+  --radius-sheet: 24px;
+  --radius-pill: 999px;
+
+  --tap-min: 44px;        /* nothing tappable smaller than this */
+  --h-input-phone: 56px;  /* phone text inputs, steppers, lookup rows, primary CTA */
+  --h-chip: 46px;
+  --h-segment: 52px;      /* yes/no buttons on phone */
+  --h-input-desktop: 44px;
+  --h-button-desktop: 42px;
+  --tabbar-h: 80px;       /* includes 10px bottom padding; add env(safe-area-inset-bottom) */
+  --sidebar-w: 264px;
+  --content-pad-phone: 20px;
+  --content-pad-desktop: 24px 32px 32px;
+
+  --font: Tajawal, system-ui, "Segoe UI", Tahoma, Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
 }
 
-:root[data-mode='dark'] {
-  --sidebar: #121519;
-  --sidebar-ink: #98A1AB;
-  --sidebar-ink-strong: #F5F7F9;
-  --panel: #1E2226;
-  --bg: #171A1E;
-  --ink: #E9E7E2;
-  --ink-soft: #93A0AC;
-  --accent: #5B9BD1;
-  --accent-ink: #081420;
+:root[data-mode="dark"] {
+  --bg: #121519;
+  --panel: #1B1F24;
+  --sidebar: #1B1F24;
+  --sidebar-ink: #9AA4AF;
+  --sidebar-ink-strong: #ECEEF0;
+  --ink: #ECEEF0;
+  --ink-soft: #9AA4AF;
+  --accent: #6AA8DB;
+  --accent-ink: #08131F;
   --accent2: #E0A94B;
-  --border: #363C44;
+  --border: #2E343C;
   --success: #63B67F;
-  --danger: #DD715F;
-  --shadow-recessed: inset 0 1px 0 rgba(255, 255, 255, 0.03), inset 0 -1px 0 rgba(0, 0, 0, 0.35);
-  --signin-texture: radial-gradient(rgba(255, 255, 255, 0.06) 1.5px, transparent 1.6px),
-    radial-gradient(ellipse at center, rgba(255, 255, 255, 0.035), transparent 60%);
+  --danger: #E07B69;
+  --shadow-recessed: none;
+
+  --accent-strong: #CFE3F4;
+  --accent-soft: #1E2E3D;
+  --accent-row: #1C2733;
+  --divider: #262B32;
+  --table-head: #171B20;
+  --field-muted: #171B20;
+  --success-soft: #1C3326;
+  --success-strong: #9AD3AE;
+  --warning: #E0A94B;
+  --warning-soft: #3A2E1A;
+  --warning-strong: #F1C987;
+  --danger-soft: #2A1C1A;
+  --danger-border: #5A2E27;
+  --missed: #E07B69;
+  --off: #23282F;
+  --scrim: rgba(0, 0, 0, 0.6);
+  --sheet-handle: #3A414A;
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --focus-ring: 0 0 0 4px #1E2E3D;
+  --logo-1: #9CC6EA; --logo-2: #6AA8DB; --logo-3: #3E7FB6;
 }
+
+/* Type scale (Tajawal 400/500/700/800 — add 800 to the Google Fonts URL) */
+.t-display  { font-size: 30px; font-weight: 800; }  /* sign-in app name */
+.t-h1-phone { font-size: 26px; font-weight: 800; }  /* phone page titles (My entries, Settings, Sent) */
+.t-h1-desk  { font-size: 28px; font-weight: 800; }  /* desktop page titles */
+.t-greet    { font-size: 24px; font-weight: 800; }  /* Today greeting */
+.t-h2       { font-size: 17px; font-weight: 700; }  /* section titles, top-bar form title */
+.t-card     { font-size: 18px; font-weight: 700; }  /* card titles */
+.t-body     { font-size: 16px; font-weight: 400; }
+.t-label    { font-size: 15px; font-weight: 700; }  /* field labels */
+.t-input    { font-size: 17px; }                    /* phone input text (>=16px prevents iOS zoom) */
+.t-small    { font-size: 14px; }
+.t-caption  { font-size: 13px; }                    /* hints, sub-lines, nav labels */
+.t-badge    { font-size: 12px; font-weight: 700; }
+.t-micro    { font-size: 11px; }                    /* calendar day letters only */
+
 
 /* Tajawal, regular weight, for both languages - the same family covers Arabic and Latin,
    so text looks the same on every device. This replaced "Calibri Bold everywhere"
@@ -111,7 +202,7 @@ body {
    something. Tajawal ships 400/500/700 here - font-semibold and font-bold both land on 700. */
 body {
   @apply bg-bg text-ink;
-  font-family: Tajawal, system-ui, 'Segoe UI', Tahoma, Arial, sans-serif;
+  font-family: var(--font);
   font-weight: 400;
 }
 
@@ -190,3 +281,54 @@ html {
   background-size: 46px 46px, 100% 100%;
   background-position: 0 0, center;
 }
+
+/* Visible focus on everything (redesign §4). Text inputs on a phone use the accent border plus
+   the focus ring instead (components/ui). */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Phone: nothing tappable under 44x44 (§4, acceptance checklist). Controls keep the size they are
+   drawn at; an invisible ::after centred on each one takes the taps around it. Fields can't carry a
+   pseudo-element, so below desktop width they get the 44px height itself. */
+@media (max-width: 1023.98px) {
+  :where(button, a[href], [role='button'], [role='radio'], [role='tab'], [role='switch'], summary, label:has(> input[type='checkbox'])) {
+    position: relative;
+  }
+  :where(button, a[href], [role='button'], [role='radio'], [role='tab'], [role='switch'], summary, label:has(> input[type='checkbox']))::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+  :where(input:not([type='checkbox'], [type='radio'], [type='hidden'], [type='file']), select) {
+    min-height: 44px;
+  }
+}
+
+/* Motion is decoration: none of it under reduced motion (redesign §4). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes scrim-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes reveal { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 1200px; } }
+@keyframes step-in-from-end { from { opacity: 0; transform: translateX(var(--step-from, 24px)); } to { opacity: 1; transform: none; } }
+[dir='rtl'] { --step-from: -24px; }
+
+/* Directional icons point the reading direction (components/icons.tsx). */
+[dir="rtl"] .rtl-flip { transform: scaleX(-1); }
+/* Horizontal fills drawn with a gradient (overview phase segments) start on the inline-start side. */
+[dir="rtl"] { --grad-dir: 270deg; }

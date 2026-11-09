@@ -1,0 +1,51 @@
+import { useTranslation } from 'react-i18next';
+import { Link, Navigate } from 'react-router-dom';
+import { Icon } from '../components/icons';
+import { useFormsByModule, useShell } from '../components/shell/ShellData';
+import { Card, EmptyState, ErrorState, LoadingState, SectionHeading } from '../components/ui';
+import { useErrorMessage } from '../hooks/useErrorMessage';
+import { useEffect } from 'react';
+import { useLocalized } from '../forms/localized';
+
+/**
+ * The phone Forms tab (HANDOFF §5.1; not drawn - styled like "Other forms" on 02): one card per
+ * module with its name as a 14px heading, a 56px row per form with a chevron. Someone who can
+ * open only one form (project managers today) goes straight to it.
+ */
+export function FormsList() {
+  const { t } = useTranslation();
+  const { forms, formsError, refresh } = useShell();
+  const groups = useFormsByModule();
+  const { formName } = useLocalized();
+  const [error, setError] = useErrorMessage();
+  useEffect(() => {
+    setError(formsError ? { err: formsError, fallbackKey: 'sidebar.loadFormsError' } : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formsError]);
+
+  if (error && !forms) return <ErrorState message={error} onRetry={refresh} />;
+  if (!forms) return <LoadingState />;
+
+  const all = groups.flatMap((g) => g.forms);
+  if (all.length === 1) return <Navigate to={`/forms/${all[0].id}`} replace />;
+
+  return (
+    <div className="flex flex-col gap-5">
+      <h1 className="text-[26px] font-extrabold text-ink">{t('nav.forms')}</h1>
+      {all.length === 0 && <EmptyState title={t('sidebar.noForms')} />}
+      {groups.map((group) => (
+        <section key={group.label} className="flex flex-col gap-2">
+          <SectionHeading>{group.label}</SectionHeading>
+          <Card className="divide-y divide-divider overflow-hidden">
+            {group.forms.map((form) => (
+              <Link key={form.id} to={`/forms/${form.id}`} className="flex min-h-[56px] items-center gap-3 px-[18px] text-[16px] font-medium text-ink hover:bg-field-muted">
+                <span className="flex-1"><bdi>{formName(form)}</bdi></span>
+                <Icon name="chevronForward" size={18} className="text-ink-soft" />
+              </Link>
+            ))}
+          </Card>
+        </section>
+      ))}
+    </div>
+  );
+}

@@ -1,12 +1,26 @@
 import type {
+  MyEntriesPageDto,
+  RecordDetailDto,
+  RecordQuery,
+  RecordsPageDto,
+  FormStepDto,
+  AssignmentDayDto,
   CurrentUserDto,
+  FormAssignmentDto,
+  MyAssignmentsDto,
   DynamicRow,
   ExecutiveOverviewDto,
   FileMetadataDto,
   FormDefinitionDto,
   FormSummaryDto,
   PagedResult,
+  ReportKind,
+  ReportRecipientDto,
+  ReportRunDto,
+  ReportsOverviewDto,
   RoleDto,
+  TelegramLinkDto,
+  TelegramStatusDto,
   TokenPair,
   UserSummaryDto,
   WorkflowStatusDto,
@@ -57,11 +71,11 @@ async function refreshAccessToken(): Promise<string | null> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       try {
-        const response = await fetch(`${BASE_URL}/api/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refreshToken: stored.refreshToken }),
-        });
+        const response = await fetchOnceMore(
+          `${BASE_URL}/api/auth/refresh`,
+          { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken: stored.refreshToken }) },
+          true,
+        );
         if (!response.ok) {
           // Another tab may have refreshed first: refresh tokens are single-use, so ours was
           // already spent, but the new pair is in shared storage - use it instead of signing
@@ -85,6 +99,28 @@ async function refreshAccessToken(): Promise<string | null> {
   return refreshPromise;
 }
 
+/**
+ * Requests that can safely go twice: reading, and signing in / renewing the session.
+ * iPhone Safari reuses a connection the server has already closed after a few idle minutes,
+ * and the first request then fails at once ("network connection lost") without reaching the
+ * server - the "couldn't reach the server" on the sign-in page (2026-11-07). These get one
+ * quiet retry on a fresh connection; anything that writes data never does (it could arrive
+ * twice - the offline queue's idempotency key handles that for entries).
+ */
+function retriable(path: string, method: string) {
+  return method === 'GET' || path === '/api/auth/login' || path === '/api/auth/refresh';
+}
+
+async function fetchOnceMore(url: string, init: RequestInit, retry: boolean) {
+  try {
+    return await fetch(url, init);
+  } catch (err) {
+    if (!retry || !(err instanceof TypeError)) throw err;
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    return fetch(url, init);
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}, token?: string): Promise<T> {
   const doFetch = (accessToken?: string) => {
     const headers: Record<string, string> = {
@@ -92,7 +128,7 @@ async function request<T>(path: string, options: RequestInit = {}, token?: strin
       ...(options.headers as Record<string, string> | undefined),
     };
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
-    return fetch(`${BASE_URL}${path}`, { ...options, headers });
+    return fetchOnceMore(`${BASE_URL}${path}`, { ...options, headers }, retriable(path, (options.method ?? 'GET').toUpperCase()));
   };
 
   let response = await doFetch(token);
@@ -182,6 +218,9 @@ export const api = {
         filterByFieldCode?: string | null;
         dynamicOptionsSourceFormDefinitionId?: string | null;
         dynamicOptionsSourceFieldCode?: string | null;
+        /** English label and step (redesign §9.1/§9.2). */
+        labelEn?: string | null;
+        stepId?: string | null;
       },
     ) => request<{ id: string }>(`/api/forms/${formId}/fields`, { method: 'POST', body: JSON.stringify(input) }, token),
 
@@ -194,12 +233,39 @@ export const api = {
 
     // --- Safe field edits: metadata only, no confirmation needed even on a published form ---
 
-    updateFieldLabel: (token: string, formId: string, fieldId: string, label: string) =>
+    /** labelEn: undefined leaves the English label as it is, '' clears it. */
+    updateFieldLabel: (token: string, formId: string, fieldId: string, label: string, labelEn?: string) =>
       request<void>(
         `/api/forms/${formId}/fields/${fieldId}/label`,
-        { method: 'PUT', body: JSON.stringify({ label }) },
+        { method: 'PUT', body: JSON.stringify({ label, labelEn: labelEn ?? null }) },
         token,
       ),
+
+    // --- Redesign §9.1/§9.2: names in both languages and filling steps (all Safe) ---
+
+    updateName: (token: string, formId: string, name: string, nameEn: string) =>
+      request<void>(`/api/forms/${formId}/name`, { method: 'PUT', body: JSON.stringify({ name, nameEn }) }, token),
+
+    /** Relabel (and reorder) a static dropdown's options; the set of values must stay the same. */
+    updateOptionLabels: (token: string, formId: string, fieldId: string, options: { value: string; label: string; labelEn: string | null }[]) =>
+      request<void>(`/api/forms/${formId}/fields/${fieldId}/option-labels`, { method: 'PUT', body: JSON.stringify({ options }) }, token),
+
+    addStep: (token: string, formId: string, titleAr: string, titleEn: string) =>
+      request<FormStepDto>(`/api/forms/${formId}/steps`, { method: 'POST', body: JSON.stringify({ titleAr, titleEn }) }, token),
+
+    updateStep: (token: string, formId: string, stepId: string, titleAr: string, titleEn: string) =>
+      request<void>(`/api/forms/${formId}/steps/${stepId}`, { method: 'PUT', body: JSON.stringify({ titleAr, titleEn }) }, token),
+
+    reorderSteps: (token: string, formId: string, stepIds: string[]) =>
+      request<void>(`/api/forms/${formId}/steps/order`, { method: 'PUT', body: JSON.stringify({ stepIds }) }, token),
+
+    /** Its fields move to the previous step (the next one when it was first). */
+    deleteStep: (token: string, formId: string, stepId: string) =>
+      request<void>(`/api/forms/${formId}/steps/${stepId}`, { method: 'DELETE' }, token),
+
+    /** null = the first step. */
+    setFieldStep: (token: string, formId: string, fieldId: string, stepId: string | null) =>
+      request<void>(`/api/forms/${formId}/fields/${fieldId}/step`, { method: 'PUT', body: JSON.stringify({ stepId }) }, token),
 
     /** Pass both as null/undefined to clear the condition (always visible again). */
     updateFieldVisibility: (
@@ -227,6 +293,8 @@ export const api = {
         minExclusive: boolean;
         regex: string | null;
         noFutureDates: boolean;
+        unique: boolean;
+        uniqueWithin: string | null;
       },
     ) =>
       request<void>(
@@ -340,8 +408,20 @@ export const api = {
   },
 
   submissions: {
-    submit: (token: string, formId: string, values: Record<string, unknown>) =>
-      request<{ id: string }>(`/api/forms/${formId}/submissions`, { method: 'POST', body: JSON.stringify(values) }, token),
+    /** idempotencyKey: the server saves it only once; enteredAtUtc: when Send was pressed (offline queue, §9.6). */
+    submit: (token: string, formId: string, values: Record<string, unknown>, options: { idempotencyKey?: string; enteredAtUtc?: string } = {}) =>
+      request<{ id: string }>(
+        `/api/forms/${formId}/submissions`,
+        {
+          method: 'POST',
+          body: JSON.stringify(values),
+          headers: {
+            ...(options.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : {}),
+            ...(options.enteredAtUtc ? { 'X-Entered-At': options.enteredAtUtc } : {}),
+          },
+        },
+        token,
+      ),
 
     list: (
       token: string,
@@ -369,6 +449,29 @@ export const api = {
     /** Administrators: remove a record (soft delete - recoverable from the database). */
     delete: (token: string, formId: string, recordId: string) =>
       request<void>(`/api/forms/${formId}/submissions/${recordId}`, { method: 'DELETE' }, token),
+
+    /** Records tab (administrators, §9.4): filters run on the server; items carry sender, time, Lookup labels. */
+    search: (token: string, formId: string, query: RecordQuery) => {
+      const params = new URLSearchParams({ page: String(query.page ?? 1), pageSize: String(query.pageSize ?? 25) });
+      if (query.q?.trim()) params.set('q', query.q.trim());
+      if (query.from) params.set('from', query.from);
+      if (query.to) params.set('to', query.to);
+      if (query.dateField) params.set('dateField', query.dateField);
+      for (const [code, value] of Object.entries(query.filters ?? {})) if (value !== '' && value !== undefined) params.append('f', `${code}:${value}`);
+      return request<RecordsPageDto>(`/api/forms/${formId}/submissions?${params}`, {}, token);
+    },
+
+    /** One record with its attachments - its sender or an administrator (§9.3). */
+    get: (token: string, formId: string, recordId: string) =>
+      request<RecordDetailDto>(`/api/forms/${formId}/submissions/${recordId}`, {}, token),
+
+    /** My entries (§9.3): the caller's own records, newest first; pass the last page's nextBefore. */
+    mine: (token: string, options: { formId?: string | null; before?: string | null; pageSize?: number } = {}) => {
+      const params = new URLSearchParams({ pageSize: String(options.pageSize ?? 20) });
+      if (options.formId) params.set('formId', options.formId);
+      if (options.before) params.set('before', options.before);
+      return request<MyEntriesPageDto>(`/api/submissions/mine?${params}`, {}, token);
+    },
   },
 
   analytics: {
@@ -456,8 +559,92 @@ export const api = {
     },
   },
 
+  /** Stakeholder reports (administrators). */
+  reports: {
+    overview: (token: string) => request<ReportsOverviewDto>('/api/reports', {}, token),
+
+    saveRecipient: (
+      token: string,
+      input: Omit<ReportRecipientDto, 'id'>,
+      id?: string,
+    ) =>
+      request<ReportRecipientDto>(
+        id ? `/api/reports/recipients/${id}` : '/api/reports/recipients',
+        { method: id ? 'PUT' : 'POST', body: JSON.stringify(input) },
+        token,
+      ),
+
+    deleteRecipient: (token: string, id: string) =>
+      request<void>(`/api/reports/recipients/${id}`, { method: 'DELETE' }, token),
+
+    /** Makes a report now (up to a couple of minutes with the analysis). deliver false = preview only. */
+    run: (token: string, input: { kind: ReportKind; to: string | null; withAnalysis: boolean; deliver: boolean }) =>
+      request<ReportRunDto>('/api/reports/run', { method: 'POST', body: JSON.stringify(input) }, token),
+
+    /** A 10-minute download link for a stored PDF. */
+    download: (token: string, runId: string, phone: boolean) =>
+      request<{ url: string }>(`/api/reports/runs/${runId}/download?phone=${phone}`, {}, token),
+  },
+
+  /** Daily form assignments. Everything but `mine` is for administrators. */
+  assignments: {
+    mine: (token: string) => request<MyAssignmentsDto>('/api/form-assignments/mine', {}, token),
+
+    list: (token: string) => request<FormAssignmentDto[]>('/api/form-assignments', {}, token),
+
+    days: (token: string, filter: { from: string; to: string; userId?: string | null; formId?: string | null }) => {
+      const params = new URLSearchParams({ from: filter.from, to: filter.to });
+      if (filter.userId) params.set('userId', filter.userId);
+      if (filter.formId) params.set('formId', filter.formId);
+      return request<AssignmentDayDto[]>(`/api/form-assignments/days?${params}`, {}, token);
+    },
+
+    create: (
+      token: string,
+      input: { formDefinitionId: string; userIds: string[]; startDate: string; endDate: string | null; note: string | null },
+    ) =>
+      request<{ created: number; alreadyAssigned: string[] }>(
+        '/api/form-assignments',
+        { method: 'POST', body: JSON.stringify(input) },
+        token,
+      ),
+
+    stop: (token: string, id: string) => request<void>(`/api/form-assignments/${id}/stop`, { method: 'POST' }, token),
+
+    /** Reminds everyone still pending today; once per person, form and day (redesign 23). */
+    remindPending: (token: string) =>
+      request<{ sent: number; failed: number; alreadyReminded: number; noChannel: number }>('/api/form-assignments/remind-pending', { method: 'POST' }, token),
+  },
+
   users: {
     list: (token: string) => request<UserSummaryDto[]>('/api/users', {}, token),
+
+    /** WhatsApp number; null removes it. */
+    setPhoneNumber: (token: string, userId: string, phoneNumber: string | null) =>
+      request<void>(`/api/users/${userId}/phone`, { method: 'PUT', body: JSON.stringify({ phoneNumber }) }, token),
+
+    /** Sends a sample reminder; the answer says whether Meta accepted it. */
+    sendWhatsAppTest: (token: string, userId: string) =>
+      request<{ success: boolean; messageId: string | null; error: string | null }>(
+        `/api/users/${userId}/whatsapp-test`,
+        { method: 'POST' },
+        token,
+      ),
+
+    /** A one-time "Connect Telegram" link for this user, to send them (valid 7 days). */
+    createTelegramLink: (token: string, userId: string) =>
+      request<TelegramLinkDto>(`/api/users/${userId}/telegram-link`, { method: 'POST' }, token),
+
+    unlinkTelegram: (token: string, userId: string) =>
+      request<void>(`/api/users/${userId}/telegram`, { method: 'DELETE' }, token),
+
+    /** Sends a sample message; the answer says whether Telegram accepted it. */
+    sendTelegramTest: (token: string, userId: string) =>
+      request<{ success: boolean; messageId: string | null; error: string | null }>(
+        `/api/users/${userId}/telegram-test`,
+        { method: 'POST' },
+        token,
+      ),
 
     setRoles: (token: string, userId: string, roleIds: string[]) =>
       request<void>(`/api/users/${userId}/roles`, { method: 'PUT', body: JSON.stringify({ roleIds }) }, token),
@@ -468,6 +655,16 @@ export const api = {
     /** Sets a new password for someone who forgot theirs, and signs them out everywhere. */
     resetPassword: (token: string, userId: string, newPassword: string) =>
       request<void>(`/api/users/${userId}/password`, { method: 'POST', body: JSON.stringify({ newPassword }) }, token),
+  },
+
+  /** The signed-in user's own settings (any role). */
+  me: {
+    telegramStatus: (token: string) => request<TelegramStatusDto>('/api/me/telegram', {}, token),
+
+    /** A fresh link to open in Telegram; replaces any earlier one. */
+    createTelegramLink: (token: string) => request<TelegramLinkDto>('/api/me/telegram/link', { method: 'POST' }, token),
+
+    unlinkTelegram: (token: string) => request<void>('/api/me/telegram', { method: 'DELETE' }, token),
   },
 
   roles: {

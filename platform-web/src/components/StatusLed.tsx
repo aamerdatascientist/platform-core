@@ -14,7 +14,7 @@ const TONE_CLASS = {
 };
 
 /**
- * Glowing dot + uppercase mono label - the "Structural steel" replacement for every
+ * Glowing dot + mono label - the "Structural steel" replacement for every
  * flat status pill/badge in the app (WorkflowPanel's current-state indicator,
  * FormBuilder's Draft/Published and "editing new version" pills, BuilderHome's and
  * FormPicker's plain status text). One reusable component for all of them, not a
@@ -25,7 +25,7 @@ const TONE_CLASS = {
  */
 export function StatusLed({ label, tone = 'accent' }: StatusLedProps) {
   return (
-    <span className={`inline-flex items-center gap-1.5 font-mono text-label uppercase tracking-wider ${TONE_CLASS[tone]}`}>
+    <span className={`inline-flex items-center gap-1.5 font-mono text-label ${TONE_CLASS[tone]}`}>
       <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" style={{ boxShadow: '0 0 5px currentColor' }} />
       {label}
     </span>

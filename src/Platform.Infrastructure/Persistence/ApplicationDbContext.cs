@@ -34,8 +34,15 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<FormDefinition> FormDefinitions => Set<FormDefinition>();
     public DbSet<FormVersion> FormVersions => Set<FormVersion>();
     public DbSet<FieldDefinition> FieldDefinitions => Set<FieldDefinition>();
+    public DbSet<FormStep> FormSteps => Set<FormStep>();
+    public DbSet<SubmissionReceipt> SubmissionReceipts => Set<SubmissionReceipt>();
     public DbSet<Platform.Domain.Forms.FormDefinitionRole> FormDefinitionRoles => Set<Platform.Domain.Forms.FormDefinitionRole>();
     public DbSet<Platform.Domain.Forms.FormDefinitionUser> FormDefinitionUsers => Set<Platform.Domain.Forms.FormDefinitionUser>();
+    public DbSet<Platform.Domain.Forms.FormAssignment> FormAssignments => Set<Platform.Domain.Forms.FormAssignment>();
+    public DbSet<Platform.Domain.Notifications.NotificationLog> NotificationLogs => Set<Platform.Domain.Notifications.NotificationLog>();
+    public DbSet<Platform.Domain.Reports.ReportRecipient> ReportRecipients => Set<Platform.Domain.Reports.ReportRecipient>();
+    public DbSet<Platform.Domain.Reports.ReportRun> ReportRuns => Set<Platform.Domain.Reports.ReportRun>();
+    public DbSet<Platform.Domain.Reports.ReportDelivery> ReportDeliveries => Set<Platform.Domain.Reports.ReportDelivery>();
 
     public DbSet<Platform.Domain.Workflow.WorkflowDefinition> WorkflowDefinitions => Set<Platform.Domain.Workflow.WorkflowDefinition>();
     public DbSet<Platform.Domain.Workflow.WorkflowState> WorkflowStates => Set<Platform.Domain.Workflow.WorkflowState>();

@@ -12,7 +12,7 @@ public record AddFieldDefinitionCommand(
     string? OptionsJson, Guid? LookupFormDefinitionId, string? ValidationRulesJson,
     string? VisibleWhenFieldCode = null, string? VisibleWhenValuesJson = null,
     string? FilterByFieldCode = null, Guid? DynamicOptionsSourceFormDefinitionId = null,
-    string? DynamicOptionsSourceFieldCode = null) : IRequest<Guid>;
+    string? DynamicOptionsSourceFieldCode = null, string? LabelEn = null, Guid? StepId = null) : IRequest<Guid>;
 
 public class AddFieldDefinitionCommandValidator : AbstractValidator<AddFieldDefinitionCommand>
 {
@@ -30,6 +30,7 @@ public class AddFieldDefinitionCommandValidator : AbstractValidator<AddFieldDefi
         RuleFor(x => x.Code).MaximumLength(MaxLookupCodeLength).When(x => x.FieldType == FieldType.Lookup)
             .WithMessage($"Lookup field codes can be at most {MaxLookupCodeLength} characters.");
         RuleFor(x => x.Label).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.LabelEn).MaximumLength(200);
         RuleFor(x => x.OptionsJson).NotEmpty()
             .When(x => x.FieldType == FieldType.Dropdown && string.IsNullOrWhiteSpace(x.DynamicOptionsSourceFieldCode))
             .WithMessage("Dropdown fields require options (a static list, or a dynamic source).");
@@ -70,12 +71,19 @@ public class AddFieldDefinitionCommandHandler : IRequestHandler<AddFieldDefiniti
     {
         var formDefinition = await _db.FormDefinitions
             .Include(f => f.Versions).ThenInclude(v => v.Fields)
+            .Include(f => f.Versions).ThenInclude(v => v.Steps)
             .SingleOrDefaultAsync(f => f.Id == request.FormDefinitionId, cancellationToken);
 
         if (formDefinition is null)
             throw new NotFoundException(nameof(Platform.Domain.Forms.FormDefinition), request.FormDefinitionId);
 
         var target = formDefinition.ResolveFieldEditTarget();
+
+        if (request.StepId is { } stepId && target.Version.Steps.All(s => s.Id != stepId))
+            throw new Common.Exceptions.ValidationException(new[]
+            {
+                new FluentValidation.Results.ValidationFailure(nameof(request.StepId), "That step isn't on this form.")
+            });
 
         // Cross-aggregate half of the Lookup-filter check: FormVersion.AddField already
         // confirmed FilterByFieldCode names a sibling on THIS form version; this confirms the
@@ -130,7 +138,8 @@ public class AddFieldDefinitionCommandHandler : IRequestHandler<AddFieldDefiniti
                 request.Code, request.Label, request.FieldType, request.IsRequired,
                 request.OptionsJson, request.LookupFormDefinitionId, request.ValidationRulesJson,
                 request.VisibleWhenFieldCode, request.VisibleWhenValuesJson, request.FilterByFieldCode,
-                request.DynamicOptionsSourceFormDefinitionId, request.DynamicOptionsSourceFieldCode);
+                request.DynamicOptionsSourceFormDefinitionId, request.DynamicOptionsSourceFieldCode,
+                request.LabelEn, request.StepId);
         }
         catch (InvalidOperationException ex) when (ex.Message.Contains("a visibility condition can only depend"))
         {

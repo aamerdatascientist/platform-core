@@ -19,7 +19,12 @@ export type FormStatus = 'Draft' | 'Published' | 'Retired';
 export interface FieldDefinitionDto {
   id: string;
   code: string;
+  /** The Arabic label (it also names the reporting view's column). */
   label: string;
+  /** The English label (redesign §9.1); null/absent until filled in - show `label` then. */
+  labelEn?: string | null;
+  /** The step this field is filled in (§9.2); null = the first step. */
+  stepId?: string | null;
   fieldType: FieldType;
   isRequired: boolean;
   isActive: boolean;
@@ -56,12 +61,23 @@ export interface FormVersionDto {
   status: FormStatus;
   publishedAtUtc: string | null;
   fields: FieldDefinitionDto[];
+  /** Filling steps in order (§9.2); empty = one step titled with the form name. */
+  steps?: FormStepDto[];
+}
+
+export interface FormStepDto {
+  id: string;
+  titleAr: string;
+  titleEn: string | null;
+  displayOrder: number;
 }
 
 export interface FormSummaryDto {
   id: string;
   code: string;
   name: string;
+  /** English name (§9.1); null/absent until filled in - show `name` then. */
+  nameEn?: string | null;
   moduleName: string;
   status: FormStatus;
 }
@@ -78,6 +94,7 @@ export interface FormDefinitionDto {
   publishedVersion: FormVersionDto | null;
   allowedRoleIds: string[];
   allowedUserIds: string[];
+  nameEn?: string | null;
 }
 
 /** Raw submission row - values are keyed by FieldDefinition.code, same shape the backend returns. */
@@ -151,6 +168,28 @@ export interface UserSummaryDto {
   displayName: string;
   isActive: boolean;
   roles: UserRoleSummary[];
+  /** International digits without "+", for WhatsApp; null = no messages. */
+  phoneNumber: string | null;
+  /** The user has connected Telegram (pressed Start on their link). */
+  telegramLinked: boolean;
+  /** Linked to a Telegram group (set up by an administrator) rather than a private chat. */
+  telegramIsGroup: boolean;
+}
+
+/** The signed-in user's own Telegram connection (Settings). */
+export interface TelegramStatusDto {
+  /** The server has a bot; when false the Settings section is hidden. */
+  configured: boolean;
+  linked: boolean;
+  botUsername: string | null;
+}
+
+/** A one-time "Connect Telegram" link (t.me/bot?start=code), valid 7 days. */
+export interface TelegramLinkDto {
+  url: string;
+  /** For an administrator: Telegram asks which group to add the bot to. */
+  groupUrl: string;
+  expiresAtUtc: string;
 }
 
 export interface RoleDto {
@@ -163,6 +202,8 @@ export interface RoleDto {
 export interface DropdownOption {
   value: string;
   label: string;
+  /** English label (§9.1), stored inside OptionsJson. */
+  labelEn?: string | null;
 }
 
 // Mirrors Platform.Application.Analytics.Queries.GetExecutiveOverview's DTOs - same
@@ -291,4 +332,155 @@ export interface ExecutiveOverviewDto {
   issueReasons: OverviewLabelCountDto[];
   problemReportCount: number;
   latestProblems: OverviewProblemDto[];
+}
+
+// ------------------------------------------------------------------- daily form assignments
+// Dates ("2026-11-03") are Saudi calendar days; *AtUtc values are UTC instants.
+
+/** filled: submitted that day; missed: the day is over with nothing; pending: today, nothing yet. */
+export type AssignmentDayStatus = 'filled' | 'missed' | 'pending';
+
+export interface AssignmentDayDto {
+  assignmentId: string;
+  userId: string;
+  userName: string;
+  formId: string;
+  formName: string;
+  date: string;
+  assignedAtUtc: string;
+  assignedByName: string | null;
+  status: AssignmentDayStatus;
+  filledAtUtc: string | null;
+  submissionCount: number;
+  /** WhatsApp reminders about this day (tracking page only). */
+  remindersSent: number;
+  remindersFailed: number;
+  /** That day's first entry, when filled (the grid cell opens it). */
+  recordId?: string | null;
+  /** When the person was last reminded about that day (automatic or manual). */
+  lastRemindedAtUtc?: string | null;
+}
+
+export interface MyAssignmentsDto {
+  today: string;
+  days: AssignmentDayDto[];
+}
+
+export interface FormAssignmentDto {
+  id: string;
+  userId: string;
+  userName: string;
+  formId: string;
+  formName: string;
+  startDate: string;
+  endDate: string | null;
+  note: string | null;
+  assignedAtUtc: string;
+  assignedByName: string | null;
+  isActive: boolean;
+  daysDue: number;
+  daysFilled: number;
+}
+
+// ------------------------------------------------------------------- stakeholder reports
+// Mirrors Platform.Application.Reports.ReportDtos.
+
+export type ReportKind = 'daily' | 'weekly' | 'monthly';
+
+export interface ReportRecipientDto {
+  id: string;
+  name: string;
+  /** International digits without "+". */
+  phoneNumber: string;
+  receivesDaily: boolean;
+  receivesWeekly: boolean;
+  receivesMonthly: boolean;
+  isActive: boolean;
+}
+
+export interface ReportDeliveryDto {
+  recipientName: string;
+  phoneNumber: string;
+  /** running | sent | failed */
+  status: string;
+  error: string | null;
+  sentAtUtc: string | null;
+}
+
+export interface ReportRunDto {
+  id: string;
+  kind: ReportKind;
+  periodStart: string;
+  periodEnd: string;
+  /** schedule | preview | send-now */
+  trigger: string;
+  /** running | done | failed */
+  status: string;
+  /** written | skipped-budget | not-configured | failed | off */
+  analysis: string | null;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  error: string | null;
+  createdAtUtc: string;
+  completedAtUtc: string | null;
+  hasPdf: boolean;
+  deliveries: ReportDeliveryDto[];
+}
+
+export interface ReportsOverviewDto {
+  analysisConfigured: boolean;
+  pdfConfigured: boolean;
+  whatsAppConfigured: boolean;
+  model: string;
+  sendTime: string;
+  monthlyBudgetUsd: number;
+  spentThisMonthUsd: number;
+  recipients: ReportRecipientDto[];
+  runs: ReportRunDto[];
+}
+
+// ---------------------------------------------------------------- redesign phase 7 (§9.3, §9.4)
+
+/** A submitted record with who sent it and when; values keyed by field code, typed as stored. */
+export interface RecordItemDto {
+  id: string;
+  formId: string;
+  createdAtUtc: string;
+  createdByUserId: string;
+  createdByName: string | null;
+  values: Record<string, unknown>;
+  /** Lookup field code -> the chosen row's label. */
+  lookupLabels: Record<string, string>;
+  attachmentCount: number;
+}
+
+export interface RecordsPageDto {
+  items: RecordItemDto[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface RecordDetailDto {
+  record: RecordItemDto;
+  attachments: FileMetadataDto[];
+}
+
+export interface MyEntriesPageDto {
+  items: RecordItemDto[];
+  nextBefore: string | null;
+}
+
+export interface RecordQuery {
+  page?: number;
+  pageSize?: number;
+  q?: string;
+  /** yyyy-mm-dd (Saudi days); the end day is included. */
+  from?: string;
+  to?: string;
+  /** A DateTime field the range applies to; without it, when the record was sent. */
+  dateField?: string;
+  /** Field code -> value (equality). */
+  filters?: Record<string, string>;
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { isRtl } from '../i18n';
 import { saudiTodayIso } from '../forms/fieldValues';
+import { Sheet } from './ui/Overlay';
 
 /**
  * Date entry for form fields, replacing the browser's own <input type="date">.
@@ -54,21 +55,26 @@ interface DateFieldProps {
   maxDate?: string;
 }
 
+/** Yesterday on the Saudi calendar. */
+export function yesterdayIso() {
+  const t = parseIso(todayIso())!;
+  return toIsoDate(new Date(t.y, t.m, t.d - 1));
+}
+
+/** "Saturday 7 November 2026" in the UI language (Western digits in Arabic, as on the mockup). */
+export function formatLongDate(iso: string, language: string) {
+  const parts = parseIso(iso);
+  if (!parts) return '';
+  const locale = language.startsWith('ar') ? 'ar-u-nu-latn' : language;
+  return new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+    .format(utc(parts.y, parts.m, parts.d));
+}
+
 export function DateField({ id, value, onChange, required, className, maxDate }: DateFieldProps) {
   const { t, i18n } = useTranslation();
-  const locale = i18n.language.startsWith('ar') ? 'ar-u-nu-latn' : i18n.language;
-  const rtl = isRtl(i18n.language);
   const [open, setOpen] = useState(false);
   const selected = parseIso(value);
-  const now = new Date();
-  const [view, setView] = useState(() => ({ y: selected?.y ?? now.getFullYear(), m: selected?.m ?? now.getMonth() }));
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // Opening always starts on the selected date's month (or this month).
-  useEffect(() => {
-    if (open) setView({ y: selected?.y ?? now.getFullYear(), m: selected?.m ?? now.getMonth() });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
 
   // Close when the person taps or clicks anywhere outside the field.
   useEffect(() => {
@@ -92,18 +98,82 @@ export function DateField({ id, value, onChange, required, className, maxDate }:
     };
   }, [open, id]);
 
-  const longFormat = new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
-  const monthFormat = new Intl.DateTimeFormat(locale, { month: 'long', timeZone: 'UTC' });
-  const weekdayFormat = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' });
-
   const today = todayIso();
-  const todayParts = parseIso(today)!;
-  const yesterday = toIsoDate(new Date(todayParts.y, todayParts.m, todayParts.d - 1));
+  const yesterday = yesterdayIso();
 
   function pick(iso: string) {
     onChange(iso);
     setOpen(false);
   }
+
+  const quickClass = (active: boolean) =>
+    `rounded border px-3 py-1.5 text-sm ${
+      active ? 'border-accent bg-accent text-accent-ink' : 'border-border bg-panel text-ink hover:bg-bg'
+    }`;
+
+  return (
+    <div ref={containerRef}>
+      <button
+        type="button"
+        id={id}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className={`${className} flex items-center justify-between gap-2 text-start`}
+      >
+        <span className={selected ? 'text-ink' : 'text-ink-soft'}>
+          {selected ? formatLongDate(value, i18n.language) : t('formRenderer.pickDate')}
+        </span>
+        <span aria-hidden="true" className="text-ink-soft">
+          ▾
+        </span>
+      </button>
+
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button type="button" className={quickClass(value === today)} onClick={() => pick(today)}>
+          {t('formRenderer.today')}
+        </button>
+        <button type="button" className={quickClass(value === yesterday)} onClick={() => pick(yesterday)}>
+          {t('formRenderer.yesterday')}
+        </button>
+        {!required && value && (
+          <button type="button" className={quickClass(false)} onClick={() => pick('')}>
+            {t('formRenderer.clearDate')}
+          </button>
+        )}
+      </div>
+
+      {open && <CalendarPanel value={value} onPick={pick} maxDate={maxDate} className="mt-2 max-w-sm" />}
+    </div>
+  );
+}
+
+/**
+ * The month calendar on its own (weeks start Saturday; month and year selectors; days after
+ * maxDate disabled) - shared by DateField and the redesign's date quick pick ("Other date").
+ */
+export function CalendarPanel({
+  value,
+  onPick,
+  maxDate,
+  className = '',
+}: {
+  value: string;
+  onPick: (iso: string) => void;
+  maxDate?: string;
+  className?: string;
+}) {
+  const { t, i18n } = useTranslation();
+  const locale = i18n.language.startsWith('ar') ? 'ar-u-nu-latn' : i18n.language;
+  const rtl = isRtl(i18n.language);
+  const selected = parseIso(value);
+  const now = new Date();
+  const [view, setView] = useState(() => ({ y: selected?.y ?? now.getFullYear(), m: selected?.m ?? now.getMonth() }));
+
+  const longFormat = new Intl.DateTimeFormat(locale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+  const monthFormat = new Intl.DateTimeFormat(locale, { month: 'long', timeZone: 'UTC' });
+  const weekdayFormat = new Intl.DateTimeFormat(locale, { weekday: 'short', timeZone: 'UTC' });
+  const today = todayIso();
 
   function shiftMonth(delta: number) {
     setView(({ y, m }) => {
@@ -126,118 +196,80 @@ export function DateField({ id, value, onChange, required, className, maxDate }:
   if (!years.includes(view.y)) years.push(view.y);
   years.sort((a, b) => a - b);
 
-  const quickClass = (active: boolean) =>
-    `rounded border px-3 py-1.5 text-sm ${
-      active ? 'border-accent bg-accent text-accent-ink' : 'border-border bg-panel text-ink hover:bg-bg'
-    }`;
-  const navClass = 'flex h-9 w-9 items-center justify-center rounded border border-border bg-panel text-lg text-ink hover:bg-bg';
+  const navClass = 'flex h-11 w-11 items-center justify-center rounded-ui-md border border-border bg-panel text-lg text-ink hover:bg-bg';
 
   return (
-    <div ref={containerRef}>
-      <button
-        type="button"
-        id={id}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className={`${className} flex items-center justify-between gap-2 text-start`}
-      >
-        <span className={selected ? 'text-ink' : 'text-ink-soft'}>
-          {selected ? longFormat.format(utc(selected.y, selected.m, selected.d)) : t('formRenderer.pickDate')}
-        </span>
-        <span aria-hidden="true" className="text-ink-soft">
-          ▾
-        </span>
-      </button>
-
-      <div className="mt-2 flex flex-wrap gap-2">
-        <button type="button" className={quickClass(value === today)} onClick={() => pick(today)}>
-          {t('formRenderer.today')}
+    <div role="dialog" aria-label={t('formRenderer.pickDate')} className={`rounded-ui-xl border border-border bg-panel p-3 ${className}`}>
+      <div className="mb-3 flex items-center gap-2">
+        {/* Each arrow points outward, toward the side its button sits on: in Arabic the
+            previous-month button is on the right and points right, next is on the left and
+            points left (confirmed by Aamer 2026-10-20). Drawn as SVG because text arrows
+            (‹ ›) get mirrored by some browsers inside right-to-left text and not others. */}
+        <button type="button" className={navClass} onClick={() => shiftMonth(-1)} aria-label={t('formRenderer.previousMonth')}>
+          <Chevron direction={rtl ? 'right' : 'left'} />
         </button>
-        <button type="button" className={quickClass(value === yesterday)} onClick={() => pick(yesterday)}>
-          {t('formRenderer.yesterday')}
+        <select
+          aria-label={t('formRenderer.month')}
+          className="h-11 min-w-0 flex-1 rounded-ui-md border border-border bg-panel px-2 text-sm text-ink"
+          value={view.m}
+          onChange={(e) => setView((v) => ({ ...v, m: Number(e.target.value) }))}
+        >
+          {Array.from({ length: 12 }, (_, m) => (
+            <option key={m} value={m}>
+              {monthFormat.format(utc(2026, m, 1))}
+            </option>
+          ))}
+        </select>
+        <select
+          aria-label={t('formRenderer.year')}
+          className="h-11 rounded-ui-md border border-border bg-panel px-2 text-sm text-ink"
+          value={view.y}
+          onChange={(e) => setView((v) => ({ ...v, y: Number(e.target.value) }))}
+        >
+          {years.map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+        </select>
+        <button type="button" className={navClass} onClick={() => shiftMonth(1)} aria-label={t('formRenderer.nextMonth')}>
+          <Chevron direction={rtl ? 'left' : 'right'} />
         </button>
-        {!required && value && (
-          <button type="button" className={quickClass(false)} onClick={() => pick('')}>
-            {t('formRenderer.clearDate')}
-          </button>
-        )}
       </div>
 
-      {open && (
-        <div role="dialog" aria-label={t('formRenderer.pickDate')} className="mt-2 max-w-sm rounded border border-border bg-panel p-3 shadow-recessed">
-          <div className="mb-3 flex items-center gap-2">
-            {/* Each arrow points outward, toward the side its button sits on: in Arabic the
-                previous-month button is on the right and points right, next is on the left and
-                points left (confirmed by Aamer 2026-10-20). Drawn as SVG because text arrows
-                (‹ ›) get mirrored by some browsers inside right-to-left text and not others. */}
-            <button type="button" className={navClass} onClick={() => shiftMonth(-1)} aria-label={t('formRenderer.previousMonth')}>
-              <Chevron direction={rtl ? 'right' : 'left'} />
-            </button>
-            <select
-              aria-label={t('formRenderer.month')}
-              className="min-w-0 flex-1 rounded border border-border bg-panel px-2 py-1.5 text-sm text-ink"
-              value={view.m}
-              onChange={(e) => setView((v) => ({ ...v, m: Number(e.target.value) }))}
-            >
-              {Array.from({ length: 12 }, (_, m) => (
-                <option key={m} value={m}>
-                  {monthFormat.format(utc(2026, m, 1))}
-                </option>
-              ))}
-            </select>
-            <select
-              aria-label={t('formRenderer.year')}
-              className="rounded border border-border bg-panel px-2 py-1.5 text-sm text-ink"
-              value={view.y}
-              onChange={(e) => setView((v) => ({ ...v, y: Number(e.target.value) }))}
-            >
-              {years.map((y) => (
-                <option key={y} value={y}>
-                  {y}
-                </option>
-              ))}
-            </select>
-            <button type="button" className={navClass} onClick={() => shiftMonth(1)} aria-label={t('formRenderer.nextMonth')}>
-              <Chevron direction={rtl ? 'left' : 'right'} />
-            </button>
+      <div className="grid grid-cols-7 gap-1 text-center">
+        {weekdays.map((w) => (
+          <div key={w} className="truncate pb-1 text-micro text-ink-soft">
+            {w}
           </div>
-
-          <div className="grid grid-cols-7 gap-1 text-center">
-            {weekdays.map((w) => (
-              <div key={w} className="truncate pb-1 text-micro text-ink-soft">
-                {w}
-              </div>
-            ))}
-            {cells.map((day, index) => {
-              if (day === null) return <div key={`blank-${index}`} />;
-              const iso = `${view.y}-${pad(view.m + 1)}-${pad(day)}`;
-              const isSelected = iso === value;
-              const isToday = iso === today;
-              const isAfterMax = !!maxDate && iso > maxDate;
-              return (
-                <button
-                  key={iso}
-                  type="button"
-                  disabled={isAfterMax}
-                  onClick={() => pick(iso)}
-                  aria-pressed={isSelected}
-                  aria-label={longFormat.format(utc(view.y, view.m, day))}
-                  className={`h-10 rounded text-sm disabled:cursor-not-allowed disabled:opacity-30 ${
-                    isSelected
-                      ? 'bg-accent font-semibold text-accent-ink'
-                      : isToday
-                        ? 'border border-accent text-ink hover:bg-bg'
-                        : 'text-ink hover:bg-bg'
-                  }`}
-                >
-                  {day}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+        ))}
+        {cells.map((day, index) => {
+          if (day === null) return <div key={`blank-${index}`} />;
+          const iso = `${view.y}-${pad(view.m + 1)}-${pad(day)}`;
+          const isSelected = iso === value;
+          const isToday = iso === today;
+          const isAfterMax = !!maxDate && iso > maxDate;
+          return (
+            <button
+              key={iso}
+              type="button"
+              disabled={isAfterMax}
+              onClick={() => onPick(iso)}
+              aria-pressed={isSelected}
+              aria-label={longFormat.format(utc(view.y, view.m, day))}
+              className={`h-11 rounded-ui-md text-sm disabled:cursor-not-allowed disabled:opacity-30 ${
+                isSelected
+                  ? 'bg-accent font-bold text-accent-ink'
+                  : isToday
+                    ? 'border border-accent text-ink hover:bg-bg'
+                    : 'text-ink hover:bg-bg'
+              }`}
+            >
+              {day}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -247,5 +279,50 @@ function Chevron({ direction }: { direction: 'left' | 'right' }) {
     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d={direction === 'left' ? 'M15 18l-6-6 6-6' : 'M9 6l6 6-6 6'} />
     </svg>
+  );
+}
+
+/**
+ * A compact date button ("Today · 7 November") that opens the calendar in a dialog - for the
+ * administration panels (23 assign, 24 "Up to"), where the full field doesn't fit.
+ */
+export function DateButton({
+  value,
+  onPick,
+  title,
+  maxDate,
+  placeholder,
+  className = '',
+}: {
+  value: string | null;
+  onPick: (iso: string) => void;
+  title: string;
+  maxDate?: string;
+  /** Shown when there is no date (e.g. "No end date"). */
+  placeholder?: string;
+  className?: string;
+}) {
+  const { t, i18n } = useTranslation();
+  const [open, setOpen] = useState(false);
+  const locale = i18n.language.startsWith('ar') ? 'ar-u-nu-latn' : i18n.language;
+  const text = value
+    ? (value === todayIso() ? `${t('formRenderer.today')} · ` : '') + new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(`${value}T00:00:00Z`))
+    : (placeholder ?? '');
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(true)} aria-label={`${title}: ${text}`} className={`rounded-ui-md border border-border bg-panel px-2 text-[14px] ${value ? 'text-ink' : 'text-ink-soft'} ${className}`}>
+        {text}
+      </button>
+      <Sheet open={open} onClose={() => setOpen(false)} title={title} desktopWidth={400}>
+        <CalendarPanel
+          value={value ?? todayIso()}
+          maxDate={maxDate}
+          onPick={(iso) => {
+            onPick(iso);
+            setOpen(false);
+          }}
+        />
+      </Sheet>
+    </>
   );
 }

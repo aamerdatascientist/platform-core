@@ -3,7 +3,197 @@
 Update this file at the end of every session - what changed, what's next. Keep CLAUDE.md
 itself stable; this is where the narrative goes.
 
-## Current state - 2026-10-26 (read this first)
+## Current state - 2026-11-07 (read this first): Asas v2.0 complete on staging
+
+**Everything is in `docs/releases/ASAS-v2.0.md`** - what v2.0 contains, all ten redesign phases, the
+six migrations, the API changes, how it was tested and the production release checklist.
+
+- **Production** (`main`, `https://asasksa.co`) is unchanged since 2026-11-03 (`8544610`) = v1.x.
+- **Staging** (`feature/redesign` = `staging`, `https://staging.asasksa.co`) runs v2.0: the new
+  features (stricter lookups, form assignments, Telegram + WhatsApp reminders, stakeholder PDF reports
+  with Claude's analysis) and the full redesign (handoff `docs/redesign/HANDOFF.md`, phases 1-10 built
+  2026-11-06/07 - log of schema/API changes per phase in `docs/redesign/PLAN.md`).
+- Staging's database has all six v2.0 migrations (backups taken before each of the last two:
+  `asas-staging-backup-2026-11-07-before-form-steps.dump`, `...-before-receipts.dump`); the daily
+  progress report is split into three steps there.
+- **2026-11-07, after phase 10, from the owner's checks on staging:** Form assignments page gave a 500
+  (date overflow in the tracker, `40898d2`, regression tests added); "Assign a form" card narrower than
+  the page on a phone (`ea1b7b4`); Meta approved the three WhatsApp templates, so WhatsApp was switched
+  on (`9cb19c9`); the owner confirmed WhatsApp works on staging.
+- **WhatsApp number:** staging uses Meta's free test number (only 5 confirmed recipients, added in
+  Meta > API Setup > "To"). The owner is getting a business number (a SIM or company number registered
+  in WhatsApp Manager, same WhatsApp account as the approved templates); then only
+  `WhatsApp__PhoneNumberId` changes. Steps in `docs/STAGING.md` "WhatsApp".
+- Tests: backend 260 (242 run on the Mac; 18 need Docker); browser suites 1,181 checks, all passing
+  locally and against the live staging site.
+
+### Open items - in priority order (2026-11-07)
+
+1. **Production release of v2.0** - only on the owner's word; checklist in `docs/releases/ASAS-v2.0.md` §7.
+2. **WhatsApp business number** (needed before production WhatsApp; staging works on the test number).
+3. **Rotate the Railway Postgres password and the Blob Storage account key** (overdue).
+4. **Expected completion is temporary** (project 119) until the client plans the stages after structure.
+5. Older gaps unchanged (see "Open items (2026-11-05)" below, item 5).
+6. Delete the session's database connection files (`pgpass.conf`, `*.conn`) when testing is done.
+
+## State on 2026-11-06
+
+### 2026-11-06 - stakeholder reports with Claude analysis (staging)
+
+- WhatsApp is being set up again (Meta test number works, templates `form_assigned` /
+  `form_reminder` submitted for review; token and phone number id in Azure, confirmed by error
+  132001 = template not approved yet). The Users page shows the WhatsApp button again (`f809bd5`).
+- Built on `feature/stakeholder-reports`: daily/weekly/monthly PDF reports for stakeholders with
+  Claude's analysis, sent on WhatsApp at 18:00. See CLAUDE.md "Stakeholder reports" and
+  docs/STAGING.md for the setup (Gotenberg on Railway, Anthropic key, template
+  `stakeholder_report`). Owner's estimate approved: ~$8-10/month on Opus 5.5, hard cap $15.
+- Tests: 173 pass (26 new). The 18 Testcontainers tests need Docker, which this Mac doesn't have.
+- Still to do: the owner sets up Railway/Anthropic/the template; first preview and send on staging;
+  production later with its own release (migration first).
+
+## State on 2026-11-05
+
+### 2026-11-05 evening - Telegram reminders (staging), work moved to a Mac
+
+- **Owner's call:** WhatsApp setup with Meta didn't work out; SMS was priced (Msegat/Unifonic
+  ~0.05 SAR, Arabic bills as 2 SMS, sender name needs registration) and set aside; **Telegram for
+  now** - free, no approvals. WhatsApp code stays, switched off.
+- Built on `feature/telegram-notifications`: link a Telegram chat per user (Settings > Reminders >
+  Connect Telegram, or Users > Telegram > Create link), assignment + reminder messages with a
+  button to the form, test message, `/stop`. Migration `AddTelegramNotifications`. Details:
+  CLAUDE.md "Telegram notifications", setup: `docs/STAGING.md` "Telegram".
+- Fixed with it: `Notifications__ReminderTimes__N` now replaces the default times (moved from
+  `WhatsApp__ReminderTimes`, which appended); `WhatsApp__AppUrl` is now `Notifications__AppUrl`.
+- Tests: 153 pass (20 new). Also `037b6e0`: a test formatted a date in the machine's culture and
+  failed on Saudi-region machines (Hijri year) - invariant culture now.
+- The owner now works on a Mac: repo clones in `~/Desktop/platform-core/{staging,production}`;
+  .NET 10, Node 24, PostgreSQL 18 client tools, PowerShell 7 installed in the home folder
+  (`~/.dotnet`, `~/.local/...`), no admin rights. Git there needs
+  `DEVELOPER_DIR=/Library/Developer/CommandLineTools` until the Xcode license is accepted.
+
+### Where the code is - two lines of history, read before deploying anything
+
+- **`main` = production** (`https://asasksa.co`), at `8544610` since 2026-11-03. It got the six
+  dashboard commits by **cherry-pick** (branch `release/dashboard-2026-11-03`), not by merging the
+  working branch, so the same changes exist on both lines under different commit ids.
+- **`chore/dotnet-10` = the working branch, = `staging`** (`https://staging.asasksa.co`), at
+  `43dd17b`. It holds everything on `main` plus three things **held back from production** on the
+  owner's instruction (2026-11-03: "hold off the last assignment feature"):
+  1. `4446b91` + `3e3f3eb` (2026-10-26): Lookups must exist and belong to the chosen project;
+     optional "no duplicates" text rule (`unique` / `uniqueWithin`). Described further down
+     ("Fixed 2026-10-26 evening").
+  2. `dadb038` + `59d5ade`: daily **form assignments** and the "filled or not" tracking page.
+  3. `43dd17b`: **WhatsApp notifications** for assignments (off until configured).
+- The next production release of those is a **merge** of `chore/dotnet-10` into `main` (not a
+  fast-forward any more; the cherry-picked commits merge cleanly as already-applied changes), and
+  **two migrations must be applied to the production database first** - see "Production release
+  checklist" below.
+
+### 2026-11-02 to 2026-11-05 - what happened
+
+**Production data.** The client started real data entry on 2026-11-02 (project `119`, its zones,
+footings and floors PG/01/02/03/04/05, then one daily report a day by Qasim). Real daily reports
+on production so far: 2026-11-02 floor 03, 2026-11-03 / 11-04 / 11-05 floor 04 (structural). The
+owner confirmed the jump from floor 03 to floor 04 is correct - leave it.
+
+**Project 119 history backfill.** Data entry started mid-project (around day 5 of floor 03), so the
+dashboard had no history. On the owner's direction:
+- **Staging first (2026-11-02):** staging's form data was replaced with a copy of production's,
+  then **273 generated daily reports** were added, one per working day 2026-01-20 .. 2026-11-01
+  (Fridays and these Saudi holidays skipped: 02-22, 03-19..22, 05-26..29, 09-23), plus parallel
+  electrical/plumbing reports. Owner's rules for the generated data: follow the client's plan; all
+  the lateness is before the floors (~78 working days late in paperwork, ~34 in
+  excavation/foundation); floors PG/01/02 ran exactly to plan (17 days each); floor 03 started
+  2026-10-31; electrical and plumbing done on PG/01/02 (MEP rooms floor_1..floor_3); **no
+  problems** on any generated row (no proof to back them); weather a seasonal mix with rain on
+  exactly six days (01-26, 02-12, 03-30, 04-20, 10-20, 10-29); created by Qasim at a plausible
+  afternoon time.
+- Every generated row has `Extensions = '{"backfill":"2026-11-02"}'`. Remove them all with
+  `DELETE FROM "Data_DailyProgressReport" WHERE "Extensions" = '{"backfill":"2026-11-02"}'`.
+- The generator is deterministic (same ids every run): `scripts/data/backfill-project-119.mjs`
+  (`node scripts/data/backfill-project-119.mjs > backfill.sql`).
+- **Production (2026-11-03, owner approved):** backup `asas-prod-backup-2026-11-03-before-backfill.dump`
+  (repo root, git-ignored), then the 273 rows were **copied from staging** (`\copy` out of staging,
+  `\copy` into production in one transaction that refused to commit unless exactly 273 backfill
+  rows, none dated on/after 2026-11-02, and exactly the 2 real rows existed). Inserts only - the
+  real rows were not touched. Staging's own form data was **not** cleared on production (the
+  "replace" step was staging-only).
+- **Project 119 expected completion** changed from 2027-12-01 to **2026-09-15** on staging
+  (2026-11-03) and production (2026-11-03, owner's explicit OK). Owner's rule, temporary: the plan
+  through the end of structure plus electrical/plumbing = 180 working days, +10% slack = 198
+  working days from the 2026-01-20 start, Fridays and holidays skipped. The rest of the project
+  (finishes etc.) is not in the plan yet.
+
+**Dashboard (Executive Overview) - live on production since 2026-11-03.**
+- **Client's plan** in `OverviewProgressPlan` (`ExecutiveOverviewCalculator.cs`): paperwork
+  milestones design approval 10 / permit application 8 / utility approvals 5 / final permit 3
+  days; excavation 18 days per zone; foundation 14 per footing; structure 17 per floor; MEP 6
+  days per trade (3 trades) per floor, alongside structure. `Slack = 0.10`. Work complete = days
+  earned (a unit's plan-met days, capped at its planned days) / planned days.
+- **Charts:** the plan-met line is a rounded monotone curve (never overshoots its points); worker
+  columns show their values. Weather chart hides a condition with fewer than 5 reports
+  (`MinimumReportsPerWeather`) - owner asked about it, decided to keep it.
+- **New KPIs** (tiles are 8 columns now, labels/details wrap to two lines):
+  - *Forecast finish* - the chain paperwork -> excavation -> foundation -> structure, plus a 6-day
+    MEP tail for the top floor; work left / plan-met share of the last 30 days, counted forward in
+    working days (Friday off). Target = project's expected completion, or for a stage its start +
+    planned days x 1.1. Tone: on/before target good, <= 30 days late amber, more red.
+  - *Days late* - working days on which no report in scope met its plan. <= 5 good, <= 15 amber.
+  - *Lateness* - days late / worked days. < 10% good, <= 25% amber.
+  - Thresholds live in `OverviewKpiThresholds`; tile edge colour via `tone`.
+- **Stage filter** (`phase` query parameter on `/api/analytics/executive-overview` and the public
+  endpoint; `<select>` on the page): every KPI then reads that stage only.
+- Arabic subtitle fixed ("التقارير اليومية من {{from}} حتى {{asOf}}", `dir="auto"`).
+- `GetExecutiveOverviewQueryHandlerTests` had been failing since `8c40205` (old plan numbers);
+  fixed.
+
+**Form assignments - staging only (2026-11-03).** Owner's choices: recurring daily; a
+"My assignments" page for users. An administrator assigns a published form to users from a
+start date (optional end date); each working day (Sat-Thu, Saudi calendar) the user is due to
+submit it once. "Filled" = the user created a row in that form's table that Saudi day.
+- Pages: `/assignments` (everyone, sidebar link: today and the 13 days before);
+  `/admin/assignments` (assign, list, stop); `/admin/assignments/status` (one day, default today,
+  filters user/form/status; shows filled at, WhatsApp reminders, assigned at/by). Settings links
+  to both admin pages.
+- Tested on staging by the owner: Qasim assigned the daily report, "due today" on his phone. That
+  assignment was stopped the same day (EndDate 2026-11-03).
+
+**WhatsApp notifications - staging only, switched off (2026-11-03).** Owner wanted fast, cheap,
+not email; compared SMS / WhatsApp / push / Telegram on cost and chose WhatsApp ("we can then add
+an agent later"). Meta Cloud API, ~0.04 SAR per utility message. A message on assignment, and
+reminders at 09:00 and 14:00 Saudi time on working days to anyone whose form for today isn't
+filled. Each user has a mobile number (Users page > WhatsApp, with "Send a test message").
+**Nothing is sent until the Meta setup is done** - steps in `docs/STAGING.md` "WhatsApp".
+
+### Production release checklist (assignments + WhatsApp + lookup rules), when the owner says so
+
+> **Replaced 2026-11-07** by the v2.0 checklist in `docs/releases/ASAS-v2.0.md` §7 (six migrations
+> now, not two; branch `feature/redesign`, not `chore/dotnet-10`). Kept below for history.
+
+1. Back up production (`dump.sh`-style `pg_dump -Fc`, or `scripts/db/backup-db.ps1`).
+2. Apply migrations `20261103115509_AddFormAssignments` and `20261103124525_AddWhatsAppNotifications`
+   to production (`dotnet ef migrations script 20261004120000_AddFieldDynamicOptionsSource
+   20261103124525_AddWhatsAppNotifications --idempotent` and run it). The API does **not** migrate
+   on startup, and the new code queries the new tables.
+3. Merge `chore/dotnet-10` into `main` and push (deploys both apps).
+4. WhatsApp stays off on production until `WhatsApp__*` settings are added there; use a real
+   business number (business verification, display-name approval, payment method) - the test
+   number only reaches 5 verified numbers.
+
+### Open items - in priority order (2026-11-05)
+
+1. **Owner review of assignments + WhatsApp on staging**, then the release checklist above.
+2. **WhatsApp go-live on staging**: Meta app, test number, the two Arabic templates approved,
+   permanent token, three App Service settings (see `docs/STAGING.md`).
+3. **Rotate the Railway Postgres password and the Blob Storage account key** (overdue).
+4. **Expected completion is temporary** - replace once the client gives the plan after structure
+   (finishes etc.), and add those stages to `OverviewProgressPlan`.
+5. Still open from before: `find-not-null-columns.sql` on production; the gaps listed under the
+   A-Z test (expected completion after start, stock outflow over stock in, page-size cap, photo
+   enforced only by the page); renaming/deleting a field another field's visibility depends on;
+   first-admin bootstrap; no builder panel for dynamic dropdown sources; no workflow designer.
+
+## Earlier state - 2026-10-26
 
 ### 2026-10-26 (night, ~00:50 Saudi time)
 
@@ -58,7 +248,7 @@ itself stable; this is where the narrative goes.
 - **Production after the 02:02 deploy** (started 02:04:28, warm-up done 02:05:02): first hits on
   every form's definition 0.4-0.7 s and records 0.5-0.6 s (were 4-11 s), session renewal on page
   load 1.4 s. Staging's test records (PERF-TEST) and their 13 files were deleted afterwards.
-- **Status pages and plain-language errors (staging only so far, branch `chore/dotnet-10`):**
+- **Status pages and plain-language errors (on production since 2026-10-26 ~20:25 Saudi time):**
   `components/StatusPage.tsx` - 401 "session ended" (shown once when the server refuses to renew
   the sign-in, never on a chosen sign-out; `tokenStore.endSession`), 403 (admin pages, restricted
   forms; was a silent redirect home), 404 (unknown addresses, missing forms; was a blank page),
@@ -78,12 +268,22 @@ itself stable; this is where the narrative goes.
     (every field's type, rules, conditions, options compared).
   - **Fixed:** a number sent as text ("1e3", "12.5") passed validation and then crashed the
     insert with a 500; `Normalize` now passes parsed numbers and only plain digits count.
-  - **Gaps found, not fixed (need a decision):** a Lookup accepts any well-formed id - one that
-    doesn't exist, and a zone/floor/footing from another project; project codes and zone codes
-    can be duplicated (seen as two "AZ-Z1" in the dropdown); no "expected completion after start"
+  - **Fixed 2026-10-26 evening (gaps 1 and 2; staging, tested):** `Forms/SubmissionDataChecks.cs`
+    runs on every submission and record edit. A Lookup must point at an existing record, and a
+    filtered one (zone/floor/footing) at a record of the project picked on the same submission
+    (`submission.choiceMissing` / `submission.choiceMismatch`). New ShortText rule
+    `unique` + optional `uniqueWithin` (trimmed, case-insensitive; `submission.duplicate`), in the
+    builder's rules panel and in `apply-field-rules.ps1`: project_code unique; zone/floor/footing
+    codes unique within their project. Messages show under the field in EN/AR. Adds ~2 round
+    trips to a submit (daily report ~0.55-0.65 s on warm staging). Not enforced by a database
+    index, so two simultaneous identical submissions could both get in. Rows that were already
+    duplicated before the rule stay, and editing one of them then asks for a different code.
+    Editing an old record whose zone was later deleted is refused until a current zone is picked.
+  - **Gaps still open (need a decision):** no "expected completion after start"
     rule; stock outflow can exceed what came in; the records list has no page-size cap; the
     required site photo is only enforced by the page (the record is saved first, the photo after).
-  - **Production has no form data at all** (0 rows in all seven forms). Not from tonight: the
+  - **Production had no form data at all** on 2026-10-26 - real entry started 2026-11-02, see
+    the top of this file (0 rows in all seven forms). Not from tonight: the
     00:52 backup taken before the region move already had these seven tables empty while
     everything else matched 21 Oct - the agreed `clear-all-form-data.sql` was run in between.
     Until projects (and their zones/floors/footings) are entered, nobody can submit a daily
@@ -223,7 +423,7 @@ on `Postgres-staging` first. `scripts/db/query-timing.ps1` (read-only; reads the
 from the clipboard) shows Postgres's own query times and the round trip from the machine
 running it.
 
-### Open items - in priority order
+### Open items as of 2026-10-26 (superseded by the 2026-11-05 list at the top)
 
 0. ~~Merge PR #32~~ - **done 2026-10-24** (pushed to `main`; staging work and sign-in speed fixes live).
 0b. ~~Move the production database to Singapore~~ - **done 2026-10-26** (see top of file).
@@ -235,7 +435,7 @@ running it.
    changes made before 2026-10-20 would still block submissions.
 3. **Review the daily-report records**: some look like test entries (e.g. "000" as the delay
    cause). Delete the real test ones from the records list.
-4. **Get real planned durations** from the client for the dashboard's work-complete figure.
+4. ~~**Get real planned durations**~~ - **done 2026-11-02** (client's plan in `OverviewProgressPlan`).
 5. Watch the **sign-in rate limit** (20 attempts per 5 minutes per IP): a site office whose
    workers share one internet address could hit it if many sign in at once.
 6. Known gaps still open (details in CLAUDE.md): first-admin bootstrap; no guard when renaming

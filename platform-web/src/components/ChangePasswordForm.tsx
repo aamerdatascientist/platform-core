@@ -3,6 +3,8 @@ import { useTranslation } from 'react-i18next';
 import { api, ApiError } from '../api/client';
 import { setTokens } from '../auth/tokenStore';
 import { useErrorMessage } from '../hooks/useErrorMessage';
+import { Icon } from './icons';
+import { Button, FieldShell, TextInput } from './ui';
 
 interface ChangePasswordFormProps {
   token: string;
@@ -12,7 +14,7 @@ const MIN_LENGTH = 10;
 
 /**
  * Change your own password - open to everyone signed in, project managers included; shown
- * on the Settings page. On success the server signs out every other device of this account
+ * at /account (Settings > Account > Change password). On success the server signs out every other device of this account
  * and hands this one a fresh sign-in, which is stored straight away so the page carries on
  * working.
  */
@@ -50,58 +52,37 @@ export function ChangePasswordForm({ token }: ChangePasswordFormProps) {
     }
   }
 
-  const inputClass = 'w-full rounded border border-border bg-bg px-3 py-2 text-sm focus:border-accent focus:outline-none';
+  const fields: [string, string, string, (v: string) => void, string][] = [
+    [t('account.currentPassword'), current, 'current-password', setCurrent, 'current'],
+    [t('account.newPassword', { min: MIN_LENGTH }), next, 'new-password', setNext, 'next'],
+    [t('account.repeatPassword'), repeat, 'new-password', setRepeat, 'repeat'],
+  ];
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-md space-y-4" noValidate>
-      <p className="text-sm text-ink-soft">{t('account.subtitle')}</p>
-      <label className="block text-sm font-medium text-ink">
-        {t('account.currentPassword')}
-        <input
-          type="password"
-          autoComplete="current-password"
-          className={`mt-1 ${inputClass}`}
-          value={current}
-          onChange={(e) => setCurrent(e.target.value)}
-        />
-      </label>
-      <label className="block text-sm font-medium text-ink">
-        {t('account.newPassword', { min: MIN_LENGTH })}
-        <input
-          type="password"
-          autoComplete="new-password"
-          className={`mt-1 ${inputClass}`}
-          value={next}
-          onChange={(e) => setNext(e.target.value)}
-        />
-      </label>
-      <label className="block text-sm font-medium text-ink">
-        {t('account.repeatPassword')}
-        <input
-          type="password"
-          autoComplete="new-password"
-          className={`mt-1 ${inputClass}`}
-          value={repeat}
-          onChange={(e) => setRepeat(e.target.value)}
-        />
-      </label>
+    <form onSubmit={handleSubmit} className="flex flex-col gap-[18px]" noValidate>
+      <p className="text-[15px] text-ink-soft">{t('account.subtitle')}</p>
+      {fields.map(([label, value, autoComplete, set, key]) => (
+        <FieldShell key={key} label={label}>
+          {({ inputId }) => (
+            <TextInput id={inputId} type="password" autoComplete={autoComplete} value={value} onChange={(e) => set(e.target.value)} />
+          )}
+        </FieldShell>
+      ))}
       {error && (
-        <p className="text-sm text-danger" role="alert">
-          {error}
+        <p className="flex items-start gap-1.5 rounded-ui-lg bg-danger-soft px-3 py-2 text-[14px] text-danger" role="alert">
+          <Icon name="alert" size={16} className="mt-0.5" />
+          <span>{error}</span>
         </p>
       )}
       {done && (
-        <p className="rounded border border-success p-3 text-sm text-ink" role="status">
+        <p className="flex items-center gap-2 rounded-ui-lg bg-success-soft px-3 py-2 text-[15px] text-success-strong" role="status">
+          <Icon name="check" size={18} />
           {t('account.changed')}
         </p>
       )}
-      <button
-        type="submit"
-        disabled={saving}
-        className="w-full rounded bg-accent px-4 py-2 text-sm font-medium text-accent-ink hover:opacity-90 disabled:opacity-50 sm:w-auto"
-      >
+      <Button type="submit" disabled={saving} block>
         {saving ? t('common.saving') : t('account.change')}
-      </button>
+      </Button>
     </form>
   );
 }

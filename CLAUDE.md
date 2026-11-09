@@ -5,8 +5,13 @@ React/TS frontend. First customer is a construction company; the platform itself
 to be industry-agnostic. Full rationale: see chat history / architecture doc if available,
 or ask before re-deriving decisions below from scratch.
 
-**Current phase and what to do next: see `docs/PROJECT_STATUS.md`.** That file changes
+**Current phase and what to do next: see `docs/PROJECT_STATUS.md`** (and `docs/KNOWLEDGE_TRANSFER.md`
+for the latest hand-over: branches, data, held-back features). That file changes
 often; this one shouldn't. Read it before starting work each session.
+
+**Versions:** production runs **v1.x**. **Asas v2.0** (new features + the full redesign, ten phases)
+is complete on staging and waits for the owner's word - everything in it, the six migrations and the
+production release checklist are in **`docs/releases/ASAS-v2.0.md`**.
 
 ## Core architectural decision - do not relitigate without discussion
 
@@ -131,11 +136,32 @@ feature's three):
    as `VisibleWhenFieldCode`/`FilterByFieldCode`. Same "easy to miss, no error if you do" risk.
 
 **Known gap**: no admin UI yet to configure this from the Form Builder screen
-(`AddFieldForm.tsx`/`FieldEditorRow.tsx`; the lookup-filter panel exists, this one doesn't) -
+(`AddFieldForm.tsx`/`components/builder/FieldSettings.tsx`; the lookup-filter card exists, this one doesn't) -
 the two Stock Module forms were created directly via the API (`scripts/seed-stock-inflow-outflow-forms.ps1`), which is
 why this shipped without one. Worth adding a panel mirroring the existing lookup-filter one
 (pick a form, then pick a field on it) before the next form that needs this is built by hand
 through the builder instead of a script.
+
+### Steps and English labels (redesign §9.1/§9.2) - added 2026-11-07, staging
+
+- `FormStep` (per `FormVersion`: `TitleAr`, `TitleEn?`, `DisplayOrder`) + `FieldDefinition.StepId?`
+  (SET NULL) and `LabelEn?`, `FormDefinition.NameEn?`; option `labelEn` lives inside `OptionsJson`.
+  Migration `AddFormStepsAndEnglishLabels` (applied to staging only). **Presentation only**: no column,
+  no `Data_*` table, no `Report_*` view depends on them - the views keep aliasing columns from the
+  Arabic `Label`, so `LabelEn` never needs a view refresh.
+- All edits are Safe (metadata) and go through `ResolveFieldEditTarget`: `PUT api/forms/{id}/name`,
+  `PUT .../fields/{fieldId}/label` (`labelEn`: null = unchanged, "" = clear), `PUT .../option-labels`
+  (relabel/reorder only - the set of values must not change), `POST/PUT/DELETE .../steps`,
+  `PUT .../steps/order`, `PUT .../fields/{fieldId}/step`. Deleting a step moves its fields to the
+  previous step (next one if it was first). New steps are `_db.FormSteps.Add`ed explicitly (EF gotcha).
+- **Keep in sync:** `FormVersion.CreateDraftFrom` copies the steps (new ids) and re-points each copied
+  field's `StepId`, and every loader that can start a version must `Include(v => v.Steps)`
+  (`StartNewFormVersionCommand`, `FormEditLoading.LoadFormForEditAsync`). Forget either and a new
+  version silently flattens into one step.
+- Frontend: `forms/localized.ts` picks the UI language and falls back to the other (never blank);
+  fields without a step (or with a missing one) go into the first step. Drafts: `forms/draftStore.ts`
+  (`draft:{userId}:{formId}` in localStorage, photos in IndexedDB `asas-drafts`).
+- The daily report's 3 steps were made by `scripts/data/seed-daily-report-steps.mjs` (API, idempotent).
 
 ## Form access control (role/user-based) - verified in the browser UI, 2026-10-04
 
@@ -206,9 +232,160 @@ that is intended, not a leak. Since 2026-10-20 all of `/api/analytics/*` is admi
 and the dashboard link shows for administrators only (Project managers don't see the dashboard).
 Don't add a second anonymous data endpoint by copying this one without the same key check.
 
-**Since 2026-10-21 the sidebar holds only the forms plus one Settings link.** Everything else -
+**Reversed 2026-11-06 (redesign, decision 1):** admin pages are back in the desktop side menu under
+"Administration", and the app has two shells - below 1024px a phone shell with a bottom tab bar (Today,
+Forms, My entries, Settings), from 1024px a 264px side menu with Ctrl/Cmd+K search
+(`routes/Layout.tsx`, `components/shell/`). Settings still lists the admin pages on a phone. The redesign
+spec is `docs/redesign/HANDOFF.md`; shared components are in `components/ui/` (pages that load data use
+`LoadingState` / `ErrorState` with Try again, and `EmptyState` - not a bare spinner or red line; on a phone
+`index.css` gives every tappable element a 44×44 hit area). Superseded:
+~~Since 2026-10-21 the sidebar holds only the forms plus one Settings link.~~ Everything else -
 account and password, sign out, language, light/dark, and the admin-only dashboard / form
 builder / users & roles - is on `/settings` (`routes/Settings.tsx`); `/account` redirects there.
+
+### Executive Overview: the client's plan, lateness KPIs, stage filter - added 2026-11-02/03
+
+All the numbers come from `ExecutiveOverviewCalculator.cs` (pure, unit-tested; the query only
+loads rows). Three static classes there are the knobs:
+- `OverviewProgressPlan` - the **client's plan** (2026-11-02): paperwork milestones
+  `design_approval` 10 / `permit_application` 8 / `utility_approvals` 5 / `final_permit` 3
+  working days; 18 per zone (excavation), 14 per footing (foundation), 17 per floor (structural),
+  6 per MEP trade per floor (3 trades, alongside structure); `Slack = 0.10`. A unit "earns" its
+  plan-met report days, capped at its planned days; work complete = earned / planned.
+- `OverviewKpiThresholds` - one place for the green/amber/red cut-offs (forecast <= 0 / <= 30
+  days late; days late <= 5 / <= 15; lateness < 10% / <= 25%). The API sends a `tone`
+  (`good`/`warn`/`bad`) per tile; the page never decides colours itself.
+- Forecast: chain paperwork -> excavation -> foundation -> structural + a 6-day MEP tail, pace =
+  plan-met share of the last 30 days (`ForecastPaceDays`), counted forward with `AddWorkingDays`
+  (skips **Fridays only**, not holidays). Target = project expected completion, or a stage's
+  start + planned days x 1.1.
+
+`GET /api/analytics/executive-overview?projectId=&phase=` (and the public endpoint) take an
+optional `phase` (`paperwork|excavation|foundation|structural|mep`); every KPI then reads that
+stage only. Time elapsed is capped at 100%. Weather chart needs >= 5 reports per condition. The
+stage is still a fixed 1760x990 canvas - tile text uses `line-clamp-2`, never `sm:`/`lg:`.
+
+**Project 119 history is generated, not real**: 273 rows dated 2026-01-20..2026-11-01 tagged
+`Extensions = '{"backfill":"2026-11-02"}'` (generator `scripts/data/backfill-project-119.mjs`).
+Real data starts 2026-11-02. Never treat those rows as client input; delete by that tag if asked.
+
+## Form assignments + WhatsApp reminders - added 2026-11-03, staging (Asas v2.0, not yet in production)
+
+- `FormAssignment` (static schema, `AuditableEntity`): `FormDefinitionId`, `UserId`, `StartDate`,
+  `EndDate?` (`DateOnly`, Saudi calendar), `Note`. Recurring **daily**: due once per working day
+  (Saturday-Thursday; `FormAssignmentTracker.IsWorkingDay` - Friday is the only day off, no
+  holiday list). `Stop` soft-deletes one that hasn't started, else sets `EndDate = today`.
+- **"Filled" is read from the form's own dynamic table**, not stored: a row the user created
+  (`CreatedByUserId`) that Saudi day - `IDynamicDataRepository.GetSubmissionStampsAsync`. Status
+  per day: `filled` / `missed` (day over) / `pending` (today). Names are resolved with
+  `IgnoreQueryFilters` so history survives removed users/forms.
+- Creating refuses unpublished forms, inactive users and users without access to the form
+  (`FormAccessChecker.HasAccess`), and skips users with an overlapping assignment.
+- API `api/form-assignments`: `GET mine` (any signed-in user); administrators: `GET /`,
+  `GET days?from&to&userId&formId` (max 366 days), `POST /`, `POST {id}/stop`.
+- Pages (since the v2.0 redesign): **Today** at `/` shows each person's assignments (`/assignments`
+  redirects there); `/admin/assignments` is one page - today's summary with "Remind those who haven't
+  filled" (`POST remind-pending`, kind `manual`, once a day), the 14/30/60-day grid and the assign
+  panel (`/admin/assignments/status` redirects there).
+- **Ranges:** `FormAssignmentTracker.LoadAsync` reads stamps up to `to + 1 + LateSendDays` (entries
+  sent late from the offline queue count for the day they were entered). Callers asking for an
+  open-ended range must not pass `DateOnly.MaxValue` blindly - use `AddDaysClamped` (a 500 on the
+  assignments list on 2026-11-07 came from exactly this).
+- **WhatsApp** (Meta Cloud API, `WhatsAppSender`, `HttpClient` to
+  `graph.facebook.com/{ApiVersion}/{PhoneNumberId}/messages`): template messages only.
+  `AssignmentNotifier` sends `form_assigned` on assignment and `form_reminder` from
+  `AssignmentReminderService` (BackgroundService, 1-minute timer; sends the latest passed
+  `WhatsApp:ReminderTimes` slot within 2 hours, default 09:00 and 14:00 Saudi). Every send is a
+  `NotificationLog` row inserted **before** sending; its unique index (AssignmentId, Kind,
+  ForDate) is the "send at most once" lock across restarts and instances - a duplicate-key
+  error means someone else claimed it. Off entirely while `WhatsApp:PhoneNumberId` or
+  `AccessToken` is empty (`IsConfigured`, checked at service start - a settings change restarts
+  the app anyway). `User.PhoneNumber` is stored as international digits without `+`
+  (`PhoneNumbers.Normalize`: 05XXXXXXXX -> 9665XXXXXXXX).
+- Migrations `AddFormAssignments`, `AddWhatsAppNotifications` - applied to staging only.
+- **WhatsApp status (2026-11-07):** Meta approved `form_assigned`, `form_reminder` and
+  `stakeholder_report` (Arabic); the client switch `platform-web/src/config/whatsapp.ts`
+  `WHATSAPP_READY` is `true` (set it to `false` to grey every WhatsApp control out with a
+  "not set up yet" note). Staging sends from Meta's **test number** (5 confirmed recipients, added in
+  Meta's API Setup "To" list); production needs a business number - `docs/STAGING.md` "WhatsApp".
+
+### Telegram notifications - added 2026-11-05 (both channels are on since WhatsApp went live 2026-11-07)
+
+- `AssignmentNotifier` sends each message on **every channel that is configured on the server
+  and linked for the user**: `telegram` (`User.TelegramChatId`) and `whatsapp`
+  (`User.PhoneNumber`). The send-once index is now (AssignmentId, Kind, ForDate, **Channel**).
+  One `Message` record carries both shapes: WhatsApp template parameters and Telegram text + a
+  URL button (omitted when `Notifications:AppUrl` isn't a full http(s) URL - Telegram refuses it).
+- Shared settings moved to the `Notifications` section: `AppUrl`, `ReminderTimes`. The array
+  starts **empty** and `EffectiveReminderTimes` supplies 09:00/14:00 - a pre-filled array made
+  the configuration binder *append* overrides instead of replacing them.
+- **Linking**: a bot can't message a phone number. `CreateTelegramLinkCommand` stores a random
+  32-char `User.TelegramLinkCode` (7 days) and returns `t.me/{BotUsername}?start={code}`;
+  `TelegramBotService` (BackgroundService, long-polls `getUpdates`, no webhook/public URL) hands
+  each message to `TelegramLinker`: `/start {code}` links the chat and clears the code, `/stop`
+  unlinks every user on that chat (private chats only).
+- **Groups - the way it's used (owner, 2026-11-05):** a bot can't message someone who never
+  pressed Start, so the administrator makes a group per engineer and uses the `startgroup` link
+  (`TelegramLinkDto.GroupUrl`, Users > Telegram > Link to a group): the bot joins, receives
+  `/start@Bot {code}` and that group's (negative) chat id becomes the user's `TelegramChatId`.
+  In groups the bot replies only to that, ignores `/stop`, and follows `migrate_to_chat_id`
+  when Telegram upgrades a group to a supergroup (new id). `UserSummaryDto.TelegramIsGroup`.
+- **One bot per environment.** Two servers polling one bot take each other's updates (409
+  Conflict, logged); a staging code arriving at production's poller would be "invalid".
+- Endpoints: `GET/POST link/DELETE api/me/telegram` (any signed-in user - Settings > Reminders);
+  admins: `POST api/users/{id}/telegram-link`, `DELETE api/users/{id}/telegram`,
+  `POST api/users/{id}/telegram-test`. The Settings button opens an empty tab inside the click
+  and points it at the link once fetched (pop-up blockers); it never fetches a link on page
+  load, since that would replace a link an admin just sent.
+- Migration `AddTelegramNotifications`. Settings `Telegram__BotToken`, `Telegram__BotUsername`.
+
+## Stakeholder reports (PDF + Claude analysis on WhatsApp) - added 2026-11-06, staging (Asas v2.0)
+
+- Owner's choices: one stakeholder gets every project; daily (Sat-Thu), weekly (Thursday) and
+  monthly (last day) at 18:00 Saudi; design "D" (dashboard charts + written analysis); WhatsApp
+  PDF; **Claude Opus 5.5 capped at $15/month**; PDFs by Gotenberg on Railway.
+- Flow (`StakeholderReportService.RunAsync`): `ReportRun` row first (scheduled runs unique on
+  (Kind, PeriodStart) - send-once lock) -> `ExecutiveOverviewLoader` (the dashboard's loading,
+  moved out of `GetExecutiveOverviewQueryHandler`, plus display labels) -> `StakeholderReportBuilder`
+  (pure; project status = `ExecutiveOverviewCalculator` per project, "at period start" = same call
+  with later reports left out) -> analysis -> `ReportHtmlRenderer` (A4 + phone) -> `GotenbergPdfRenderer`
+  (fonts embedded, sent with the page) -> blob `reports/...` -> `WhatsAppSender.SendDocumentAsync`
+  (upload media, template with a document header) per `ReportRecipient` -> `ReportDelivery` rows.
+- **Analysis honesty:** Claude gets only `ReportFigures.ToJson` (percentages as whole numbers,
+  differences precomputed) and must copy numbers, never compute. `ReportNumberCheck` rejects any
+  number not in the figures (0-10 allowed); one retry with the offending numbers, then the report
+  goes out without the analysis. Structured outputs fix the JSON shape.
+- **Budget:** before every Claude call, month-to-date `ReportRuns.CostUsd` (Saudi month) + worst
+  case (figures/2 + 4000 input tokens, `MaxOutputTokens` output) must stay <= `MonthlyBudgetUsd`,
+  else analysis `skipped-budget`. Cost is saved the moment Claude answers. Previews count too.
+- Scheduler `StakeholderReportScheduler`: off without `Reports:PdfServiceUrl`; makes a kind only
+  if an active recipient receives it. No server-side refusal fallback on purpose (a refusal just
+  means no analysis, and a fallback model could cost more than the cap assumes).
+- Admin page `/admin/reports`; API `api/reports` (administrators). Migration `AddStakeholderReports`.
+- **Security (2026-11-06), keep all of it:** form text is untrusted - `StakeholderReportBuilder.Clip`
+  (160 chars, no control characters) before Claude or the PDF; the prompt marks `<figures>` text as
+  data, never instructions; `ReportOutputCheck` rejects links, e-mails, markup/code, `{{ }}`,
+  unknown project codes, over-long text (retry once, then no analysis); Claude has no tools. Budget:
+  `ReportRun.ReserveCost` holds the worst case on `CostUsd` during the call, and a static
+  `SemaphoreSlim` makes check+reserve+call one step per process (one API instance - scaling out
+  needs a DB lock). `POST api/reports/run` is rate limited (10/hour/admin). Claude client: 3-minute
+  timeout, 1 retry. The relay URL holds a key: `Redact` strips it from every stored error. The
+  report HTML carries a CSP (no scripts, no network, fonts from `file:` only) and escapes all text.
+
+## Releasing to production - `main` and the working branch have diverged (2026-11-03)
+
+**Now (2026-11-07):** the working branch is **`feature/redesign`** (= `staging`); it holds all of
+Asas v2.0. Release it with the checklist in `docs/releases/ASAS-v2.0.md` section 7 (backup, six
+migrations, merge into `main`, seed the daily report's steps, production settings, check).
+
+History: production is `main`; the working branch used to be `chore/dotnet-10`, which was also what `staging`
+ran. On 2026-11-03 only the dashboard commits went to production, by cherry-pick
+(`release/dashboard-2026-11-03`), so `main` is no longer an ancestor of the working branch. To
+release only part of the working branch again, do the same: a branch from `origin/main`,
+cherry-pick, test, push to `main`. To release everything, merge. **Before any release that
+includes a migration, apply it to the production database first** (the API never migrates on
+startup). Back up production before any data change, and change production only on the
+owner's explicit word - staging is where things get tried.
 
 ## Hardening batch (2026-10-20) - field rules, record edits, sign-in, headers
 
@@ -249,7 +426,9 @@ deploys the API to `asas-api-staging` and the site to `asas-web-staging` at
 still the production deploy.
 The staging site is built with `--mode staging`, so it reads `platform-web/.env.staging`.
 Both API origins are in the one CSP `connect-src` - **a third environment, or a changed API
-URL, needs adding there too**. Staging shares production's App Service plan and storage
+URL, needs adding there too**. Staging's database is ahead of production's (six extra
+migrations - the Asas v2.0 list in `docs/releases/ASAS-v2.0.md`) and its form data was replaced with a copy of production's plus the
+project 119 backfill on 2026-11-02, so it lacks production's real reports from 2026-11-03 on. Staging shares production's App Service plan and storage
 account; it keeps its uploads apart through `Files:ContainerName` (`attachments-staging`;
 default `attachments`). Its database is separate - never point staging at the production
 database.
@@ -332,6 +511,21 @@ database.
   since the Postgres migration completed (see `docs/PROJECT_STATUS.md`) - don't
   reintroduce it as a reference point, and don't assume any Azure SQL-specific gotcha
   below this point still applies to the live database.
+- **Since 2026-11-05 the owner works on a Mac** (clones `~/Desktop/platform-core/{staging,production}`,
+  .NET in `~/.dotnet`, Node in `~/.local/node/bin`, no admin rights). Git needs
+  `DEVELOPER_DIR=/Library/Developer/CommandLineTools` until the Xcode licence is accepted, and the
+  system `python3` triggers the same licence prompt. zsh doesn't word-split `$var` (pass arguments
+  explicitly). Docker isn't available, so the 18 `DynamicSchemaServiceTests` can't run there.
+- **Claude Code running on Aamer's own Windows machine is different from the cloud sandbox:**
+  it CAN reach both Railway databases directly with the PostgreSQL 18 client tools
+  (`C:\Program Files\PostgreSQL\18\bin\psql.exe` / `pg_dump.exe`, `PGSSLMODE=require`). The
+  pattern used 2026-11-02/03: host/port/db/user in a `*.conn` file and the password in a
+  `pgpass.conf` in the session scratchpad, a tiny `q.sh <prod|staging> -c/-f` wrapper setting
+  `PGPASSFILE` - passwords never on a command line or printed. Writes to production are also
+  checked by Claude Code's auto-mode permission check: a production change the owner didn't name
+  explicitly gets refused - ask, don't work around it. Shell gotchas there: Git Bash heredocs
+  break on apostrophes in Arabic/English text (write scripts with the Write tool instead), and
+  some source files are CRLF (edit scripts must normalise and restore line endings).
 - **Code's sandbox can only reach the outside world over HTTPS, via its proxy - raw TCP
   database connections don't work at all**, regardless of provider. Confirmed for the
   Railway Postgres database (`metro.proxy.rlwy.net:36575`): DNS resolves fine, but the
@@ -710,6 +904,14 @@ code does not retroactively fix a column already created the wrong way - that ne
 for `Data_StockOutflow.reason_other`. Check any *new* form built field-by-field before its
 first publish (rather than incrementally after) for a conditionally-required field before
 this bites a third time.
+
+**Date arithmetic on an open-ended range overflows.** `DateOnly.MaxValue.AddDays(n)` (and the
+`DateTime` equivalent) throws `ArgumentOutOfRangeException`. Hit 2026-11-07: a query asked the
+assignment tracker for "every day up to `DateOnly.MaxValue - 1`", phase 9 then added 4 days for
+late-sent entries, and the Form assignments page returned 500 on staging - unit tests with stubbed
+data never reached that line. **Fix/convention:** cap open ranges at what's meaningful (today), and
+clamp when adding to a caller's date (`FormAssignmentTracker.AddDaysClamped`). Test new handlers
+with a form that has a data table, not only with stubs.
 
 ## The one rule that's mattered most
 

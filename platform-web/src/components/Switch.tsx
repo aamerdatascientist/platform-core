@@ -1,8 +1,9 @@
+import type { ReactNode } from 'react';
 interface SwitchProps {
   checked: boolean;
   onChange: () => void;
-  leftLabel: string;
-  rightLabel: string;
+  leftLabel: ReactNode;
+  rightLabel: ReactNode;
   /** 'dark' for the sidebar surface, 'light' for a panel/page background (e.g. the
    *  sign-in card) - same meaning as it had on LanguageToggle before this became the
    *  shared component both toggles are built from. */
@@ -38,7 +39,7 @@ export function Switch({ checked, onChange, leftLabel, rightLabel, tone = 'dark'
     <button
       onClick={onChange}
       dir="ltr"
-      className="flex items-center gap-1.5 text-xs uppercase tracking-wide"
+      className="flex items-center gap-1.5 text-xs"
       aria-label={ariaLabel}
     >
       <span className={checked ? classes.inactive : classes.active}>{leftLabel}</span>

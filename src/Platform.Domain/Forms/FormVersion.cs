@@ -20,6 +20,10 @@ public class FormVersion : AuditableEntity
     private readonly List<FieldDefinition> _fields = new();
     public IReadOnlyCollection<FieldDefinition> Fields => _fields.AsReadOnly();
 
+    private readonly List<FormStep> _steps = new();
+    /// <summary>The filling steps, in any order - sort by DisplayOrder. Empty = one default step.</summary>
+    public IReadOnlyCollection<FormStep> Steps => _steps.AsReadOnly();
+
     private FormVersion() { }
 
     public static FormVersion CreateInitialDraft(Guid formDefinitionId) => new()
@@ -40,6 +44,17 @@ public class FormVersion : AuditableEntity
 
         if (previous is null) return draft;
 
+        // Steps are copied too (new ids), and each copied field is pointed at its copied step
+        // below - forgetting either would silently flatten a multi-step form into one step the
+        // moment a new version is started, the same trap as VisibleWhenFieldCode.
+        var stepMap = new Dictionary<Guid, Guid>();
+        foreach (var step in previous._steps.OrderBy(s => s.DisplayOrder))
+        {
+            var copy = FormStep.Create(draft.Id, step.TitleAr, step.TitleEn, step.DisplayOrder);
+            draft._steps.Add(copy);
+            stepMap[step.Id] = copy.Id;
+        }
+
         foreach (var field in previous._fields.Where(f => f.IsActive))
         {
             // VisibleWhenFieldCode/VisibleWhenValuesJson/FilterByFieldCode carried forward
@@ -52,6 +67,9 @@ public class FormVersion : AuditableEntity
                 field.DisplayOrder, field.OptionsJson, field.LookupFormDefinitionId, field.ValidationRulesJson,
                 field.VisibleWhenFieldCode, field.VisibleWhenValuesJson, field.FilterByFieldCode,
                 field.DynamicOptionsSourceFormDefinitionId, field.DynamicOptionsSourceFieldCode));
+            var copied = draft._fields[^1];
+            copied.UpdateLabelEn(field.LabelEn);
+            copied.SetStep(field.StepId is { } sid && stepMap.TryGetValue(sid, out var newSid) ? newSid : null);
         }
 
         return draft;
@@ -70,7 +88,7 @@ public class FormVersion : AuditableEntity
         string? optionsJson, Guid? lookupFormDefinitionId, string? validationRulesJson,
         string? visibleWhenFieldCode = null, string? visibleWhenValuesJson = null,
         string? filterByFieldCode = null, Guid? dynamicOptionsSourceFormDefinitionId = null,
-        string? dynamicOptionsSourceFieldCode = null)
+        string? dynamicOptionsSourceFieldCode = null, string? labelEn = null, Guid? stepId = null)
     {
         if (_fields.Any(f => f.Code == code))
             throw new InvalidOperationException($"Field code '{code}' already exists on this version.");
@@ -99,6 +117,10 @@ public class FormVersion : AuditableEntity
             NextDisplayOrder(), optionsJson, lookupFormDefinitionId, validationRulesJson,
             visibleWhenFieldCode, visibleWhenValuesJson, filterByFieldCode,
             dynamicOptionsSourceFormDefinitionId, dynamicOptionsSourceFieldCode);
+        if (stepId is { } sid && _steps.All(s => s.Id != sid))
+            throw new InvalidOperationException("That step isn't on this form version.");
+        field.UpdateLabelEn(labelEn);
+        field.SetStep(stepId);
         _fields.Add(field);
         return field;
     }
@@ -144,6 +166,61 @@ public class FormVersion : AuditableEntity
         var removed = _fields.RemoveAll(f => f.Id == fieldId);
         if (removed == 0)
             throw new InvalidOperationException("Field not found on this version.");
+    }
+
+    // ------------------------------------------------------------------ steps (§9.2)
+    // All Safe operations: metadata only, valid on a live published version. A step that is
+    // returned is new - the handler must Add it to the DbContext explicitly (client-generated
+    // keys defeat EF's new-vs-existing detection through the navigation; CLAUDE.md).
+
+    public FormStep AddStep(string titleAr, string? titleEn)
+    {
+        var step = FormStep.Create(Id, titleAr, titleEn, _steps.Count == 0 ? 0 : _steps.Max(s => s.DisplayOrder) + 1);
+        _steps.Add(step);
+        return step;
+    }
+
+    public FormStep FindStepOrThrow(Guid stepId) =>
+        _steps.SingleOrDefault(s => s.Id == stepId)
+        ?? throw new KeyNotFoundException($"Step {stepId} is not on this form version.");
+
+    /// <summary>Every step exactly once, like ReorderFields.</summary>
+    public void ReorderSteps(IReadOnlyList<Guid> orderedStepIds)
+    {
+        if (orderedStepIds.Count != _steps.Count || !orderedStepIds.ToHashSet().SetEquals(_steps.Select(s => s.Id)))
+            throw new InvalidOperationException("The supplied order must list every step on this version exactly once.");
+        for (var i = 0; i < orderedStepIds.Count; i++)
+            _steps.Single(s => s.Id == orderedStepIds[i]).SetDisplayOrder(i);
+    }
+
+    /// <summary>
+    /// Removes a step. Its fields move to the previous step (HANDOFF §9.2); deleting the first
+    /// step moves them to the step after it, and deleting the only step leaves them step-less
+    /// (one default step). Returns the removed step so the handler can delete it.
+    /// </summary>
+    public FormStep RemoveStep(Guid stepId)
+    {
+        var ordered = _steps.OrderBy(s => s.DisplayOrder).ToList();
+        var index = ordered.FindIndex(s => s.Id == stepId);
+        if (index < 0) throw new KeyNotFoundException($"Step {stepId} is not on this form version.");
+        var target = index > 0 ? ordered[index - 1] : ordered.Count > 1 ? ordered[1] : null;
+        foreach (var field in _fields.Where(f => f.StepId == stepId))
+            field.SetStep(target?.Id);
+        var removed = ordered[index];
+        _steps.Remove(removed);
+        var i = 0;
+        foreach (var step in _steps.OrderBy(s => s.DisplayOrder)) step.SetDisplayOrder(i++);
+        return removed;
+    }
+
+    /// <summary>Moves a field to a step of this version (null = the first step).</summary>
+    public void MoveFieldToStep(Guid fieldId, Guid? stepId)
+    {
+        if (stepId is { } id && _steps.All(s => s.Id != id))
+            throw new KeyNotFoundException($"Step {id} is not on this form version.");
+        var field = _fields.SingleOrDefault(f => f.Id == fieldId)
+            ?? throw new KeyNotFoundException($"Field {fieldId} is not on this form version.");
+        field.SetStep(stepId);
     }
 
     public void MarkPublished()

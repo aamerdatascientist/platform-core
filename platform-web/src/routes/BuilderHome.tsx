@@ -2,17 +2,25 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import type { FormSummaryDto } from '../types';
-import { LoadingSpinner } from '../components/LoadingSpinner';
-import { StatusLed } from '../components/StatusLed';
+import { builderInput } from '../components/builder/FieldSettings';
+import { Button, ClickableRow, EmptyState, ErrorState, LoadingState, Sheet, TableCard, tdClass, thClass } from '../components/ui';
+import { useLocalized } from '../forms/localized';
 import { useErrorMessage } from '../hooks/useErrorMessage';
+import type { FormSummaryDto } from '../types';
 
 function slugify(input: string): string {
   return input.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
+/**
+ * Form builder home (phase 8, styled like the other administration pages - no screen of its own
+ * in the handoff): every form with its module and status, opening the builder (21); "+ New form"
+ * opens the existing create form in a dialog.
+ */
 export function BuilderHome({ token }: { token: string }) {
   const { t } = useTranslation();
+  const { formName } = useLocalized();
+  const navigate = useNavigate();
   const [forms, setForms] = useState<FormSummaryDto[] | null>(null);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState('');
@@ -21,29 +29,17 @@ export function BuilderHome({ token }: { token: string }) {
   const [moduleName, setModuleName] = useState('');
   const [error, setError] = useErrorMessage();
   const [submitting, setSubmitting] = useState(false);
-  const navigate = useNavigate();
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
-    load();
-  }, []);
-
-  async function load() {
-    const result = await api.forms.list(token);
-    setForms(result);
-  }
-
-  function handleNameChange(value: string) {
-    setName(value);
-    if (!codeTouched) setCode(slugify(value));
-  }
+    api.forms.list(token).then(setForms).catch((err) => setError({ err, fallbackKey: 'formBuilder.loadError' }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, retry]);
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!name.trim() || !code.trim() || !moduleName.trim()) {
-      setError({ key: 'builderHome.requiredError' });
-      return;
-    }
+    if (!name.trim() || !code.trim() || !moduleName.trim()) return setError({ key: 'builderHome.requiredError' });
     setSubmitting(true);
     try {
       const result = await api.forms.create(token, { code, name, moduleName });
@@ -55,107 +51,91 @@ export function BuilderHome({ token }: { token: string }) {
     }
   }
 
-  const existingModules = [...new Set((forms ?? []).map((f) => f.moduleName))];
-  const inputClass = 'w-full border border-border rounded bg-bg px-2 py-1.5 text-sm focus:border-accent focus:outline-none';
+  const modules = [...new Set((forms ?? []).map((f) => f.moduleName))];
+  const moduleLabel = (m: string) => t(`moduleName.${m}`, { defaultValue: m });
 
   return (
-    <div className="max-w-3xl space-y-8">
-      <div>
-        <h2 className="font-display text-xl font-semibold uppercase tracking-[0.07em] text-ink">{t('builderHome.title')}</h2>
-        <p className="text-sm text-ink-soft">{t('builderHome.subtitle')}</p>
+    <div className="flex flex-col gap-[18px]">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <span className="text-[14px] text-ink-soft">{t('nav.administration')}</span>
+          <h1 className="text-[28px] font-extrabold text-ink">{t('settings.formBuilder')}</h1>
+          <p className="text-[14px] text-ink-soft">{t('builderHome.subtitle')}</p>
+        </div>
+        <Button size="desktop" onClick={() => (setError(null), setCreating(true))}>
+          {t('builderHome.newForm')}
+        </Button>
       </div>
 
-      {!creating ? (
-        <button
-          onClick={() => setCreating(true)}
-          className="border border-border rounded bg-panel px-3 py-1.5 text-sm text-ink hover:border-ink"
-        >
-          {t('builderHome.newForm')}
-        </button>
+      {!forms ? (
+        error ? <ErrorState message={error} onRetry={() => (setError(null), setRetry((n) => n + 1))} /> : <LoadingState />
+      ) : forms.length === 0 ? (
+        <EmptyState title={t('builderHome.noForms')} />
       ) : (
-        <form onSubmit={handleCreate} className="space-y-3 border border-border rounded bg-panel p-4 shadow-recessed">
-          <div>
-            <label className="mb-1 block text-xs text-ink-soft">{t('builderHome.formName')}</label>
-            <input
-              className={inputClass}
-              value={name}
-              onChange={(e) => handleNameChange(e.target.value)}
-              placeholder={t('builderHome.formNamePlaceholder')}
-            />
-          </div>
+        <TableCard className="[&_table]:min-w-[560px]">
+          <thead>
+            <tr>
+              <th className={thClass}>{t('builderHome.formName')}</th>
+              <th className={thClass}>{t('builderHome.module')}</th>
+              <th className={thClass}>{t('usersV2.colStatus')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...forms]
+              .sort((a, b) => a.moduleName.localeCompare(b.moduleName) || a.name.localeCompare(b.name))
+              .map((f) => (
+                <ClickableRow key={f.id} onOpen={() => navigate(`/builder/${f.id}`)} label={formName(f)}>
+                  <td className={tdClass}>
+                    <span className="flex flex-col">
+                      <span className="font-bold">
+                        <bdi>{formName(f)}</bdi>
+                      </span>
+                      <span dir="ltr" className="text-start font-mono text-[12px] text-ink-soft rtl:text-right">
+                        {f.code}
+                      </span>
+                    </span>
+                  </td>
+                  <td className={tdClass}>{moduleLabel(f.moduleName)}</td>
+                  <td className={tdClass}>
+                    <span className={`rounded-ui-pill px-[9px] py-[3px] text-[12px] font-bold ${f.status === 'Published' ? 'bg-success-soft text-success' : 'bg-accent-soft text-accent-strong'}`}>
+                      {t(`formStatus.${f.status}`)}
+                    </span>
+                  </td>
+                </ClickableRow>
+              ))}
+          </tbody>
+        </TableCard>
+      )}
+
+      <Sheet open={creating} onClose={() => setCreating(false)} title={t('builderHome.newForm')} desktopWidth={560}>
+        <form onSubmit={handleCreate} className="flex flex-col gap-3 pb-2">
+          <label className="flex flex-col gap-1.5 text-[14px] font-bold text-ink">
+            {t('builderHome.formName')}
+            <input className={builderInput} value={name} placeholder={t('builderHome.formNamePlaceholder')} onChange={(e) => (setName(e.target.value), !codeTouched && setCode(slugify(e.target.value)))} />
+          </label>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs text-ink-soft">{t('builderHome.code')}</label>
-              <input
-                className={`${inputClass} font-mono`}
-                value={code}
-                onChange={(e) => {
-                  setCode(e.target.value);
-                  setCodeTouched(true);
-                }}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-ink-soft">{t('builderHome.module')}</label>
-              <input
-                className={inputClass}
-                list="module-suggestions"
-                value={moduleName}
-                onChange={(e) => setModuleName(e.target.value)}
-                placeholder={t('builderHome.modulePlaceholder')}
-              />
+            <label className="flex flex-col gap-1.5 text-[14px] font-bold text-ink">
+              {t('builderHome.code')}
+              <input dir="ltr" className={`${builderInput} font-mono`} value={code} onChange={(e) => (setCode(e.target.value), setCodeTouched(true))} />
+            </label>
+            <label className="flex flex-col gap-1.5 text-[14px] font-bold text-ink">
+              {t('builderHome.module')}
+              <input className={builderInput} list="module-suggestions" value={moduleName} placeholder={t('builderHome.modulePlaceholder')} onChange={(e) => setModuleName(e.target.value)} />
               <datalist id="module-suggestions">
-                {existingModules.map((m) => (
+                {modules.map((m) => (
                   <option key={m} value={m} />
                 ))}
               </datalist>
-            </div>
+            </label>
           </div>
-          {error && <p className="text-sm text-danger">{error}</p>}
-          <div className="flex gap-2">
-            <button
-              type="submit"
-              disabled={submitting}
-              className="bg-accent rounded px-3 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50"
-            >
+          {error && <p className="text-[14px] text-danger">{error}</p>}
+          <div>
+            <Button type="submit" size="desktop" disabled={submitting}>
               {submitting ? t('builderHome.creating') : t('builderHome.createAndAddFields')}
-            </button>
-            <button type="button" onClick={() => setCreating(false)} className="px-3 py-1.5 text-sm text-ink-soft">
-              {t('common.cancel')}
-            </button>
+            </Button>
           </div>
         </form>
-      )}
-
-      <div>
-        <h3 className="mb-3 text-label font-medium uppercase tracking-wider text-ink-soft">
-          {t('builderHome.existingForms')}
-        </h3>
-        {!forms ? (
-          <div className="flex items-center gap-2">
-            <LoadingSpinner size="sm" />
-            <span className="text-xs uppercase tracking-wide text-ink-soft">{t('common.loading')}</span>
-          </div>
-        ) : forms.length === 0 ? (
-          <p className="text-sm text-ink-soft">{t('builderHome.noForms')}</p>
-        ) : (
-          <div className="space-y-1">
-            {forms.map((f) => (
-              <button
-                key={f.id}
-                onClick={() => navigate(`/builder/${f.id}`)}
-                className="flex w-full items-center justify-between border border-border rounded bg-panel px-3 py-2 text-start text-sm hover:border-ink"
-              >
-                <span>
-                  <span className="font-medium text-ink">{f.name}</span>
-                  <span className="ms-2 text-xs text-ink-soft">{f.moduleName}</span>
-                </span>
-                <StatusLed label={t(`formStatus.${f.status}`)} tone={f.status === 'Published' ? 'success' : 'accent'} />
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      </Sheet>
     </div>
   );
 }

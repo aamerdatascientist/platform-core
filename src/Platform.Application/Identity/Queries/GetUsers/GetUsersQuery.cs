@@ -6,7 +6,9 @@ namespace Platform.Application.Identity.Queries.GetUsers;
 
 public record UserRoleSummary(Guid Id, string Name);
 
-public record UserSummaryDto(Guid Id, string Email, string DisplayName, bool IsActive, IReadOnlyList<UserRoleSummary> Roles);
+public record UserSummaryDto(
+    Guid Id, string Email, string DisplayName, bool IsActive, IReadOnlyList<UserRoleSummary> Roles, string? PhoneNumber,
+    bool TelegramLinked, bool TelegramIsGroup);
 
 public record GetUsersQuery : IRequest<IReadOnlyList<UserSummaryDto>>;
 
@@ -30,7 +32,10 @@ public class GetUsersQueryHandler : IRequestHandler<GetUsersQuery, IReadOnlyList
                 u.UserRoles
                     .Where(ur => rolesById.ContainsKey(ur.RoleId))
                     .Select(ur => new UserRoleSummary(ur.RoleId, rolesById[ur.RoleId]))
-                    .ToList()))
+                    .ToList(),
+                u.PhoneNumber,
+                u.TelegramChatId != null,
+                u.TelegramChatId < 0))
             .ToList();
     }
 }

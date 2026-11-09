@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using FluentAssertions;
 using Platform.Application.Forms;
@@ -62,6 +63,17 @@ public class SubmissionValueValidatorTests
         normalized["qty"].Should().Be(12.5m);
     }
 
+    [Fact]
+    public void Normalize_TurnsLookupIds_IntoGuids()
+    {
+        var v = NewVersion();
+        v.AddField("project", "Project", FieldType.Lookup, false, null, Guid.NewGuid(), null);
+        var id = Guid.NewGuid();
+
+        SubmissionValueValidator.Normalize(v.Fields, Values(new { project = id.ToString() }))["project"]
+            .Should().Be(id);
+    }
+
     [Theory]
     [InlineData("1e3")]
     [InlineData("$5")]
@@ -81,9 +93,9 @@ public class SubmissionValueValidatorTests
         var v = NewVersion();
         v.AddField("report_date", "Date", FieldType.DateTime, true, null, null, """{"noFutureDates":true}""");
 
-        SubmissionValueValidator.Validate(v.Fields, Values(new { report_date = SaudiToday.ToString("yyyy-MM-dd") }))
+        SubmissionValueValidator.Validate(v.Fields, Values(new { report_date = SaudiToday.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) }))
             .Should().BeEmpty();
-        SubmissionValueValidator.Validate(v.Fields, Values(new { report_date = SaudiToday.AddDays(1).ToString("yyyy-MM-dd") }))
+        SubmissionValueValidator.Validate(v.Fields, Values(new { report_date = SaudiToday.AddDays(1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) }))
             .Should().ContainKey("report_date");
     }
 

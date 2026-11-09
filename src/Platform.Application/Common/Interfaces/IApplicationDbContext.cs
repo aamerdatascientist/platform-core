@@ -22,8 +22,15 @@ public interface IApplicationDbContext
     DbSet<FormDefinition> FormDefinitions { get; }
     DbSet<FormVersion> FormVersions { get; }
     DbSet<FieldDefinition> FieldDefinitions { get; }
+    DbSet<FormStep> FormSteps { get; }
+    DbSet<SubmissionReceipt> SubmissionReceipts { get; }
     DbSet<Platform.Domain.Forms.FormDefinitionRole> FormDefinitionRoles { get; }
     DbSet<Platform.Domain.Forms.FormDefinitionUser> FormDefinitionUsers { get; }
+    DbSet<Platform.Domain.Forms.FormAssignment> FormAssignments { get; }
+    DbSet<Platform.Domain.Notifications.NotificationLog> NotificationLogs { get; }
+    DbSet<Platform.Domain.Reports.ReportRecipient> ReportRecipients { get; }
+    DbSet<Platform.Domain.Reports.ReportRun> ReportRuns { get; }
+    DbSet<Platform.Domain.Reports.ReportDelivery> ReportDeliveries { get; }
 
     DbSet<Platform.Domain.Workflow.WorkflowDefinition> WorkflowDefinitions { get; }
     DbSet<Platform.Domain.Workflow.WorkflowState> WorkflowStates { get; }

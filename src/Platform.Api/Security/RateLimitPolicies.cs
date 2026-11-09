@@ -18,6 +18,12 @@ public static class RateLimitPolicies
 {
     public const string SignIn = "sign-in";
 
+    /// <summary>Making a report now (Claude + PDFs): per signed-in administrator. The monthly cap
+    /// bounds the cost anyway; this stops a stuck button or a script from burning through it.</summary>
+    public const string Reports = "reports";
+    public const int ReportsPermitLimit = 10;
+    public static readonly TimeSpan ReportsWindow = TimeSpan.FromHours(1);
+
     public const int SignInPermitLimit = 20;
     public static readonly TimeSpan SignInWindow = TimeSpan.FromMinutes(5);
 
@@ -44,6 +50,16 @@ public static class RateLimitPolicies
                     {
                         PermitLimit = SignInPermitLimit,
                         Window = SignInWindow,
+                        QueueLimit = 0,
+                    }));
+
+            options.AddPolicy(Reports, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    httpContext.User.Identity?.Name ?? httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = ReportsPermitLimit,
+                        Window = ReportsWindow,
                         QueueLimit = 0,
                     }));
         });

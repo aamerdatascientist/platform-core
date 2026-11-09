@@ -15,6 +15,8 @@ state.** For that, read, in this order:
 2. **`docs/PROJECT_STATUS.md`** — the living, continuously-updated narrative of what's
    built, what's verified against the real production database (not just "compiles"),
    and what's next. Read this before starting any new work session.
+3. **`docs/releases/ASAS-v2.0.md`** — the v2.0 release: every feature and redesign phase,
+   migrations, API changes, tests, and the production release checklist.
 
 ## What this actually is
 
@@ -61,11 +63,22 @@ for the full rationale.
 - **File Management**: upload/list/view/delete attachments via Azure Blob Storage,
   including attaching a file inline while filling out a form.
 - **Executive Overview** dashboard (administrators): a standalone 16:9 page over the live
-  forms, with an optional public secret link.
-- **Settings page**: the sidebar lists only the forms; account, password, sign out, language,
-  light/dark mode and the admin pages all live under Settings.
-- Full **Arabic/RTL** bilingual UI (`react-i18next`), Tajawal type, and a dark/light-mode
-  visual design ("Structural steel").
+  forms, with an optional public secret link. Measured against the client's plan
+  (`OverviewProgressPlan`), with forecast finish, days late and lateness KPIs (green/amber/red)
+  and a stage filter (since 2026-11-03).
+- **Asas v2.0 - on staging, not yet in production** (all of it, with the production checklist, in
+  `docs/releases/ASAS-v2.0.md`):
+  - **Form assignments**: administrators assign a form to people to fill every working day; a grid
+    shows who filled what; reminders on **Telegram** and **WhatsApp** (live on staging since
+    2026-11-07), plus "Remind those who haven't filled".
+  - **Stakeholder reports**: daily/weekly/monthly PDF reports with Claude's written analysis,
+    sent on WhatsApp.
+  - **The redesign** (`docs/redesign/HANDOFF.md`, ten phases): a Today home page, a phone layout
+    with a tab bar and a desktop side menu with search, forms filled in steps with drafts and a
+    review, English and Arabic names/labels for everything, **My entries**, an **offline queue**
+    (entries kept on the phone and sent later, never twice), a Records tab with filters and a
+    drawer, a rebuilt form builder with a live phone preview, and restyled admin pages.
+- Full **Arabic/RTL** bilingual UI (`react-i18next`), Tajawal type, light/dark/"Match phone".
 - Security headers on the API and the site (CSP, HSTS, frame denial).
 
 See `docs/PROJECT_STATUS.md` for exactly what's been verified against the real
@@ -76,9 +89,9 @@ forms/modules.
 the full reasoning on each): no workflow-designer UI (workflows are still created via the
 API or PowerShell scripts); no automated first-admin-bootstrap (the current admin account
 was created via a one-off direct SQL insert); no designated Lookup "display field" (the
-frontend guesses the first `ShortText` field on the target form); scheduled PDF reports
-(analytics is built into the webapp — see PROJECT_STATUS.md's "Analytics / Reporting
-direction"; Metabase and Power BI were both evaluated and rejected).
+frontend guesses the first `ShortText` field on the target form). (Analytics is built into the
+webapp - Metabase and Power BI were both evaluated and rejected; scheduled PDF reports now exist
+as v2.0's stakeholder reports.)
 
 ## Repo layout
 

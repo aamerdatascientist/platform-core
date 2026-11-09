@@ -56,6 +56,11 @@ public static class SubmissionValueValidator
             {
                 result[code] = number;
             }
+            // As a Guid, so SubmissionDataChecks can compare it with the referenced row's own values.
+            else if (type is FieldType.Lookup && TryGetString(raw, out var lookupText))
+            {
+                result[code] = Guid.TryParse(lookupText, out var lookupId) ? lookupId : null;
+            }
             else
             {
                 result[code] = raw;
@@ -370,7 +375,7 @@ public static class SubmissionValueValidator
         }
     }
 
-    private static ValidationRules? ParseRules(string? json)
+    internal static ValidationRules? ParseRules(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return null;
         try
@@ -388,6 +393,11 @@ public static class SubmissionValueValidator
     /// FieldDefinition.ValidationRulesJson. Min/Max apply to Number and Decimal (MinExclusive
     /// makes Min a strict "more than", e.g. a quantity that must be above zero); Regex to
     /// ShortText and LongText; NoFutureDates to DateTime (judged on the Saudi calendar).
+    /// Unique (ShortText) means no other record may hold the same text, optionally only among
+    /// records with the same value in the UniqueWithin field (zone codes within one project) -
+    /// checked against the table by SubmissionDataChecks, not here.
     /// </summary>
-    internal record ValidationRules(double? Min, double? Max, string? Regex, bool? NoFutureDates = null, bool? MinExclusive = null);
+    internal record ValidationRules(
+        double? Min, double? Max, string? Regex, bool? NoFutureDates = null, bool? MinExclusive = null,
+        bool? Unique = null, string? UniqueWithin = null);
 }

@@ -14,7 +14,11 @@ export function LanguageToggle({ tone = 'dark' }: LanguageToggleProps) {
       checked={isArabic}
       onChange={() => i18n.changeLanguage(isArabic ? 'en' : 'ar')}
       leftLabel="EN"
-      rightLabel="عربي"
+      rightLabel={
+        <span lang="ar" dir="rtl">
+          عربي
+        </span>
+      }
       tone={tone}
       ariaLabel={t('common.toggleLanguage')}
     />

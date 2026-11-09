@@ -4,10 +4,13 @@ using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using Platform.Application.Analytics;
 using Platform.Application.Common.Interfaces;
+using Platform.Application.Reports;
 using Platform.Infrastructure.Files;
 using Platform.Infrastructure.Identity;
+using Platform.Infrastructure.Notifications;
 using Platform.Infrastructure.Persistence;
 using Platform.Infrastructure.Persistence.DynamicSchema;
+using Platform.Infrastructure.Reports;
 
 namespace Platform.Infrastructure;
 
@@ -40,6 +43,32 @@ public static class DependencyInjection
         services.AddSingleton<IBlobStorageService, BlobStorageService>();
 
         services.AddHostedService<DatabaseWarmupService>();
+
+        // Assignment notifications. Each channel is off until its settings are there; with
+        // none configured the reminder scheduler and the bot do nothing.
+        // - Notifications: AppUrl (links in messages), ReminderTimes (Saudi, default 09:00/14:00).
+        // - Telegram: BotToken + BotUsername (one bot per environment - see TelegramSettings).
+        // - WhatsApp (Meta Cloud API): PhoneNumberId + AccessToken.
+        services.AddSingleton(configuration.GetSection("Notifications").Get<NotificationSettings>() ?? new NotificationSettings());
+        services.AddSingleton(configuration.GetSection("Telegram").Get<TelegramSettings>() ?? new TelegramSettings());
+        services.AddSingleton(configuration.GetSection("WhatsApp").Get<WhatsAppSettings>() ?? new WhatsAppSettings());
+        services.AddHttpClient<IWhatsAppSender, WhatsAppSender>(client => client.Timeout = TimeSpan.FromSeconds(15));
+        // Longer than a long poll (50 s); each message has its own 15 s limit (TelegramClient).
+        services.AddHttpClient<ITelegramClient, TelegramClient>(client => client.Timeout = TimeSpan.FromSeconds(70));
+        services.AddHostedService<AssignmentReminderService>();
+        services.AddHostedService<TelegramBotService>();
+
+        // Stakeholder reports (daily/weekly/monthly PDFs on WhatsApp). Section "Reports":
+        // AnthropicApiKey (the written analysis; capped by MonthlyBudgetUsd), PdfServiceUrl +
+        // PdfServiceUsername/Password (Gotenberg), SendTime. Off until PdfServiceUrl is set.
+        services.AddSingleton(configuration.GetSection("Reports").Get<ReportSettings>() ?? new ReportSettings());
+        services.AddSingleton<IReportAnalyst, ClaudeReportAnalyst>();
+        services.AddSingleton<IReportRenderer, ReportHtmlRenderer>();
+        services.AddHttpClient<IPdfRenderer, GotenbergPdfRenderer>(client => client.Timeout = TimeSpan.FromMinutes(2));
+        // Uploading a PDF to Meta takes longer than a text message.
+        services.AddHttpClient<IWhatsAppDocumentSender, WhatsAppSender>(client => client.Timeout = TimeSpan.FromSeconds(60));
+        services.AddScoped<StakeholderReportService>();
+        services.AddHostedService<StakeholderReportScheduler>();
 
         return services;
     }

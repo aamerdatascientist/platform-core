@@ -1,47 +1,33 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
-import type { RoleDto, UserSummaryDto } from '../types';
-import { LoadingSpinner } from '../components/LoadingSpinner';
+import { builderInput } from '../components/builder/FieldSettings';
+import { initial, useShell } from '../components/shell/ShellData';
+import { Button, ClickableRow, Drawer, ErrorState, LoadingState, Segmented, Sheet, TableCard, tdClass, thClass } from '../components/ui';
+import { UserTelegramPanel } from '../components/UserTelegramPanel';
 import { useErrorMessage } from '../hooks/useErrorMessage';
+import { useWhatsAppGate } from '../config/whatsapp';
+import type { RoleDto, UserSummaryDto } from '../types';
 
-interface UserManagementProps {
-  token: string;
-}
+type Filter = 'all' | 'active' | 'off';
 
-export function UserManagement({ token }: UserManagementProps) {
+/**
+ * Users & roles (screen 22): role cards, a search + All / Active / Deactivated filter, the users
+ * table (avatar, name, email, roles, reminders, status) and a drawer per user - roles as toggle
+ * chips (saved at once; the server's self-demotion guard still applies), WhatsApp number and
+ * test, Telegram status with the existing linking steps in a dialog, password reset (existing
+ * flow), and deactivate / reactivate. "+ New role" and "+ New user" open the existing forms.
+ */
+export function UserManagement({ token }: { token: string }) {
   const { t } = useTranslation();
+  const { roleLabel } = useShell();
   const [users, setUsers] = useState<UserSummaryDto[] | null>(null);
   const [roles, setRoles] = useState<RoleDto[] | null>(null);
   const [error, setError] = useErrorMessage();
-
-  const [creatingUser, setCreatingUser] = useState(false);
-  const [newEmail, setNewEmail] = useState('');
-  const [newDisplayName, setNewDisplayName] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [newUserRoleId, setNewUserRoleId] = useState('');
-  const [submittingUser, setSubmittingUser] = useState(false);
-
-  const [editingRolesFor, setEditingRolesFor] = useState<string | null>(null);
-  const [pendingRoleIds, setPendingRoleIds] = useState<Set<string>>(new Set());
-  const [savingRoles, setSavingRoles] = useState(false);
-
-  // Password reset for someone who forgot theirs: one open panel at a time.
-  const [resettingFor, setResettingFor] = useState<string | null>(null);
-  const [resetPassword, setResetPassword] = useState('');
-  const [submittingReset, setSubmittingReset] = useState(false);
-  const [resetDoneFor, setResetDoneFor] = useState<string | null>(null);
-  const [resetError, setResetError] = useErrorMessage();
-
-  const [creatingRole, setCreatingRole] = useState(false);
-  const [newRoleName, setNewRoleName] = useState('');
-  const [newRoleDescription, setNewRoleDescription] = useState('');
-  const [submittingRole, setSubmittingRole] = useState(false);
-
-  useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const [q, setQ] = useState('');
+  const [filter, setFilter] = useState<Filter>('all');
+  const [selected, setSelected] = useState<string | null>(null);
+  const [dialog, setDialog] = useState<'none' | 'user' | 'role'>('none');
 
   async function load() {
     try {
@@ -52,381 +38,473 @@ export function UserManagement({ token }: UserManagementProps) {
       setError({ err, fallbackKey: 'userManagement.loadError' });
     }
   }
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
-  async function handleCreateUser(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!newEmail.trim() || !newDisplayName.trim() || newPassword.length < 10 || !newUserRoleId) {
-      setError({ key: 'userManagement.createUserRequiredError' });
-      return;
-    }
-    setSubmittingUser(true);
-    try {
-      await api.auth.register(token, {
-        email: newEmail,
-        displayName: newDisplayName,
-        password: newPassword,
-        departmentId: null,
-        defaultRoleId: newUserRoleId,
-      });
-      setNewEmail('');
-      setNewDisplayName('');
-      setNewPassword('');
-      setNewUserRoleId('');
-      setCreatingUser(false);
-      await load();
-    } catch (err) {
-      setError({ err, fallbackKey: 'userManagement.createUserError' });
-    } finally {
-      setSubmittingUser(false);
-    }
-  }
+  const shown = useMemo(() => {
+    const term = q.trim().toLowerCase();
+    return (users ?? []).filter(
+      (u) =>
+        (filter === 'all' || (filter === 'active') === u.isActive) &&
+        (!term || u.displayName.toLowerCase().includes(term) || u.email.toLowerCase().includes(term)),
+    );
+  }, [users, q, filter]);
 
-  function startReset(userId: string) {
-    setResettingFor(resettingFor === userId ? null : userId);
-    setResetPassword('');
-    setResetDoneFor(null);
-    setResetError(null);
-  }
+  if (!users || !roles) return error ? <ErrorState message={error} onRetry={() => (setError(null), void load())} /> : <LoadingState />;
+  const active = users.filter((u) => u.isActive).length;
+  const user = users.find((u) => u.id === selected) ?? null;
 
-  /** 12 characters without look-alikes (0/O, 1/l/I), easy to read out over the phone. */
-  function generatePassword() {
-    const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    const bytes = new Uint32Array(12);
-    crypto.getRandomValues(bytes);
-    setResetPassword(Array.from(bytes, (b) => alphabet[b % alphabet.length]).join(''));
-  }
-
-  async function handleResetPassword(userId: string) {
-    setResetError(null);
-    if (resetPassword.length < 10) {
-      setResetError({ key: 'userManagement.resetTooShort' });
-      return;
-    }
-    setSubmittingReset(true);
-    try {
-      await api.users.resetPassword(token, userId, resetPassword);
-      setResetDoneFor(userId);
-    } catch (err) {
-      setResetError({ err, fallbackKey: 'userManagement.resetError' });
-    } finally {
-      setSubmittingReset(false);
-    }
-  }
-
-  async function handleToggleActive(user: UserSummaryDto) {
-    setError(null);
-    try {
-      await api.users.setActiveStatus(token, user.id, !user.isActive);
-      await load();
-    } catch (err) {
-      setError({ err, fallbackKey: 'userManagement.toggleActiveError' });
-    }
-  }
-
-  function startEditingRoles(user: UserSummaryDto) {
-    setEditingRolesFor(user.id);
-    setPendingRoleIds(new Set(user.roles.map((r) => r.id)));
-  }
-
-  function toggleRoleInEditor(roleId: string) {
-    setPendingRoleIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(roleId)) next.delete(roleId);
-      else next.add(roleId);
-      return next;
-    });
-  }
-
-  async function handleSaveRoles(userId: string) {
-    setSavingRoles(true);
-    setError(null);
-    try {
-      await api.users.setRoles(token, userId, [...pendingRoleIds]);
-      setEditingRolesFor(null);
-      await load();
-    } catch (err) {
-      setError({ err, fallbackKey: 'userManagement.saveRolesError' });
-    } finally {
-      setSavingRoles(false);
-    }
-  }
-
-  async function handleCreateRole(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!newRoleName.trim()) {
-      setError({ key: 'userManagement.roleNameRequired' });
-      return;
-    }
-    setSubmittingRole(true);
-    try {
-      await api.roles.create(token, newRoleName, newRoleDescription || undefined);
-      setNewRoleName('');
-      setNewRoleDescription('');
-      setCreatingRole(false);
-      await load();
-    } catch (err) {
-      setError({ err, fallbackKey: 'userManagement.createRoleError' });
-    } finally {
-      setSubmittingRole(false);
-    }
-  }
-
-  const inputClass = 'w-full border border-border rounded bg-bg px-2 py-1.5 text-sm focus:border-accent focus:outline-none';
+  const reminders = (u: UserSummaryDto) => {
+    if (!u.isActive) return <span className="text-ink-soft">—</span>;
+    if (u.telegramLinked)
+      return <span className="text-success">{u.phoneNumber ? t('usersV2.remindersTelegramWhatsapp') : t('usersV2.remindersTelegram')}</span>;
+    if (u.phoneNumber) return <span className="text-success">{t('usersV2.remindersWhatsapp')}</span>;
+    return <span className="text-warning">{t('usersV2.noTelegram')}</span>;
+  };
 
   return (
-    <div className="max-w-3xl space-y-10">
-      <div>
-        <h2 className="font-display text-xl font-semibold uppercase tracking-[0.07em] text-ink">{t('userManagement.title')}</h2>
-        <p className="text-sm text-ink-soft">{t('userManagement.subtitle')}</p>
-      </div>
-
-      {error && <p className="text-sm text-danger">{error}</p>}
-
-      <div>
-        <h3 className="mb-3 text-label font-medium uppercase tracking-wider text-ink-soft">{t('userManagement.roles')}</h3>
-        <div className="mb-3 space-y-1">
-          {(roles ?? []).map((r) => (
-            <div key={r.id} className="flex items-center justify-between border border-border rounded bg-panel px-3 py-2 text-sm">
-              <span>
-                <span className="font-medium text-ink">{r.name}</span>
-                {r.description && <span className="ms-2 text-xs text-ink-soft">{r.description}</span>}
-              </span>
-              {r.isSystemRole && <span className="text-micro uppercase tracking-wide text-ink-soft">{t('userManagement.system')}</span>}
-            </div>
-          ))}
+    <div className="flex flex-col gap-[18px]">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div className="flex flex-col gap-1">
+          <span className="text-[14px] text-ink-soft">{t('nav.administration')}</span>
+          <h1 className="text-[28px] font-extrabold text-ink">{t('userManagement.title')}</h1>
         </div>
-
-        {!creatingRole ? (
-          <button
-            onClick={() => setCreatingRole(true)}
-            className="border border-border rounded bg-panel px-3 py-1.5 text-sm text-ink hover:border-ink"
-          >
-            {t('userManagement.newRole')}
-          </button>
-        ) : (
-          <form onSubmit={handleCreateRole} className="space-y-3 border border-border rounded bg-panel p-4 shadow-recessed">
-            <div>
-              <label className="mb-1 block text-xs text-ink-soft">{t('userManagement.roleName')}</label>
-              <input
-                className={inputClass}
-                value={newRoleName}
-                onChange={(e) => setNewRoleName(e.target.value)}
-                placeholder={t('userManagement.roleNamePlaceholder')}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-xs text-ink-soft">{t('userManagement.descriptionOptional')}</label>
-              <input className={inputClass} value={newRoleDescription} onChange={(e) => setNewRoleDescription(e.target.value)} />
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={submittingRole}
-                className="bg-accent rounded px-3 py-1.5 text-sm font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                {submittingRole ? t('userManagement.creating') : t('userManagement.createRole')}
-              </button>
-              <button type="button" onClick={() => setCreatingRole(false)} className="px-3 py-1.5 text-sm text-ink-soft">
-                {t('common.cancel')}
-              </button>
-            </div>
-          </form>
-        )}
+        <div className="flex gap-2">
+          <Button size="desktop" variant="secondary" className="!font-normal" onClick={() => setDialog('role')}>
+            {t('usersV2.newRole')}
+          </Button>
+          <Button size="desktop" onClick={() => setDialog('user')}>
+            {t('usersV2.newUser')}
+          </Button>
+        </div>
       </div>
 
-      <div className="border-t border-border rounded pt-6">
-        <h3 className="mb-3 text-label font-medium uppercase tracking-wider text-ink-soft">{t('userManagement.users')}</h3>
-        {!creatingUser ? (
-          <button
-            onClick={() => setCreatingUser(true)}
-            className="border border-border rounded bg-panel px-3 py-1.5 text-sm text-ink hover:border-ink"
-          >
-            {t('userManagement.newUser')}
-          </button>
-        ) : (
-          <form onSubmit={handleCreateUser} className="space-y-3 border border-border rounded bg-panel p-4 shadow-recessed">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-xs text-ink-soft">{t('userManagement.email')}</label>
-                <input className={inputClass} type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+      {error && <p className="text-[14px] text-danger">{error}</p>}
+
+      {/* Role cards */}
+      <div className="flex flex-wrap gap-[10px]">
+        {roles.map((r) => {
+          const count = users.filter((u) => u.roles.some((x) => x.id === r.id)).length;
+          return (
+            <div key={r.id} className="flex flex-[1_1_180px] flex-col gap-1 rounded-ui-xl border border-border bg-panel px-[14px] py-3">
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="text-[15px] font-extrabold text-ink">
+                  <bdi>{roleLabel(r.name)}</bdi>
+                </span>
+                <span className="whitespace-nowrap text-[13px] text-ink-soft">{t('usersV2.usersCount', { count })}</span>
               </div>
-              <div>
-                <label className="mb-1 block text-xs text-ink-soft">{t('userManagement.displayName')}</label>
-                <input className={inputClass} value={newDisplayName} onChange={(e) => setNewDisplayName(e.target.value)} />
-              </div>
+              <span className="text-[13px] text-ink-soft">
+                <bdi>{[r.description, r.isSystemRole ? t('userManagement.system') : null].filter(Boolean).join(' · ') || '—'}</bdi>
+              </span>
             </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-xs text-ink-soft">{t('userManagement.passwordMinLength')}</label>
-                <input className={inputClass} type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
-              </div>
-              <div>
-                <label className="mb-1 block text-xs text-ink-soft">{t('userManagement.initialRole')}</label>
-                <select className={inputClass} value={newUserRoleId} onChange={(e) => setNewUserRoleId(e.target.value)}>
-                  <option value="">{t('common.select')}</option>
-                  {(roles ?? []).map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.name}
-                    </option>
-                  ))}
-                </select>
-                {(roles?.length ?? 0) <= 1 && (
-                  <p className="mt-1 text-xs text-ink-soft">{t('userManagement.onlyAdminExists')}</p>
-                )}
-              </div>
-            </div>
-            <p className="text-xs text-ink-soft">{t('userManagement.canAddMoreRolesLater')}</p>
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                disabled={submittingUser}
-                className="bg-accent rounded px-3 py-1.5 text-sm font-medium text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-50"
-              >
-                {submittingUser ? t('userManagement.creating') : t('userManagement.createUser')}
-              </button>
-              <button type="button" onClick={() => setCreatingUser(false)} className="px-3 py-1.5 text-sm text-ink-soft">
-                {t('common.cancel')}
-              </button>
-            </div>
-          </form>
-        )}
+          );
+        })}
       </div>
 
-      <div>
-        {!users ? (
-          <div className="flex items-center gap-2">
-            <LoadingSpinner size="sm" />
-            <span className="text-xs uppercase tracking-wide text-ink-soft">{t('common.loading')}</span>
-          </div>
-        ) : (
-          <div className="space-y-1">
-            {users.map((u) => (
-              <div key={u.id} className="border border-border rounded bg-panel shadow-recessed">
-                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-                  <div>
-                    <span className="text-sm font-medium text-ink">{u.displayName}</span>
-                    <span className="ms-2 text-xs text-ink-soft">{u.email}</span>
-                    <div className="mt-0.5 flex flex-wrap gap-1">
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="flex h-[44px] min-w-[240px] items-center lg:h-[40px] gap-2 rounded-ui-lg border border-border bg-panel px-3">
+          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('usersV2.searchUsers')} aria-label={t('usersV2.searchUsers')} className="min-w-0 flex-1 bg-transparent text-[15px] text-ink placeholder:text-ink-soft focus:outline-none" />
+        </label>
+        <div className="w-[360px] max-w-full">
+          <Segmented<Filter>
+            size="desktop"
+            label={t('usersV2.colStatus')}
+            value={filter}
+            onChange={setFilter}
+            options={[
+              { value: 'all', label: t('usersV2.filterAll', { count: users.length }) },
+              { value: 'active', label: t('usersV2.filterActive', { count: active }) },
+              { value: 'off', label: t('usersV2.filterDeactivated', { count: users.length - active }) },
+            ]}
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-start gap-4">
+        <div className="min-w-0 flex-[999_1_520px]">
+          <TableCard className="[&_table]:min-w-[640px]">
+            <thead>
+              <tr>
+                <th className={thClass}>{t('usersV2.colUser')}</th>
+                <th className={thClass}>{t('usersV2.colRole')}</th>
+                <th className={thClass}>{t('usersV2.colReminders')}</th>
+                <th className={thClass}>{t('usersV2.colStatus')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((u) => (
+                <ClickableRow key={u.id} selected={u.id === selected} onOpen={() => setSelected(u.id)} label={u.displayName}>
+                  <td className={tdClass}>
+                    <div className="flex items-center gap-[10px]">
+                      <span aria-hidden="true" className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-accent-soft font-extrabold text-accent">
+                        {initial(u.displayName)}
+                      </span>
+                      <span className="flex min-w-0 flex-col">
+                        <span className="font-bold text-ink">
+                          <bdi>{u.displayName}</bdi>
+                        </span>
+                        <span dir="ltr" className="text-start text-[12px] text-ink-soft rtl:text-right">
+                          {u.email}
+                        </span>
+                      </span>
+                    </div>
+                  </td>
+                  <td className={tdClass}>
+                    <span className="flex flex-wrap gap-1">
                       {u.roles.length === 0 ? (
-                        <span className="text-xs text-ink-soft">{t('userManagement.noRoles')}</span>
+                        <span className="text-ink-soft">{t('userManagement.noRoles')}</span>
                       ) : (
                         u.roles.map((r) => (
-                          <span key={r.id} className="border border-border rounded px-1.5 py-0.5 text-micro uppercase tracking-wide text-ink-soft">
-                            {r.name}
+                          <span key={r.id} className="whitespace-nowrap rounded-ui-pill border border-border bg-field-muted px-[9px] py-[3px] text-[12px] font-bold text-ink">
+                            <bdi>{roleLabel(r.name)}</bdi>
                           </span>
                         ))
                       )}
-                    </div>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className={`text-label uppercase tracking-wider ${u.isActive ? 'text-success' : 'text-danger'}`}>
+                    </span>
+                  </td>
+                  <td className={`${tdClass} whitespace-nowrap text-[13px]`}>{reminders(u)}</td>
+                  <td className={tdClass}>
+                    <span className={`rounded-ui-pill px-[9px] py-[3px] text-[12px] font-bold ${u.isActive ? 'bg-success-soft text-success' : 'bg-divider text-ink-soft'}`}>
                       {u.isActive ? t('userManagement.active') : t('userManagement.deactivated')}
                     </span>
-                    <button
-                      onClick={() => (editingRolesFor === u.id ? setEditingRolesFor(null) : startEditingRoles(u))}
-                      className="text-label uppercase tracking-wide text-ink-soft hover:text-ink"
-                    >
-                      {t('userManagement.editRoles')}
-                    </button>
-                    <button
-                      onClick={() => startReset(u.id)}
-                      className="text-label uppercase tracking-wide text-ink-soft hover:text-ink"
-                    >
-                      {t('userManagement.resetPassword')}
-                    </button>
-                    <button
-                      onClick={() => handleToggleActive(u)}
-                      className={`text-label uppercase tracking-wide hover:opacity-70 ${u.isActive ? 'text-danger' : 'text-success'}`}
-                    >
-                      {u.isActive ? t('userManagement.deactivate') : t('userManagement.reactivate')}
-                    </button>
-                  </div>
-                </div>
+                  </td>
+                </ClickableRow>
+              ))}
+            </tbody>
+          </TableCard>
+        </div>
+        {user && <UserDrawer key={user.id} token={token} user={user} roles={roles} onClose={() => setSelected(null)} onChanged={load} />}
+      </div>
 
-                {resettingFor === u.id && (
-                  <div className="border-t border-border rounded bg-bg p-3">
-                    {resetDoneFor === u.id ? (
-                      <div className="space-y-2">
-                        <p className="text-sm text-ink" role="status">
-                          {t('userManagement.resetDone', { name: u.displayName })}
-                        </p>
-                        <p dir="ltr" className="font-mono text-sm text-ink">{resetPassword}</p>
-                        <button onClick={() => setResettingFor(null)} className="px-3 py-1.5 text-sm text-ink-soft">
-                          {t('userManagement.close')}
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <p className="text-xs text-ink-soft">{t('userManagement.resetExplain', { name: u.displayName })}</p>
-                        <div className="flex flex-wrap gap-2">
-                          <input
-                            type="text"
-                            dir="ltr"
-                            autoComplete="off"
-                            spellCheck={false}
-                            aria-label={t('userManagement.newPassword')}
-                            placeholder={t('userManagement.newPassword')}
-                            className="min-w-0 flex-1 rounded border border-border bg-panel px-3 py-1.5 font-mono text-sm text-ink focus:border-accent focus:outline-none"
-                            value={resetPassword}
-                            onChange={(e) => setResetPassword(e.target.value)}
-                          />
-                          <button
-                            type="button"
-                            onClick={generatePassword}
-                            className="rounded border border-border bg-panel px-3 py-1.5 text-sm text-ink hover:bg-bg"
-                          >
-                            {t('userManagement.generate')}
-                          </button>
-                        </div>
-                        {resetError && <p className="text-sm text-danger">{resetError}</p>}
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => handleResetPassword(u.id)}
-                            disabled={submittingReset}
-                            className="bg-accent rounded px-3 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50"
-                          >
-                            {submittingReset ? t('userManagement.saving') : t('userManagement.setPassword')}
-                          </button>
-                          <button onClick={() => setResettingFor(null)} className="px-3 py-1.5 text-sm text-ink-soft">
-                            {t('common.cancel')}
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+      <Sheet open={dialog === 'user'} onClose={() => setDialog('none')} title={t('userManagement.newUser')} desktopWidth={560}>
+        <NewUserForm token={token} roles={roles} onDone={() => (setDialog('none'), void load())} />
+      </Sheet>
+      <Sheet open={dialog === 'role'} onClose={() => setDialog('none')} title={t('userManagement.newRole')} desktopWidth={480}>
+        <NewRoleForm token={token} onDone={() => (setDialog('none'), void load())} />
+      </Sheet>
+    </div>
+  );
+}
 
-                {editingRolesFor === u.id && (
-                  <div className="border-t border-border rounded bg-bg p-3">
-                    <div className="mb-3 flex flex-wrap gap-3">
-                      {(roles ?? []).map((r) => (
-                        <label key={r.id} className="flex items-center gap-1.5 text-sm text-ink">
-                          <input type="checkbox" checked={pendingRoleIds.has(r.id)} onChange={() => toggleRoleInEditor(r.id)} />
-                          {r.name}
-                        </label>
-                      ))}
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleSaveRoles(u.id)}
-                        disabled={savingRoles}
-                        className="bg-accent rounded px-3 py-1.5 text-sm font-medium text-accent-ink disabled:opacity-50"
-                      >
-                        {savingRoles ? t('userManagement.saving') : t('userManagement.saveRoles')}
-                      </button>
-                      <button onClick={() => setEditingRolesFor(null)} className="px-3 py-1.5 text-sm text-ink-soft">
-                        {t('common.cancel')}
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
+function UserDrawer({ token, user, roles, onClose, onChanged }: { token: string; user: UserSummaryDto; roles: RoleDto[]; onClose: () => void; onChanged: () => Promise<void> }) {
+  const { t } = useTranslation();
+  const { roleLabel } = useShell();
+  const [error, setError] = useErrorMessage();
+  const [busy, setBusy] = useState(false);
+  const [phone, setPhone] = useState(user.phoneNumber ? `+${user.phoneNumber}` : '');
+  const [note, setNote] = useState<string | null>(null);
+  const [telegramOpen, setTelegramOpen] = useState(false);
+  const whatsapp = useWhatsAppGate();
+  const [resetOpen, setResetOpen] = useState(false);
+
+  async function act(action: () => Promise<unknown>, fallbackKey: string, done?: string) {
+    setBusy(true);
+    setError(null);
+    setNote(null);
+    try {
+      await action();
+      await onChanged();
+      if (done) setNote(done);
+    } catch (err) {
+      setError({ err, fallbackKey });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const toggleRole = (roleId: string) => {
+    const next = user.roles.some((r) => r.id === roleId) ? user.roles.filter((r) => r.id !== roleId).map((r) => r.id) : [...user.roles.map((r) => r.id), roleId];
+    void act(() => api.users.setRoles(token, user.id, next), 'userManagement.saveRolesError');
+  };
+  const phoneChanged = phone.replace(/^\+/, '').trim() !== (user.phoneNumber ?? '');
+
+  return (
+    <Drawer
+      open
+      onClose={onClose}
+      leading={
+        <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent-soft text-[18px] font-extrabold text-accent">
+          {initial(user.displayName)}
+        </span>
+      }
+      title={<bdi>{user.displayName}</bdi>}
+      sub={
+        <span dir="ltr" className="block text-start rtl:text-right">
+          {user.email}
+        </span>
+      }
+      footer={
+        user.isActive ? (
+          <Button size="desktop" variant="danger" disabled={busy} className="!h-[40px] !min-h-[40px] !text-[14px] !font-normal" onClick={() => act(() => api.users.setActiveStatus(token, user.id, false), 'userManagement.toggleActiveError')}>
+            {t('usersV2.deactivateAccount')}
+          </Button>
+        ) : (
+          <Button size="desktop" variant="secondary" disabled={busy} className="!h-[40px] !min-h-[40px] !text-[14px] !font-normal" onClick={() => act(() => api.users.setActiveStatus(token, user.id, true), 'userManagement.toggleActiveError')}>
+            {t('usersV2.reactivateAccount')}
+          </Button>
+        )
+      }
+    >
+      <section className="flex flex-col gap-2 px-[18px] py-[14px]">
+        <h3 className="text-[14px] font-extrabold text-ink">{t('usersV2.rolesTitle')}</h3>
+        <div className="flex flex-wrap gap-1.5">
+          {roles.map((r) => {
+            const on = user.roles.some((x) => x.id === r.id);
+            return (
+              <button
+                key={r.id}
+                type="button"
+                aria-pressed={on}
+                disabled={busy}
+                onClick={() => toggleRole(r.id)}
+                className={`h-[34px] rounded-ui-pill border-[1.5px] px-3 text-[13px] ${on ? 'border-accent bg-accent-soft font-bold text-accent-strong' : 'border-border bg-panel text-ink'}`}
+              >
+                {on ? '✓ ' : ''}
+                <bdi>{roleLabel(r.name)}</bdi>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-[10px] px-[18px] py-[14px]">
+        <h3 className="text-[14px] font-extrabold text-ink">{t('usersV2.remindersTitle')}</h3>
+        <label className="flex flex-col gap-1.5 text-[13px] text-ink-soft">
+          {t('usersV2.whatsappNumber')}
+          <span className="flex gap-1.5">
+            <input dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0551234567" className={`${builderInput} !h-[40px] text-[14px]`} />
+            {phoneChanged ? (
+              <Button size="compact" className="!h-[40px] !min-h-[40px] shrink-0" disabled={busy} onClick={() => act(() => api.users.setPhoneNumber(token, user.id, phone.trim() || null), 'userManagement.phoneError')}>
+                {t('common.save')}
+              </Button>
+            ) : (
+              <Button
+                size="compact"
+                variant="secondary"
+                className="!h-[40px] !min-h-[40px] shrink-0 !border !text-[13px]"
+                disabled={busy}
+                onClick={() =>
+                  whatsapp.guard(() =>
+                    act(async () => {
+                      const r = await api.users.sendWhatsAppTest(token, user.id);
+                      if (!r.success) throw new Error(r.error ?? 'failed');
+                    }, 'userManagement.phoneTestFailed', t('userManagement.phoneTestSent')),
+                  )
+                }
+              >
+                {t('usersV2.testMessage')}
+              </Button>
+            )}
+          </span>
+        </label>
+        {/* WhatsApp, as it will be once connected (config/whatsapp.ts). */}
+        {whatsapp.ready ? (
+          <div className={`flex items-center gap-[10px] rounded-ui-lg px-3 py-[10px] ${user.phoneNumber ? 'bg-success-soft' : 'bg-warning-soft'}`}>
+            <span className={`flex-1 text-[13px] ${user.phoneNumber ? 'text-success' : 'text-warning-strong'}`}>
+              {user.phoneNumber ? t('whatsapp.statusReady') : t('whatsapp.statusNoNumber')}
+            </span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-[10px] rounded-ui-lg bg-warning-soft px-3 py-[10px]">
+            <span className="flex-1 text-[13px] text-warning-strong">{t('whatsapp.statusBox')}</span>
+            <button type="button" onClick={() => whatsapp.guard(() => undefined)} className="h-[34px] shrink-0 rounded-[9px] bg-panel px-[10px] text-[13px] font-bold text-ink">
+              {t('whatsapp.connect')}
+            </button>
           </div>
         )}
+        {whatsapp.notice && (
+          <p role="status" className="text-[13px] text-warning-strong">
+            {t('whatsapp.notReady')}
+          </p>
+        )}
+        <div className={`flex items-center gap-[10px] rounded-ui-lg px-3 py-[10px] ${user.telegramLinked ? 'bg-success-soft' : 'bg-warning-soft'}`}>
+          <span className={`flex-1 text-[13px] ${user.telegramLinked ? 'text-success-strong' : 'text-warning-strong'}`}>
+            {user.telegramLinked ? t('usersV2.telegramLinkedBox') : t('usersV2.telegramNotLinkedBox')}
+          </span>
+          <button type="button" onClick={() => setTelegramOpen(true)} className="h-[34px] shrink-0 rounded-[9px] bg-panel px-[10px] text-[13px] font-bold text-ink">
+            {user.telegramLinked ? t('userManagement.telegram') : t('usersV2.linkGroup')}
+          </button>
+        </div>
+        {note && <p className="text-[13px] text-success" role="status">{note}</p>}
+      </section>
+
+      <section className="flex flex-col gap-2 px-[18px] py-[14px]">
+        <h3 className="text-[14px] font-extrabold text-ink">{t('usersV2.passwordTitle')}</h3>
+        <Button size="compact" variant="secondary" className="self-start !h-[38px] !min-h-[38px] !border" onClick={() => setResetOpen(true)}>
+          {t('userManagement.resetPassword')}
+        </Button>
+      </section>
+      {error && <p className="px-[18px] py-2 text-[14px] text-danger">{error}</p>}
+
+      <Sheet open={telegramOpen} onClose={() => setTelegramOpen(false)} title={t('userManagement.telegram')} desktopWidth={560}>
+        <UserTelegramPanel token={token} user={user} onChanged={onChanged} onClose={() => setTelegramOpen(false)} />
+      </Sheet>
+      <Sheet open={resetOpen} onClose={() => setResetOpen(false)} title={t('userManagement.resetPassword')} desktopWidth={480}>
+        <ResetPassword token={token} user={user} onClose={() => setResetOpen(false)} />
+      </Sheet>
+    </Drawer>
+  );
+}
+
+/** The existing password reset: type or generate, set, then show it once to read out. */
+function ResetPassword({ token, user, onClose }: { token: string; user: UserSummaryDto; onClose: () => void }) {
+  const { t } = useTranslation();
+  const [password, setPassword] = useState('');
+  const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useErrorMessage();
+  /** 12 characters without look-alikes (0/O, 1/l/I), easy to read out over the phone. */
+  const generate = () => {
+    const alphabet = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const bytes = new Uint32Array(12);
+    crypto.getRandomValues(bytes);
+    setPassword(Array.from(bytes, (b) => alphabet[b % alphabet.length]).join(''));
+  };
+  async function submit() {
+    setError(null);
+    if (password.length < 10) return setError({ key: 'userManagement.resetTooShort' });
+    setBusy(true);
+    try {
+      await api.users.resetPassword(token, user.id, password);
+      setDone(true);
+    } catch (err) {
+      setError({ err, fallbackKey: 'userManagement.resetError' });
+    } finally {
+      setBusy(false);
+    }
+  }
+  if (done)
+    return (
+      <div className="flex flex-col gap-3 pb-2">
+        <p className="text-[14px] text-ink" role="status">
+          {t('userManagement.resetDone', { name: user.displayName })}
+        </p>
+        <p dir="ltr" className="rounded-ui-md bg-field-muted px-3 py-2 font-mono text-[15px] text-ink">
+          {password}
+        </p>
+        <Button size="desktop" variant="secondary" className="self-start" onClick={onClose}>
+          {t('userManagement.close')}
+        </Button>
       </div>
+    );
+  return (
+    <div className="flex flex-col gap-3 pb-2">
+      <p className="text-[14px] text-ink-soft">{t('userManagement.resetExplain', { name: user.displayName })}</p>
+      <div className="flex gap-2">
+        <input type="text" dir="ltr" autoComplete="off" spellCheck={false} aria-label={t('userManagement.newPassword')} placeholder={t('userManagement.newPassword')} className={`${builderInput} font-mono`} value={password} onChange={(e) => setPassword(e.target.value)} />
+        <Button size="desktop" variant="secondary" onClick={generate}>
+          {t('userManagement.generate')}
+        </Button>
+      </div>
+      {error && <p className="text-[14px] text-danger">{error}</p>}
+      <Button size="desktop" className="self-start" disabled={busy} onClick={submit}>
+        {busy ? t('userManagement.saving') : t('userManagement.setPassword')}
+      </Button>
     </div>
+  );
+}
+
+/** The existing "new user" form: email, name, password (10+), first role. */
+function NewUserForm({ token, roles, onDone }: { token: string; roles: RoleDto[]; onDone: () => void }) {
+  const { t } = useTranslation();
+  const { roleLabel } = useShell();
+  const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
+  const [roleId, setRoleId] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useErrorMessage();
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!email.trim() || !name.trim() || password.length < 10 || !roleId) return setError({ key: 'userManagement.createUserRequiredError' });
+    setBusy(true);
+    try {
+      await api.auth.register(token, { email, displayName: name, password, departmentId: null, defaultRoleId: roleId });
+      onDone();
+    } catch (err) {
+      setError({ err, fallbackKey: 'userManagement.createUserError' });
+    } finally {
+      setBusy(false);
+    }
+  }
+  const field = 'flex flex-col gap-1.5 text-[14px] font-bold text-ink';
+  return (
+    <form onSubmit={submit} className="grid grid-cols-1 gap-3 pb-2 sm:grid-cols-2">
+      <label className={field}>
+        {t('userManagement.email')}
+        <input dir="ltr" type="email" className={builderInput} value={email} onChange={(e) => setEmail(e.target.value)} />
+      </label>
+      <label className={field}>
+        {t('userManagement.displayName')}
+        <input className={builderInput} value={name} onChange={(e) => setName(e.target.value)} />
+      </label>
+      <label className={field}>
+        {t('userManagement.passwordMinLength')}
+        <input dir="ltr" type="password" className={builderInput} value={password} onChange={(e) => setPassword(e.target.value)} />
+      </label>
+      <label className={field}>
+        {t('userManagement.initialRole')}
+        <select className={builderInput} value={roleId} onChange={(e) => setRoleId(e.target.value)}>
+          <option value="">{t('common.select')}</option>
+          {roles.map((r) => (
+            <option key={r.id} value={r.id}>
+              {roleLabel(r.name)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <p className="text-[13px] text-ink-soft sm:col-span-2">{t('userManagement.canAddMoreRolesLater')}</p>
+      {error && <p className="text-[14px] text-danger sm:col-span-2">{error}</p>}
+      <div className="sm:col-span-2">
+        <Button type="submit" size="desktop" disabled={busy}>
+          {busy ? t('userManagement.creating') : t('userManagement.createUser')}
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+/** The existing "new role" form: name and an optional description. */
+function NewRoleForm({ token, onDone }: { token: string; onDone: () => void }) {
+  const { t } = useTranslation();
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useErrorMessage();
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (!name.trim()) return setError({ key: 'userManagement.roleNameRequired' });
+    setBusy(true);
+    try {
+      await api.roles.create(token, name, description || undefined);
+      onDone();
+    } catch (err) {
+      setError({ err, fallbackKey: 'userManagement.createRoleError' });
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-3 pb-2">
+      <label className="flex flex-col gap-1.5 text-[14px] font-bold text-ink">
+        {t('userManagement.roleName')}
+        <input className={builderInput} value={name} onChange={(e) => setName(e.target.value)} placeholder={t('userManagement.roleNamePlaceholder')} />
+      </label>
+      <label className="flex flex-col gap-1.5 text-[14px] font-bold text-ink">
+        {t('userManagement.descriptionOptional')}
+        <input className={builderInput} value={description} onChange={(e) => setDescription(e.target.value)} />
+      </label>
+      {error && <p className="text-[14px] text-danger">{error}</p>}
+      <div>
+        <Button type="submit" size="desktop" disabled={busy}>
+          {busy ? t('userManagement.creating') : t('userManagement.createRole')}
+        </Button>
+      </div>
+    </form>
   );
 }

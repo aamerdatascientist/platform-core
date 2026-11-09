@@ -13,6 +13,9 @@ using Platform.Application.Forms.Commands.ReorderFields;
 using Platform.Application.Forms.Commands.RestoreField;
 using Platform.Application.Forms.Commands.UpdateFieldDynamicOptionsSource;
 using Platform.Application.Forms.Commands.UpdateFieldLabel;
+using Platform.Application.Forms.Commands.UpdateFieldOptionLabels;
+using Platform.Application.Forms.Commands.UpdateFormName;
+using Platform.Application.Forms.Commands.FormSteps;
 using Platform.Application.Forms.Commands.UpdateFieldLookupFilter;
 using Platform.Application.Forms.Commands.UpdateFieldRules;
 using Platform.Application.Forms.Commands.UpdateFieldVisibility;
@@ -74,7 +77,7 @@ public class FormsController : ControllerBase
         string? OptionsJson, Guid? LookupFormDefinitionId, string? ValidationRulesJson,
         string? VisibleWhenFieldCode = null, string? VisibleWhenValuesJson = null,
         string? FilterByFieldCode = null, Guid? DynamicOptionsSourceFormDefinitionId = null,
-        string? DynamicOptionsSourceFieldCode = null);
+        string? DynamicOptionsSourceFieldCode = null, string? LabelEn = null, Guid? StepId = null);
 
     [HttpPost("{id:guid}/fields")]
     [Authorize(Roles = "Administrator")]
@@ -84,7 +87,8 @@ public class FormsController : ControllerBase
             id, request.Code, request.Label, request.FieldType, request.IsRequired,
             request.OptionsJson, request.LookupFormDefinitionId, request.ValidationRulesJson,
             request.VisibleWhenFieldCode, request.VisibleWhenValuesJson, request.FilterByFieldCode,
-            request.DynamicOptionsSourceFormDefinitionId, request.DynamicOptionsSourceFieldCode), cancellationToken);
+            request.DynamicOptionsSourceFormDefinitionId, request.DynamicOptionsSourceFieldCode,
+            request.LabelEn, request.StepId), cancellationToken);
 
         return Ok(new { id = fieldId });
     }
@@ -94,7 +98,8 @@ public class FormsController : ControllerBase
     public async Task<ActionResult<PublishFormVersionResult>> Publish(Guid id, CancellationToken cancellationToken) =>
         Ok(await _sender.Send(new PublishFormVersionCommand(id), cancellationToken));
 
-    public record UpdateFieldLabelRequest(string Label);
+    /// <summary>LabelEn: null leaves the English label unchanged, "" clears it.</summary>
+    public record UpdateFieldLabelRequest(string Label, string? LabelEn = null);
 
     /// <summary>Safe: metadata only, no column touched. Works on a published form with live data.</summary>
     [HttpPut("{id:guid}/fields/{fieldId:guid}/label")]
@@ -102,7 +107,76 @@ public class FormsController : ControllerBase
     public async Task<IActionResult> UpdateFieldLabel(
         Guid id, Guid fieldId, UpdateFieldLabelRequest request, CancellationToken cancellationToken)
     {
-        await _sender.Send(new UpdateFieldLabelCommand(id, fieldId, request.Label), cancellationToken);
+        await _sender.Send(new UpdateFieldLabelCommand(id, fieldId, request.Label, request.LabelEn), cancellationToken);
+        return NoContent();
+    }
+
+    // ---------------------------------------------------------------- redesign §9.1 / §9.2
+    // All Safe: metadata only (no column, no data), so they work on a live published form.
+
+    public record UpdateFormNameRequest(string Name, string? NameEn);
+
+    [HttpPut("{id:guid}/name")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> UpdateName(Guid id, UpdateFormNameRequest request, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new UpdateFormNameCommand(id, request.Name, request.NameEn), cancellationToken);
+        return NoContent();
+    }
+
+    public record UpdateFieldOptionLabelsRequest(IReadOnlyList<OptionLabelDto> Options);
+
+    /// <summary>Relabels (and may reorder) a static dropdown's options; the set of values must not change.</summary>
+    [HttpPut("{id:guid}/fields/{fieldId:guid}/option-labels")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> UpdateFieldOptionLabels(
+        Guid id, Guid fieldId, UpdateFieldOptionLabelsRequest request, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new UpdateFieldOptionLabelsCommand(id, fieldId, request.Options), cancellationToken);
+        return NoContent();
+    }
+
+    public record FormStepRequest(string TitleAr, string? TitleEn);
+
+    [HttpPost("{id:guid}/steps")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<ActionResult<FormStepDto>> AddStep(Guid id, FormStepRequest request, CancellationToken cancellationToken) =>
+        Ok(await _sender.Send(new AddFormStepCommand(id, request.TitleAr, request.TitleEn), cancellationToken));
+
+    [HttpPut("{id:guid}/steps/{stepId:guid}")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> UpdateStep(Guid id, Guid stepId, FormStepRequest request, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new UpdateFormStepCommand(id, stepId, request.TitleAr, request.TitleEn), cancellationToken);
+        return NoContent();
+    }
+
+    public record ReorderStepsRequest(IReadOnlyList<Guid> StepIds);
+
+    [HttpPut("{id:guid}/steps/order")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> ReorderSteps(Guid id, ReorderStepsRequest request, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new ReorderFormStepsCommand(id, request.StepIds), cancellationToken);
+        return NoContent();
+    }
+
+    /// <summary>Its fields move to the previous step (the next one if it was first).</summary>
+    [HttpDelete("{id:guid}/steps/{stepId:guid}")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> DeleteStep(Guid id, Guid stepId, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new DeleteFormStepCommand(id, stepId), cancellationToken);
+        return NoContent();
+    }
+
+    public record SetFieldStepRequest(Guid? StepId);
+
+    [HttpPut("{id:guid}/fields/{fieldId:guid}/step")]
+    [Authorize(Roles = "Administrator")]
+    public async Task<IActionResult> SetFieldStep(Guid id, Guid fieldId, SetFieldStepRequest request, CancellationToken cancellationToken)
+    {
+        await _sender.Send(new SetFieldStepCommand(id, fieldId, request.StepId), cancellationToken);
         return NoContent();
     }
 
@@ -122,7 +196,8 @@ public class FormsController : ControllerBase
     }
 
     public record UpdateFieldRulesRequest(
-        bool IsRequired, double? Min, double? Max, bool MinExclusive, string? Regex, bool NoFutureDates);
+        bool IsRequired, double? Min, double? Max, bool MinExclusive, string? Regex, bool NoFutureDates,
+        bool Unique = false, string? UniqueWithin = null);
 
     /// <summary>Safe: sets "required" and the value rules (min/max, pattern, no future
     /// dates). Works on a published form with live data; enforced for new submissions.</summary>
@@ -134,7 +209,7 @@ public class FormsController : ControllerBase
         await _sender.Send(
             new UpdateFieldRulesCommand(
                 id, fieldId, request.IsRequired, request.Min, request.Max, request.MinExclusive, request.Regex,
-                request.NoFutureDates),
+                request.NoFutureDates, request.Unique, request.UniqueWithin),
             cancellationToken);
         return NoContent();
     }

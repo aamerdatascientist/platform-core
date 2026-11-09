@@ -2,17 +2,20 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ApiError, api } from '../api/client';
-import { BarList, WeekColumnChart, WeekLineChart } from '../components/ExecutiveOverviewCharts';
 import {
+  HBars,
   OverviewTiles,
   PROBLEMS_SHOWN,
   Panel,
+  planColour,
   ProblemsList,
   ProjectsTable,
   STOCK_ROWS_SHOWN,
   StockTable,
   useOverviewFormat,
+  WeekBars,
 } from '../components/ExecutiveOverviewPanels';
+import { Icon, LogoMark } from '../components/icons';
 import { LanguageToggle } from '../components/LanguageToggle';
 import { LoadingSpinner } from '../components/LoadingSpinner';
 import { Logo } from '../components/Logo';
@@ -49,15 +52,6 @@ function useStageScale() {
   return scale;
 }
 
-/** A "nice" y-axis for a count: a round step and the first multiple of it at or above the data. */
-function countAxis(maxValue: number) {
-  const step = maxValue > 400 ? 200 : maxValue > 200 ? 100 : maxValue > 80 ? 40 : maxValue > 40 ? 20 : maxValue > 16 ? 10 : 5;
-  const top = Math.max(step, Math.ceil(maxValue / step) * step);
-  const ticks: number[] = [];
-  for (let tick = 0; tick <= top; tick += step) ticks.push(tick);
-  return { top, ticks };
-}
-
 function Stage({ children }: { children: ReactNode }) {
   const scale = useStageScale();
   return (
@@ -72,20 +66,26 @@ function Stage({ children }: { children: ReactNode }) {
   );
 }
 
-function Message({ title, body }: { title: string; body?: string }) {
+function Message({ title, body, onRetry }: { title: string; body?: string; onRetry?: () => void }) {
+  const { t } = useTranslation();
   return (
     <Stage>
       <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
         <Logo size="lg" />
         <h1 className="font-display text-2xl font-semibold text-ink">{title}</h1>
         {body && <p className="max-w-xl text-base text-ink-soft">{body}</p>}
+        {onRetry && (
+          <button type="button" onClick={onRetry} className={HEADER_BUTTON_CLASS}>
+            {t('common.tryAgain')}
+          </button>
+        )}
       </div>
     </Stage>
   );
 }
 
-const HEADER_BUTTON_CLASS =
-  'rounded border border-border bg-panel px-3 py-1.5 text-xs font-medium text-ink-soft hover:text-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent';
+/** Header buttons (25): 42px, radius 11, --panel on 1px --border, 15px (the 1600x900 design x1.1). */
+const HEADER_BUTTON_CLASS = 'relative flex h-[42px] items-center gap-2 whitespace-nowrap rounded-[11px] border border-border bg-panel px-[15px] text-[15.4px] text-ink hover:border-ink-soft';
 
 /**
  * The Executive Overview as a standalone, full-window page.
@@ -170,12 +170,12 @@ export function ExecutiveOverview({ token }: { token: string | null }) {
     return <Message title={t('executiveOverview.share.invalidTitle')} body={t('executiveOverview.share.invalidBody')} />;
   }
   if (!data) {
-    if (failure === 'error') return <Message title={t('executiveOverview.loadError')} />;
+    if (failure === 'error') return <Message title={t('executiveOverview.loadError')} onRetry={() => (setFailure(null), setRefreshTick((n) => n + 1))} />;
     return (
       <Stage>
         <div className="flex h-full items-center justify-center gap-3">
           <LoadingSpinner size="md" />
-          <span className="text-sm uppercase tracking-wide text-ink-soft">{t('common.loading')}</span>
+          <span className="text-sm text-ink-soft">{t('common.loading')}</span>
         </div>
       </Stage>
     );
@@ -184,45 +184,42 @@ export function ExecutiveOverview({ token }: { token: string | null }) {
   const selected = data.projects.find((project) => project.id === selectedId) ?? null;
   const reportsSince = data.dataFrom ? format.day(data.dataFrom) : '';
 
-  const planPoints = data.planMetByWeek.map((week) => ({
-    label: format.day(week.weekStart),
+  const planWeeks = data.planMetByWeek.map((week) => ({
+    weekStart: week.weekStart,
     value: week.planMet === null ? null : week.planMet * 100,
     tooltip: [
       t('executiveOverview.weekOf', { date: format.day(week.weekStart) }),
-      week.planMet === null
-        ? t('executiveOverview.noReportsThisWeek')
-        : t('executiveOverview.planMetWeek.tooltip', { share: format.percent(week.planMet), n: week.reportCount }),
-    ],
+      week.planMet === null ? t('executiveOverview.noReportsThisWeek') : t('executiveOverview.planMetWeek.tooltip', { share: format.percent(week.planMet), n: week.reportCount }),
+    ].join(' · '),
   }));
-  const lastPlanWeek = [...data.planMetByWeek].reverse().find((week) => week.planMet !== null);
-
-  const workersAxis = countAxis(Math.max(0, ...data.workersByWeek.map((week) => week.averageWorkersPerDay)));
-  const workerPoints = data.workersByWeek.map((week) => ({
-    label: format.day(week.weekStart),
-    value: week.averageWorkersPerDay,
+  const workerWeeks = data.workersByWeek.map((week) => ({
+    weekStart: week.weekStart,
+    value: week.reportingDays === 0 ? null : week.averageWorkersPerDay,
     tooltip: [
       t('executiveOverview.weekOf', { date: format.day(week.weekStart) }),
       week.reportingDays === 0
         ? t('executiveOverview.noReportsThisWeek')
-        : t('executiveOverview.workersWeek.tooltip', {
-            workers: format.number(Math.round(week.averageWorkersPerDay)),
-            n: week.reportingDays,
-          }),
-    ],
+        : t('executiveOverview.workersWeek.tooltip', { workers: format.number(Math.round(week.averageWorkersPerDay)), n: week.reportingDays }),
+    ].join(' · '),
   }));
+  const workersMax = Math.max(1, ...data.workersByWeek.map((week) => week.averageWorkersPerDay));
 
+  // Plan met by weather: bars in --accent, extreme heat in --accent2 (25).
   const weatherItems = data.planMetByWeather.map((row) => ({
     label: t(`executiveOverview.weather.${row.weather}`, row.weather),
     value: row.planMet,
     text: format.percent(row.planMet),
     title: t('executiveOverview.planMetWeather.tooltip', { share: format.percent(row.planMet), n: row.reportCount }),
+    colour: row.weather === 'extreme_heat' ? 'var(--accent2)' : 'var(--accent)',
   }));
-
+  // Why days were delayed: --danger bars; the causes are typed in Arabic, so they stay right-to-left (25).
   const delayItems = data.delayCauses.slice(0, DELAY_CAUSES_SHOWN).map((row) => ({
     label: row.label,
     value: row.count,
     text: format.number(row.count),
     title: t('executiveOverview.delayCauses.tooltip', { n: row.count }),
+    colour: 'var(--danger)',
+    rtl: /[\u0600-\u06FF]/.test(row.label),
   }));
 
   const wasted = data.issueReasons.find((row) => row.label === 'damaged_or_wasted')?.count ?? 0;
@@ -264,136 +261,106 @@ export function ExecutiveOverview({ token }: { token: string | null }) {
     else document.documentElement.requestFullscreen().catch(() => {});
   }
 
+  const filterButton = (label: string, value: string, select: ReactNode) => (
+    <label className={HEADER_BUTTON_CLASS}>
+      {label}: {value}
+      <Icon name="chevronDown" size={14} />
+      {select}
+    </label>
+  );
+  const selectOverlay = 'absolute inset-0 cursor-pointer opacity-0';
+
   return (
     <Stage>
-      <div className="grid h-full gap-3.5 p-6" style={{ gridTemplateRows: '52px 108px 356px minmax(0, 1fr)' }}>
-        <header className="flex items-center justify-between gap-6">
-          <div className="flex min-w-0 items-center gap-3">
-            <Logo size="sm" />
-            <div className="min-w-0">
-              <h1 className="truncate font-display text-xl font-semibold uppercase tracking-[0.07em] text-ink">
-                {t('executiveOverview.title')}
-              </h1>
-              <p className="truncate text-xs text-ink-soft" dir="auto">
-                {data.dataFrom
-                  ? t('executiveOverview.subtitle', { asOf: format.day(data.asOf), from: reportsSince })
-                  : t('executiveOverview.subtitleEmpty')}
-              </p>
-            </div>
+      {/* 25 at x1.1: 24/29px padding, 15px gaps; rows: header, tiles (119), projects + plan (330), the rest. */}
+      <div className="grid h-full gap-[15px] px-[29px] py-[24px]" style={{ gridTemplateRows: '42px 119px 330px minmax(0, 1fr)' }}>
+        <header className="flex items-center gap-[15px]">
+          <LogoMark size={37} />
+          <div className="flex min-w-0 flex-col">
+            <h1 className="truncate text-[26.4px] font-extrabold text-ink">{t('executiveOverview.title')}</h1>
+            <span className="truncate text-[14.3px] text-ink-soft" dir="auto">
+              {data.dataFrom ? t('executiveOverview.subtitle', { asOf: format.day(data.asOf), from: reportsSince }) : t('executiveOverview.subtitleEmpty')}
+            </span>
           </div>
-          <div className="flex shrink-0 items-center gap-3">
-            <label className="flex items-center gap-2 text-xs text-ink-soft">
-              {t('executiveOverview.filter.label')}
-              <select
-                id="executive-overview-project"
-                className="w-72 rounded border border-border bg-panel px-2 py-1.5 text-sm text-ink"
-                value={selectedId ?? ''}
-                onChange={(event) => setSelectedId(event.target.value || null)}
-              >
-                <option value="">{t('executiveOverview.filter.all')}</option>
-                {data.projects.map((project) => (
-                  <option key={project.id} value={project.id}>
-                    {project.code} · {project.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2 text-xs text-ink-soft">
-              {t('executiveOverview.filter.stageLabel')}
-              <select
-                id="executive-overview-stage"
-                className="w-48 rounded border border-border bg-panel px-2 py-1.5 text-sm text-ink"
-                value={selectedPhase ?? ''}
-                onChange={(event) => setSelectedPhase((event.target.value || null) as OverviewPhase | null)}
-              >
-                <option value="">{t('executiveOverview.filter.stageAll')}</option>
-                {PHASES.map((phase) => (
-                  <option key={phase} value={phase}>
-                    {t(`executiveOverview.phase.${phase}`)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {link.shareKey && (
-              <button type="button" className={HEADER_BUTTON_CLASS} onClick={copyLink}>
-                {copied ? t('executiveOverview.share.copied') : t('executiveOverview.share.copyLink')}
-              </button>
-            )}
-            <button type="button" className={HEADER_BUTTON_CLASS} onClick={toggleFullScreen}>
-              {isFullScreen ? t('executiveOverview.share.exitFullScreen') : t('executiveOverview.share.fullScreen')}
+          <span className="flex-1" />
+          {filterButton(
+            t('executiveOverview.filter.label'),
+            selected ? `${selected.code} · ${selected.name}` : t('executiveOverview.filter.all'),
+            <select id="executive-overview-project" aria-label={t('executiveOverview.filter.label')} className={selectOverlay} value={selectedId ?? ''} onChange={(event) => setSelectedId(event.target.value || null)}>
+              <option value="">{t('executiveOverview.filter.all')}</option>
+              {data.projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.code} · {project.name}
+                </option>
+              ))}
+            </select>,
+          )}
+          {filterButton(
+            t('executiveOverview.filter.stageLabel'),
+            selectedPhase ? t(`executiveOverview.phase.${selectedPhase}`) : t('executiveOverview.filter.stageAll'),
+            <select id="executive-overview-stage" aria-label={t('executiveOverview.filter.stageLabel')} className={selectOverlay} value={selectedPhase ?? ''} onChange={(event) => setSelectedPhase((event.target.value || null) as OverviewPhase | null)}>
+              <option value="">{t('executiveOverview.filter.stageAll')}</option>
+              {PHASES.map((phase) => (
+                <option key={phase} value={phase}>
+                  {t(`executiveOverview.phase.${phase}`)}
+                </option>
+              ))}
+            </select>,
+          )}
+          {link.shareKey && (
+            <button type="button" className={HEADER_BUTTON_CLASS} onClick={copyLink}>
+              {copied ? t('executiveOverview.share.copied') : t('executiveOverview.share.copyLink')}
             </button>
-            <div dir="ltr" className="flex items-center gap-3">
-              <LanguageToggle />
-              <ModeToggle />
-            </div>
+          )}
+          <button
+            type="button"
+            className={`${HEADER_BUTTON_CLASS} w-[42px] justify-center !px-0`}
+            onClick={toggleFullScreen}
+            aria-label={isFullScreen ? t('executiveOverview.share.exitFullScreen') : t('executiveOverview.share.fullScreen')}
+            title={isFullScreen ? t('executiveOverview.share.exitFullScreen') : t('executiveOverview.share.fullScreen')}
+          >
+            <Icon name="expand" size={18} />
+          </button>
+          {/* Kept from before: a shared link opens in its language and mode, and these switch them. */}
+          <div dir="ltr" className="flex items-center gap-2">
+            <LanguageToggle />
+            <ModeToggle />
           </div>
         </header>
 
         <OverviewTiles data={data} selected={selected} phase={selectedPhase} />
 
-        <div className="grid min-h-0 grid-cols-12 gap-3.5">
-          <div className="col-span-8 min-h-0">
-            <Panel title={t('executiveOverview.projects.title')} caption={projectsCaption}>
-              <ProjectsTable projects={data.projects} selectedId={selectedId} onSelect={setSelectedId} />
-            </Panel>
-          </div>
-          <div className="col-span-4 min-h-0">
-            <Panel title={t('executiveOverview.planMetWeek.title')} caption={t('executiveOverview.planMetWeek.caption')}>
-              <WeekLineChart
-                points={planPoints}
-                max={100}
-                ticks={[0, 25, 50, 75, 100]}
-                formatTick={(value) => format.percent(value / 100)}
-                endLabel={lastPlanWeek?.planMet != null ? format.percent(lastPlanWeek.planMet) : undefined}
-                ariaLabel={t('executiveOverview.planMetWeek.title')}
-                emptyText={t('executiveOverview.noReports')}
-              />
-            </Panel>
-          </div>
+        <div className="grid min-h-0 gap-[13px]" style={{ gridTemplateColumns: '1.55fr 1fr' }}>
+          <Panel title={t('executiveOverview.projects.title')} aside={projectsCaption}>
+            <ProjectsTable projects={data.projects} selectedId={selectedId} onSelect={setSelectedId} />
+          </Panel>
+          <Panel title={t('executiveOverview.planMetWeek.title')} aside={t('executiveOverview.planMetWeek.caption')}>
+            <WeekBars weeks={planWeeks} max={100} colour={planColour} ariaLabel={t('executiveOverview.planMetWeek.title')} emptyText={t('executiveOverview.noReports')} />
+          </Panel>
         </div>
 
-        <div className="grid min-h-0 grid-cols-4 gap-3.5">
-          <Panel
-            title={t('executiveOverview.workersWeek.title')}
-            caption={t(selected ? 'executiveOverview.workersWeek.captionOne' : 'executiveOverview.workersWeek.captionAll')}
-          >
-            <WeekColumnChart
-              points={workerPoints}
-              max={workersAxis.top}
-              ticks={workersAxis.ticks}
-              formatTick={(value) => format.number(value)}
-              formatValue={(value) => format.number(Math.round(value))}
-              ariaLabel={t('executiveOverview.workersWeek.title')}
-              emptyText={t('executiveOverview.noReports')}
-            />
+        <div className="grid min-h-0 gap-[13px]" style={{ gridTemplateColumns: '1.3fr 0.8fr 1.2fr 0.9fr 0.9fr' }}>
+          <Panel title={t('executiveOverview.workersWeek.title')} caption={t(selected ? 'executiveOverview.workersWeek.captionOne' : 'executiveOverview.workersWeek.captionAll')}>
+            <WeekBars weeks={workerWeeks} max={workersMax} colour={() => 'var(--accent)'} ariaLabel={t('executiveOverview.workersWeek.title')} emptyText={t('executiveOverview.noReports')} labelEvery="thirds" />
           </Panel>
-
-          <div className="grid min-h-0 grid-rows-2 gap-3.5">
-            <Panel title={t('executiveOverview.planMetWeather.title')}>
-              <BarList items={weatherItems} max={1} emptyText={t('executiveOverview.planMetWeather.empty')} />
-            </Panel>
-            <Panel title={t('executiveOverview.delayCauses.title', { n: data.delayedReportCount })}>
-              <BarList
-                items={delayItems}
-                max={Math.max(1, ...delayItems.map((item) => item.value))}
-                emptyText={t('executiveOverview.delayCauses.empty')}
-              />
-            </Panel>
-          </div>
-
+          <Panel title={t('executiveOverview.planMetWeather.title')}>
+            <HBars items={weatherItems} max={1} thick emptyText={t('executiveOverview.planMetWeather.empty')} />
+          </Panel>
+          <Panel title={t('executiveOverview.delayCauses.title', { n: data.delayedReportCount })}>
+            <HBars items={delayItems} max={Math.max(1, ...delayItems.map((item) => item.value))} emptyText={t('executiveOverview.delayCauses.empty')} />
+          </Panel>
           <Panel title={t('executiveOverview.stock.title')} caption={stockCaption || undefined}>
             <StockTable materials={data.stockByMaterial} />
           </Panel>
-
           <Panel
             title={t('executiveOverview.problems.title')}
-            caption={t('executiveOverview.problems.caption', {
-              n: data.problemReportCount,
-              from: reportsSince,
-              shown: Math.min(PROBLEMS_SHOWN, data.latestProblems.length),
-            })}
+            caption={
+              data.latestProblems.length
+                ? t('executiveOverview.problems.caption', { n: data.problemReportCount, from: reportsSince, shown: Math.min(PROBLEMS_SHOWN, data.latestProblems.length) })
+                : undefined
+            }
           >
-            <ProblemsList problems={data.latestProblems} />
+            <ProblemsList problems={data.latestProblems} since={reportsSince} />
           </Panel>
         </div>
       </div>
