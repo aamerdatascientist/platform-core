@@ -10,6 +10,7 @@ import { FormView } from './routes/FormView';
 import { Layout } from './routes/Layout';
 import { FormAssignments } from './routes/FormAssignments';
 import { StakeholderReports } from './routes/StakeholderReports';
+import { ProjectProgress } from './routes/ProjectProgress';
 import { Today } from './routes/Today';
 import { Settings } from './routes/Settings';
 import { SignIn } from './routes/SignIn';
@@ -80,6 +81,7 @@ export default function App() {
           {/* Merged into /admin/assignments (screen 23, phase 8). */}
           <Route path="admin/assignments/status" element={<Navigate to="/admin/assignments" replace />} />
           <Route path="admin/reports" element={<StakeholderReports token={accessToken} />} />
+          <Route path="admin/projects/:projectId/progress" element={<ProjectProgress token={accessToken} />} />
         </Route>
         <Route path="*" element={<StatusPage kind="notFound" />} />
       </Route>

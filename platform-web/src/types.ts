@@ -12,7 +12,11 @@ export type FieldType =
   | 'DateTime'
   | 'Dropdown'
   | 'Lookup'
-  | 'Attachment';
+  | 'Attachment'
+  /** Several options; stored as a list (2026-11-10). */
+  | 'MultiSelect'
+  /** Several rows of another form; stored as a list of ids (2026-11-10). */
+  | 'MultiLookup';
 
 export type FormStatus = 'Draft' | 'Published' | 'Retired';
 
@@ -53,6 +57,27 @@ export interface FieldDefinitionDto {
    *  when fieldType is Dropdown. */
   dynamicOptionsSourceFormDefinitionId: string | null;
   dynamicOptionsSourceFieldCode: string | null;
+  /** The repeatable section this field belongs to (null = the form's header). */
+  sectionId?: string | null;
+  /** With visibleWhenFieldCode: compare this attribute of the controlling field's chosen
+   *  option (e.g. a stage's unit_pick) instead of its value. */
+  visibleWhenAttribute?: string | null;
+  /** Lookup: only rows whose field is one of the values (JSON {field, values}). */
+  rowFilterJson?: string | null;
+  /** Number/Decimal: read-only, calculated by the server from sibling number fields. */
+  formula?: string | null;
+  /** The server-side options provider this choice field takes its options from. */
+  optionsProvider?: string | null;
+}
+
+/** A repeatable section (2026-11-10): its fields are filled once per block. */
+export interface FormSectionDto {
+  id: string;
+  code: string;
+  titleAr: string;
+  titleEn: string | null;
+  minBlocks: number;
+  maxBlocks: number;
 }
 
 export interface FormVersionDto {
@@ -63,6 +88,8 @@ export interface FormVersionDto {
   fields: FieldDefinitionDto[];
   /** Filling steps in order (§9.2); empty = one step titled with the form name. */
   steps?: FormStepDto[];
+  /** Repeatable sections (2026-11-10). */
+  sections?: FormSectionDto[];
 }
 
 export interface FormStepDto {
@@ -80,6 +107,10 @@ export interface FormSummaryDto {
   nameEn?: string | null;
   moduleName: string;
   status: FormStatus;
+  /** Hidden from the menus (records and builder still open for administrators). */
+  isHidden?: boolean;
+  /** A system form: progress figures read it, so its fields can't be renamed or removed. */
+  isSystem?: boolean;
 }
 
 export interface FormDefinitionDto {
@@ -95,6 +126,8 @@ export interface FormDefinitionDto {
   allowedRoleIds: string[];
   allowedUserIds: string[];
   nameEn?: string | null;
+  isSystem?: boolean;
+  isHidden?: boolean;
 }
 
 /** Raw submission row - values are keyed by FieldDefinition.code, same shape the backend returns. */
@@ -211,7 +244,15 @@ export interface DropdownOption {
 // means "no reports to judge by", which the page shows as a dash, never as 0%.
 // Dates are plain calendar dates ("2026-10-10"), already in Saudi local time.
 
-export type OverviewPhase = 'paperwork' | 'excavation' | 'foundation' | 'structural' | 'mep';
+/** A stage code from the projects' stage plans (2026-11-10), or an old report's phase. */
+export type OverviewPhase = string;
+
+/** A stage of the plans in scope, in plan order, with its names. */
+export interface OverviewStageInfoDto {
+  code: string;
+  nameAr: string;
+  nameEn: string;
+}
 export type OverviewScheduleStatus = 'ahead' | 'behind' | 'on_track' | 'finished' | 'unknown';
 
 /** Thresholds live on the server (OverviewKpiThresholds) - the page only colours by them. */
@@ -265,7 +306,7 @@ export interface OverviewProjectDto {
   scheduleStatus: OverviewScheduleStatus;
   /** Work complete minus time elapsed, in whole percentage points. */
   scheduleGapPoints: number | null;
-  phases: { phase: OverviewPhase; complete: number }[];
+  phases: { phase: OverviewPhase; complete: number; nameAr?: string | null; nameEn?: string | null }[];
   planMet: number;
   reportCount: number;
   lastReportDate: string;
@@ -332,6 +373,8 @@ export interface ExecutiveOverviewDto {
   issueReasons: OverviewLabelCountDto[];
   problemReportCount: number;
   latestProblems: OverviewProblemDto[];
+  /** The stages of the plans in scope, for the filter and every stage label. */
+  stages?: OverviewStageInfoDto[] | null;
 }
 
 // ------------------------------------------------------------------- daily form assignments
@@ -453,6 +496,17 @@ export interface RecordItemDto {
   /** Lookup field code -> the chosen row's label. */
   lookupLabels: Record<string, string>;
   attachmentCount: number;
+  enteredAtUtc?: string | null;
+  /** Repeatable sections: section code -> the blocks in order. */
+  sections?: Record<string, RecordBlockDto[]> | null;
+}
+
+/** One block of a repeatable section. Labels hold what each choice reads as; a provider
+ *  label is "Arabic\u001FEnglish" when both exist (forms/recordAnswers splits it). */
+export interface RecordBlockDto {
+  index: number;
+  values: Record<string, unknown>;
+  labels: Record<string, string>;
 }
 
 export interface RecordsPageDto {
@@ -483,4 +537,56 @@ export interface RecordQuery {
   dateField?: string;
   /** Field code -> value (equality). */
   filters?: Record<string, string>;
+}
+
+/** An option of a choice field from the options endpoint: `id` is what gets submitted (a row
+ *  id for a Lookup, the option value for a provider field). */
+export interface ChoiceOptionDto {
+  id: string;
+  label: string;
+  labelEn?: string | null;
+  /** Settings other fields' visibility (or a block rule) depends on. */
+  attributes?: Record<string, string> | null;
+}
+
+/** One unit of a project's stage plan with its progress (api/stage-progress). */
+export interface StageUnitDto {
+  key: string;
+  stageCode: string;
+  substepCode: string | null;
+  levelId: string | null;
+  side: number | null;
+  stageNameAr: string;
+  stageNameEn: string;
+  substepNameAr: string | null;
+  substepNameEn: string | null;
+  levelNameAr: string | null;
+  levelNameEn: string | null;
+  plannedDays: number;
+  earnedDays: number;
+  finished: boolean;
+  actualStart: string | null;
+  actualFinish: string | null;
+  plannedFinish: string | null;
+}
+
+export interface ProjectProgressDto {
+  projectId: string;
+  code: string;
+  name: string;
+  status: string | null;
+  startDate: string | null;
+  earnedDays: number;
+  plannedDays: number;
+  workComplete: number;
+  plannedShare: number | null;
+  elapsedWorkingDays: number;
+  finishFastest: string | null;
+  finishSlowest: string | null;
+  finishTarget: string | null;
+  skeletonFastest: number | null;
+  skeletonSlowest: number | null;
+  totalFastest: number;
+  totalSlowest: number;
+  units: StageUnitDto[];
 }

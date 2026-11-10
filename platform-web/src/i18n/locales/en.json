@@ -56,7 +56,9 @@
     "DateTime": "Date/time",
     "Dropdown": "Dropdown",
     "Lookup": "Lookup",
-    "Attachment": "Attachment"
+    "Attachment": "Attachment",
+    "MultiSelect": "Multiple choice",
+    "MultiLookup": "Multiple lookup"
   },
   "builderHome": {
     "title": "Build forms",
@@ -129,7 +131,9 @@
     "deleteError": "Could not delete this form.",
     "accessError": "Could not update access for this form.",
     "liveEditNote": "This form is published and holds live data. Changes to its fields apply immediately - renaming a label or reordering fields is instant and safe; renaming a code, changing a type or removing a field will ask you to confirm first.",
-    "reorderError": "Could not reorder the fields."
+    "reorderError": "Could not reorder the fields.",
+    "systemForm": "System form",
+    "hiddenForm": "Hidden from menus"
   },
   "formView": {
     "recordsHeading": "Records - select one to edit, delete or see its status",
@@ -181,7 +185,10 @@
     "attachmentsNotEditedHere": "Attachments are changed from the Attachments panel, not here.",
     "noChoices": "Nothing to choose yet",
     "noChoicesHint": "There is nothing to pick here yet. Ask an administrator to add it.",
-    "noChoicesForFilter": "Nothing has been added for this selection yet. Ask an administrator to add it."
+    "noChoicesForFilter": "Nothing has been added for this selection yet. Ask an administrator to add it.",
+    "calculatedHint": "Calculated automatically",
+    "chooseAll": "All",
+    "cantChoose": "This choice can't be sent right now."
   },
   "workflowPanel": {
     "loadingStatus": "Loading status…",
@@ -206,7 +213,9 @@
     "form": {
       "field": {
         "codeMustBeLatin": "Code must be Latin letters, digits, and underscores only, starting with a letter (e.g. 'quantity_received') - it becomes a database column name. Use 'Field name' for the human-readable label shown on the form, which can be in any language."
-      }
+      },
+      "systemLocked": "Progress figures are calculated from this form, so its fields can't be renamed, retyped or removed. Labels can still change.",
+      "sectionField": "This isn't available for a field in a repeatable section. Archive it and add a new field instead."
     },
     "auth": {
       "tooManyAttempts": "Too many attempts. Wait a few minutes and try again."
@@ -221,13 +230,32 @@
       "duplicate": "This value is already used by another record. Enter a different one.",
       "enteredAtInvalid": "Kept on the phone for more than 3 days - it can no longer be sent. Fill it in again.",
       "keyReused": "This entry couldn't be matched to its form. Fill it in again.",
-      "inProgress": "Still being saved - it will be checked again shortly."
+      "inProgress": "Still being saved - it will be checked again shortly.",
+      "blocked": "This choice can't be sent right now.",
+      "choiceNotAllowed": "This choice isn't available here. Choose again."
     },
     "assignment.formNotPublished": "This form isn't published yet, so it can't be filled.",
     "assignment.userInactive": "Deactivated users can't be assigned.",
     "assignment.noFormAccess": "Some of these users can't open this form. Give them access to it first (Form builder > Access).",
     "user.phoneInvalid": "Enter the full mobile number, e.g. 0551234567 or +966551234567.",
-    "telegram.notConfigured": "Telegram isn't set up on this server yet."
+    "telegram.notConfigured": "Telegram isn't set up on this server yet.",
+    "stage": {
+      "notInPlan": "This stage isn't in the project's plan.",
+      "substepNeeded": "Choose one of this stage's steps.",
+      "duplicate": "This stage is already in this report.",
+      "unitsNeeded": "Choose where this stage was worked today.",
+      "unitFinished": "This stage is already finished there. An administrator can reopen it.",
+      "substepOrder": "The previous step hasn't started there yet.",
+      "projectPaused": "This project is paused. Reports can be sent once it is resumed.",
+      "projectClosed": "This project is closed, so reports can't be sent.",
+      "floorReduction": "A floor that would be removed already has reports, so the number of floors can't be reduced.",
+      "pauseAdminOnly": "Only an administrator can pause or resume a project.",
+      "alreadyPaused": "This project is already paused.",
+      "notPaused": "This project isn't paused.",
+      "deactivateInstead": "This can't be deleted. Set Active to No instead.",
+      "unitMissing": "That stage isn't in this project's plan there.",
+      "unitNotFinished": "That stage isn't finished there, so there's nothing to reopen."
+    }
   },
   "userManagement": {
     "title": "Users & roles",
@@ -1052,5 +1080,60 @@
     "explainReady": "Form reminders also come on WhatsApp, to the number your administrator added to your account.",
     "statusReady": "WhatsApp reminders go to this number.",
     "statusNoNumber": "No number yet - add one above to send WhatsApp reminders."
+  },
+  "sections": {
+    "addAnother": "Add another {{title}}",
+    "removeBlock": "Remove {{title}} {{n}}",
+    "count_zero": "None",
+    "count_one": "1 entry",
+    "count_other": "{{count}} entries"
+  },
+  "stageProgress": {
+    "title": "Stage progress",
+    "summary": "{{earned}} of {{planned}} days earned ({{pct}})",
+    "plannedRange": "Planned length",
+    "daysRange": "{{fast}}–{{slow}} working days",
+    "plannedFinish": "Planned finish (fastest – slowest)",
+    "targetFinish": "Target (midpoint + 10%)",
+    "colUnit": "Where",
+    "colDays": "Days",
+    "colState": "State",
+    "colPlannedFinish": "Planned finish",
+    "colActions": "Actions",
+    "wholeProject": "Whole project",
+    "finished": "Finished",
+    "inProgress": "In progress",
+    "notStarted": "Not started",
+    "reopen": "Reopen",
+    "reopening": "Reopening…",
+    "reopenFailed": "Couldn't reopen it. Try again.",
+    "loadError": "Couldn't load the project's progress.",
+    "pauseProject": "Pause project",
+    "resumeProject": "Resume project",
+    "openProgress": "Stage progress"
+  },
+  "sectionsBuilder": {
+    "add": "Add a repeatable section",
+    "edit": "Section: {{title}}",
+    "editTitle": "Repeatable section",
+    "explain": "Its fields are filled once per block, and people can add blocks up to the maximum (for example, one block per stage worked today).",
+    "min": "At least",
+    "max": "At most",
+    "remove": "Remove section",
+    "saveError": "Couldn't save the section.",
+    "inSection": "Section",
+    "header": "Main part of the form"
+  },
+  "fieldExtras": {
+    "title": "More settings",
+    "formula": "Calculated from",
+    "formulaHint": "Field codes and numbers with + − × ÷ and brackets. Leave empty for a normal input.",
+    "rowFilterField": "Only rows whose field (code)",
+    "rowFilterValues": "is one of (comma separated)",
+    "attribute": "Compare this setting of the chosen option",
+    "attributeHint": "Leave empty to compare the chosen value itself.",
+    "provider": "Options come from",
+    "noProvider": "This field's own list",
+    "saveError": "Couldn't save these settings."
   }
 }

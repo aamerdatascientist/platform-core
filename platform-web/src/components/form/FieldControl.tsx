@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { todayIso } from '../DateField';
-import { ChipGroup, DateQuickPick, FieldShell, LookupRow, Stepper, TextArea, TextInput, YesNo } from '../ui';
-import { parseRules } from '../../forms/fieldValues';
+import { ChipGroup, ChipMulti, DateQuickPick, FieldShell, InfoBanner, LookupRow, Stepper, TextArea, TextInput, YesNo } from '../ui';
+import { parseRules, readList, writeList } from '../../forms/fieldValues';
 import { useLocalized } from '../../forms/localized';
 import type { DropdownOption, FieldDefinitionDto } from '../../types';
 import { AttachmentTiles } from './AttachmentTiles';
@@ -52,6 +52,7 @@ export function FieldControl({
   isLastChoice,
   onLookupPicked,
   inCard = false,
+  blockedMessage,
 }: {
   field: FieldDefinitionDto;
   value: string;
@@ -62,7 +63,8 @@ export function FieldControl({
   options: DropdownOption[];
   /** Live values for a dynamic-options dropdown; undefined while loading. */
   dynamicOptions?: string[];
-  lookupChoices?: { id: string; label: string }[];
+  /** Lookup rows, or a provider field's options; labelEn is used on the English UI. */
+  lookupChoices?: { id: string; label: string; labelEn?: string | null }[];
   /** Set when this Lookup depends on another field that has no value yet. */
   filterWaitingOnLabel?: string;
   isFiltered?: boolean;
@@ -74,31 +76,38 @@ export function FieldControl({
   onLookupPicked?: (value: string) => void;
   /** Inside a conditional card (05): the lookup row is the muted 52px variant. */
   inCard?: boolean;
+  /** The chosen option can't be sent (a block-when rule, e.g. a paused project): shown under the field. */
+  blockedMessage?: string | null;
 }) {
   const { t } = useTranslation();
   const [sheetOpen, setSheetOpen] = useState(false);
-  const { fieldLabel, optionLabel } = useLocalized();
+  const { fieldLabel, optionLabel, lang } = useLocalized();
   const label = fieldLabel(field);
   const rules = parseRules(field.validationRulesJson);
   const type = field.fieldType;
+  const fromServer = type === 'Lookup' || type === 'MultiLookup' || !!field.optionsProvider;
+  const serverLabel = (c: { label: string; labelEn?: string | null }) => (!lang.startsWith('ar') && c.labelEn ? c.labelEn : c.label);
 
   // Choices for the dropdown/lookup family, one shape for chips and the sheet alike.
-  const choices: Choice[] | undefined =
-    type === 'Lookup'
-      ? lookupChoices?.map((c) => ({ value: c.id, label: c.label }))
-      : type === 'Dropdown' && field.dynamicOptionsSourceFormDefinitionId
-        ? dynamicOptions?.map((v) => ({ value: v, label: v }))
-        : type === 'Dropdown'
-          ? options.map((o) => ({ value: o.value, label: optionLabel(o) }))
-          : undefined;
+  const choices: Choice[] | undefined = fromServer
+    ? lookupChoices?.map((c) => ({ value: c.id, label: serverLabel(c) }))
+    : type === 'Dropdown' && field.dynamicOptionsSourceFormDefinitionId
+      ? dynamicOptions?.map((v) => ({ value: v, label: v }))
+      : type === 'Dropdown' || type === 'MultiSelect'
+        ? options.map((o) => ({ value: o.value, label: optionLabel(o) }))
+        : undefined;
+  const multi = type === 'MultiSelect' || type === 'MultiLookup';
   const chips = type === 'Dropdown' && choices !== undefined && chipsFit(choices);
-  const asGroup = type === 'DateTime' || type === 'Boolean' || chips || type === 'Attachment';
-  const noChoices = type === 'Lookup' && !filterWaitingOnLabel && choices !== undefined && choices.length === 0;
+  const calculated = !!field.formula && (type === 'Number' || type === 'Decimal');
+  const asGroup = type === 'DateTime' || type === 'Boolean' || chips || type === 'Attachment' || multi;
+  const noChoices = (type === 'Lookup' || multi || fromServer) && !filterWaitingOnLabel && choices !== undefined && choices.length === 0;
 
   const hint =
     type === 'Attachment'
       ? t('steps.fileHint')
-      : noChoices
+      : calculated
+        ? t('formRenderer.calculatedHint')
+        : noChoices
         ? isFiltered
           ? t('formRenderer.noChoicesForFilter')
           : t('formRenderer.noChoicesHint')
@@ -107,8 +116,37 @@ export function FieldControl({
           : null;
 
   return (
-    <FieldShell label={<bdi>{label}</bdi>} required={field.isRequired} hint={hint} error={error} asGroup={asGroup}>
+    <FieldShell label={<bdi>{label}</bdi>} required={field.isRequired && !calculated} hint={hint} error={error} asGroup={asGroup}>
       {({ inputId, labelId, describedBy, invalid }) => {
+        if (calculated)
+          return (
+            <output id={inputId} aria-describedby={describedBy} dir="ltr" className="flex min-h-[52px] items-center rounded-ui-lg bg-field-muted px-4 text-[17px] font-semibold text-ink rtl:justify-end">
+              {value || '—'}
+            </output>
+          );
+        if (multi) {
+          if (choices === undefined || filterWaitingOnLabel || noChoices)
+            return (
+              <p id={inputId} className="min-h-[46px] text-[15px] text-ink-soft">
+                {filterWaitingOnLabel
+                  ? t('formRenderer.chooseFilterSourceFirst', { label: filterWaitingOnLabel })
+                  : choices === undefined
+                    ? t('formRenderer.loadingOptions')
+                    : t('formRenderer.noChoices')}
+              </p>
+            );
+          return (
+            <ChipMulti
+              labelledBy={labelId}
+              value={readList(value)}
+              onChange={(next) => onChange(writeList(next))}
+              options={choices}
+              invalid={invalid}
+              describedBy={describedBy}
+              allLabel={t('formRenderer.chooseAll')}
+            />
+          );
+        }
         switch (type) {
           case 'DateTime':
             return (
@@ -181,6 +219,11 @@ export function FieldControl({
                     icon={type === 'Lookup' && !inCard ? 'pin' : null}
                   />
                 </div>
+                {blockedMessage && (
+                  <InfoBanner tone="warning" className="mt-2">
+                    {blockedMessage}
+                  </InfoBanner>
+                )}
                 <LookupSheet
                   open={sheetOpen}
                   onClose={() => setSheetOpen(false)}

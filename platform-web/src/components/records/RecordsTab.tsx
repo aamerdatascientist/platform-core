@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { todayIso } from '../DateField';
 import { api } from '../../api/client';
 import { useErrorMessage } from '../../hooks/useErrorMessage';
 import { parseOptions, storedToSaudiDate } from '../../forms/fieldValues';
 import { useLocalized } from '../../forms/localized';
+import { RecordBlocks } from './RecordBlocks';
 import { answerText, dayLabel, DELAY_FIELD, localeFor, PLAN_FIELD, sentDay, sentTime, shownFields } from '../../forms/recordAnswers';
 import { Thumbnail } from '../../routes/EntryDetail';
 import type { FieldDefinitionDto, FormDefinitionDto, RecordDetailDto, RecordItemDto } from '../../types';
@@ -423,6 +426,12 @@ function RecordDrawer({
           </div>
         ))}
       </div>
+      {record && form.code === 'projects' && <ProjectActions record={record} />}
+      {record && record.sections && (
+        <div className="flex flex-col gap-2 px-[18px] pb-3">
+          <RecordBlocks form={form} record={record} compact />
+        </div>
+      )}
       {detail && (attachmentField || detail.attachments.length > 0) && (
         <div className="flex flex-col gap-2 px-[18px] pb-[14px] pt-1">
           <span className="text-[14px] font-bold text-ink">{t('records.attachmentsCount', { count: detail.attachments.length })}</span>
@@ -460,5 +469,38 @@ function RecordDrawer({
       )}
       {error && <p className="px-[18px] py-2 text-[14px] text-danger">{error}</p>}
     </Drawer>
+  );
+}
+
+/**
+ * A project's Pause / Resume (2026-11-10, administrators): opens the pause log with the project,
+ * the action and today's date filled in - the log's rules (no double pause, status change) run
+ * on the server. Also the link to the project's stage progress.
+ */
+function ProjectActions({ record }: { record: RecordItemDto }) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const shell = useOptionalShell();
+  const forms = shell?.forms;
+  const isAdmin = shell?.isAdmin ?? false;
+  const pauseForm = forms?.find((f) => f.code === 'project-pause-log');
+  const status = String(record.values.status ?? '');
+  if (!isAdmin) return null;
+  const action = status === 'on_hold' ? 'resume' : 'pause';
+  return (
+    <div className="flex flex-wrap gap-2 px-[18px] pb-3">
+      {pauseForm && status !== 'completed' && status !== 'cancelled' && (
+        <Button
+          size="compact"
+          variant={action === 'pause' ? 'secondary' : 'primary'}
+          onClick={() => navigate(`/forms/${pauseForm.id}`, { state: { prefill: { project: record.id, action, date: todayIso() } } })}
+        >
+          {action === 'pause' ? t('stageProgress.pauseProject') : t('stageProgress.resumeProject')}
+        </Button>
+      )}
+      <Button size="compact" variant="link" onClick={() => navigate(`/admin/projects/${record.id}/progress`)}>
+        {t('stageProgress.openProgress')}
+      </Button>
+    </div>
   );
 }

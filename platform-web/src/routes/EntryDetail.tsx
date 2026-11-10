@@ -8,6 +8,7 @@ import { Icon } from '../components/icons';
 import { StatusPage } from '../components/StatusPage';
 import { IconButton, LoadingState } from '../components/ui';
 import { useLocalized } from '../forms/localized';
+import { RecordBlocks } from '../components/records/RecordBlocks';
 import { answerText, dayLabel, localeFor, sentDay, sentTime, shownFields } from '../forms/recordAnswers';
 import type { FileMetadataDto, FormDefinitionDto, RecordDetailDto } from '../types';
 
@@ -84,6 +85,7 @@ export function EntryDetail({ token }: { token: string }) {
               </span>
             </div>
           ))}
+      <RecordBlocks form={form} record={detail.record} />
         </section>
       ))}
 

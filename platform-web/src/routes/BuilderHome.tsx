@@ -93,6 +93,11 @@ export function BuilderHome({ token }: { token: string }) {
                       <span dir="ltr" className="text-start font-mono text-[12px] text-ink-soft rtl:text-right">
                         {f.code}
                       </span>
+                      {(f.isHidden || f.isSystem) && (
+                        <span className="text-[12px] text-ink-soft">
+                          {[f.isSystem ? t('formBuilder.systemForm') : null, f.isHidden ? t('formBuilder.hiddenForm') : null].filter(Boolean).join(' · ')}
+                        </span>
+                      )}
                     </span>
                   </td>
                   <td className={tdClass}>{moduleLabel(f.moduleName)}</td>

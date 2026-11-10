@@ -19,6 +19,8 @@ interface AddFieldFormProps {
   /** The form's steps (redesign §9.2) - the new field goes into the chosen one. */
   steps?: { id: string; title: string }[];
   defaultStepId?: string | null;
+  /** Repeatable sections a new field can go in (2026-11-10). */
+  sections?: { id: string; title: string }[];
 }
 
 function parseFieldOptions(
@@ -39,7 +41,7 @@ function parseFieldOptions(
 }
 
 const FIELD_TYPES: FieldType[] = [
-  'ShortText', 'LongText', 'Number', 'Decimal', 'Boolean', 'DateTime', 'Dropdown', 'Lookup', 'Attachment',
+  'ShortText', 'LongText', 'Number', 'Decimal', 'Boolean', 'DateTime', 'Dropdown', 'MultiSelect', 'Lookup', 'MultiLookup', 'Attachment',
 ];
 
 function slugify(input: string): string {
@@ -59,11 +61,14 @@ export function AddFieldForm({
   onAdded,
   steps = [],
   defaultStepId = null,
+  sections = [],
 }: AddFieldFormProps) {
   const { t } = useTranslation();
   const [label, setLabel] = useState('');
   const [labelEn, setLabelEn] = useState('');
   const [stepId, setStepId] = useState<string>(defaultStepId ?? steps[0]?.id ?? '');
+  // The repeatable section the new field belongs to ('' = the form's header).
+  const [sectionId, setSectionId] = useState<string>('');
   const [code, setCode] = useState('');
   const [codeTouched, setCodeTouched] = useState(false);
   const [fieldType, setFieldType] = useState<FieldType>('ShortText');
@@ -110,11 +115,11 @@ export function AddFieldForm({
       setError({ key: 'addField.requiredError' });
       return;
     }
-    if (fieldType === 'Dropdown' && !options.some((o) => o.value.trim() && o.label.trim())) {
+    if ((fieldType === 'Dropdown' || fieldType === 'MultiSelect') && !options.some((o) => o.value.trim() && o.label.trim())) {
       setError({ key: 'addField.dropdownOptionError' });
       return;
     }
-    if (fieldType === 'Lookup' && !lookupTargetId) {
+    if ((fieldType === 'Lookup' || fieldType === 'MultiLookup') && !lookupTargetId) {
       setError({ key: 'addField.lookupTargetError' });
       return;
     }
@@ -131,19 +136,20 @@ export function AddFieldForm({
         fieldType,
         isRequired,
         optionsJson:
-          fieldType === 'Dropdown'
+          fieldType === 'Dropdown' || fieldType === 'MultiSelect'
             ? JSON.stringify(
                 options
                   .filter((o) => o.value.trim() && o.label.trim())
                   .map((o) => (o.labelEn?.trim() ? { value: o.value, label: o.label, labelEn: o.labelEn.trim() } : { value: o.value, label: o.label })),
               )
             : null,
-        lookupFormDefinitionId: fieldType === 'Lookup' ? lookupTargetId : null,
+        lookupFormDefinitionId: fieldType === 'Lookup' || fieldType === 'MultiLookup' ? lookupTargetId : null,
         visibleWhenFieldCode: hasCondition ? conditionFieldCode : null,
         visibleWhenValuesJson: hasCondition ? JSON.stringify([...conditionValues]) : null,
-        filterByFieldCode: fieldType === 'Lookup' && filterByFieldCode ? filterByFieldCode : null,
+        filterByFieldCode: (fieldType === 'Lookup' || fieldType === 'MultiLookup') && filterByFieldCode ? filterByFieldCode : null,
         labelEn: labelEn.trim() || null,
         stepId: stepId || null,
+        sectionId: sectionId || null,
       });
       setLabel('');
       setLabelEn('');
@@ -212,6 +218,19 @@ export function AddFieldForm({
           <input type="checkbox" checked={isRequired} onChange={(e) => setIsRequired(e.target.checked)} />
           {t('addField.required')}
         </label>
+        {sections.length > 0 && (
+          <div>
+            <label className="mb-1 block text-xs text-ink-soft">{t('sectionsBuilder.inSection')}</label>
+            <select className={inputClass} value={sectionId} onChange={(e) => setSectionId(e.target.value)}>
+              <option value="">{t('sectionsBuilder.header')}</option>
+              {sections.map((sec) => (
+                <option key={sec.id} value={sec.id}>
+                  {sec.title}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         {steps.length > 0 && (
           <div>
             <label className="mb-1 block text-xs text-ink-soft">{t('builderV2.moveToStep')}</label>
@@ -226,7 +245,7 @@ export function AddFieldForm({
         )}
       </div>
 
-      {fieldType === 'Dropdown' && (
+      {(fieldType === 'Dropdown' || fieldType === 'MultiSelect') && (
         <div>
           <label className="mb-1 block text-xs text-ink-soft">{t('addField.options')}</label>
           <div className="space-y-1.5">
@@ -265,7 +284,7 @@ export function AddFieldForm({
         </div>
       )}
 
-      {fieldType === 'Lookup' && (
+      {(fieldType === 'Lookup' || fieldType === 'MultiLookup') && (
         <div>
           <label className="mb-1 block text-xs text-ink-soft">{t('addField.looksUpFrom')}</label>
           <select className={inputClass} value={lookupTargetId} onChange={(e) => setLookupTargetId(e.target.value)}>

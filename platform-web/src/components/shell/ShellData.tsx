@@ -102,7 +102,8 @@ export function useFormsByModule() {
   return useMemo(() => {
     const groups = new Map<string, { label: string; forms: FormSummaryDto[] }>();
     for (const form of forms ?? []) {
-      if (form.status !== 'Published') continue;
+      // Hidden forms (retired, e.g. project zones) stay out of every menu; data is kept.
+      if (form.status !== 'Published' || form.isHidden) continue;
       const group = groups.get(form.moduleName) ?? { label: t(`moduleName.${form.moduleName}`, { defaultValue: form.moduleName }), forms: [] };
       group.forms.push(form);
       groups.set(form.moduleName, group);

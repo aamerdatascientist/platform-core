@@ -52,6 +52,8 @@ export function FormBuilder({ token }: { token: string }) {
   const [nameEn, setNameEn] = useState('');
   const [addOpen, setAddOpen] = useState<'none' | 'choose' | 'field'>('none');
   const [stepDialog, setStepDialog] = useState<{ id: string | null; titleAr: string; titleEn: string } | null>(null);
+  // A repeatable section being added or edited (2026-11-10).
+  const [sectionDialog, setSectionDialog] = useState<{ id: string | null; code: string; titleAr: string; titleEn: string; min: string; max: string } | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
@@ -158,6 +160,30 @@ export function FormBuilder({ token }: { token: string }) {
     if (!formId || !stepDialog?.id) return;
     const id = stepDialog.id;
     if (await act(() => api.forms.deleteStep(token, formId, id), 'formBuilder.reorderError')) setStepDialog(null);
+  }
+
+  async function saveSection() {
+    if (!formId || !sectionDialog || !sectionDialog.titleAr.trim()) return;
+    const body = {
+      titleAr: sectionDialog.titleAr.trim(),
+      titleEn: sectionDialog.titleEn.trim() || null,
+      minBlocks: Number(sectionDialog.min) || 0,
+      maxBlocks: Number(sectionDialog.max) || 1,
+    };
+    const ok = await act(
+      () =>
+        sectionDialog.id
+          ? api.forms.updateSection(token, formId, sectionDialog.id, body)
+          : api.forms.addSection(token, formId, { ...body, code: sectionDialog.code.trim() }),
+      'sectionsBuilder.saveError',
+    );
+    if (ok) setSectionDialog(null);
+  }
+
+  async function removeSection() {
+    if (!formId || !sectionDialog?.id) return;
+    const id = sectionDialog.id;
+    if (await act(() => api.forms.removeSection(token, formId, id), 'sectionsBuilder.saveError')) setSectionDialog(null);
   }
 
   async function saveName() {
@@ -414,7 +440,83 @@ export function FormBuilder({ token }: { token: string }) {
           >
             {t('builderV2.addStep')}
           </Button>
+          <Button
+            size="desktop"
+            variant="secondary"
+            block
+            onClick={() => {
+              setAddOpen('none');
+              setSectionDialog({ id: null, code: '', titleAr: '', titleEn: '', min: '1', max: '10' });
+            }}
+          >
+            {t('sectionsBuilder.add')}
+          </Button>
+          {(version?.sections ?? []).map((sec) => (
+            <Button
+              key={sec.id}
+              size="desktop"
+              variant="link"
+              block
+              onClick={() => {
+                setAddOpen('none');
+                setSectionDialog({ id: sec.id, code: sec.code, titleAr: sec.titleAr, titleEn: sec.titleEn ?? '', min: String(sec.minBlocks), max: String(sec.maxBlocks) });
+              }}
+            >
+              {t('sectionsBuilder.edit', { title: sec.titleAr })}
+            </Button>
+          ))}
+          {/* System: calculations read it, so its fields can't be renamed or removed. Hidden: out of every menu. */}
+          <label className="mt-2 flex min-h-[44px] items-center gap-2 text-[14px] text-ink">
+            <input type="checkbox" checked={!!form.isSystem} disabled={busy} onChange={(e) => void act(() => api.forms.setFlags(token, formId, e.target.checked, !!form.isHidden), 'formBuilder.loadError')} />
+            {t('formBuilder.systemForm')}
+          </label>
+          <label className="flex min-h-[44px] items-center gap-2 text-[14px] text-ink">
+            <input type="checkbox" checked={!!form.isHidden} disabled={busy} onChange={(e) => void act(() => api.forms.setFlags(token, formId, !!form.isSystem, e.target.checked), 'formBuilder.loadError')} />
+            {t('formBuilder.hiddenForm')}
+          </label>
         </div>
+      </Sheet>
+
+      <Sheet open={sectionDialog !== null} onClose={() => setSectionDialog(null)} title={sectionDialog?.id ? t('sectionsBuilder.editTitle') : t('sectionsBuilder.add')} desktopWidth={520}>
+        {sectionDialog && (
+          <div className="flex flex-col gap-3 pb-2">
+            <p className="text-[14px] text-ink-soft">{t('sectionsBuilder.explain')}</p>
+            {!sectionDialog.id && (
+              <label className="flex flex-col gap-1.5 text-[14px] font-bold text-ink">
+                {t('addField.code')}
+                <input dir="ltr" className={builderInput} value={sectionDialog.code} onChange={(e) => setSectionDialog({ ...sectionDialog, code: e.target.value })} />
+              </label>
+            )}
+            <label className="flex flex-col gap-1.5 text-[14px] font-bold text-ink">
+              {t('builderV2.stepTitleAr')}
+              <input dir="rtl" className={builderInput} value={sectionDialog.titleAr} onChange={(e) => setSectionDialog({ ...sectionDialog, titleAr: e.target.value })} />
+            </label>
+            <label className="flex flex-col gap-1.5 text-[14px] font-bold text-ink">
+              {t('builderV2.stepTitleEn')}
+              <input dir="ltr" className={builderInput} value={sectionDialog.titleEn} onChange={(e) => setSectionDialog({ ...sectionDialog, titleEn: e.target.value })} />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="flex flex-col gap-1.5 text-[14px] font-bold text-ink">
+                {t('sectionsBuilder.min')}
+                <input inputMode="numeric" dir="ltr" className={builderInput} value={sectionDialog.min} onChange={(e) => setSectionDialog({ ...sectionDialog, min: e.target.value })} />
+              </label>
+              <label className="flex flex-col gap-1.5 text-[14px] font-bold text-ink">
+                {t('sectionsBuilder.max')}
+                <input inputMode="numeric" dir="ltr" className={builderInput} value={sectionDialog.max} onChange={(e) => setSectionDialog({ ...sectionDialog, max: e.target.value })} />
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="desktop" disabled={busy || !sectionDialog.titleAr.trim() || (!sectionDialog.id && !sectionDialog.code.trim())} onClick={saveSection}>
+                {t('common.save')}
+              </Button>
+              {sectionDialog.id && (
+                <Button size="desktop" variant="danger" disabled={busy} onClick={removeSection}>
+                  {t('sectionsBuilder.remove')}
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
       </Sheet>
       <Sheet open={addOpen === 'field'} onClose={() => setAddOpen('none')} title={t('formBuilder.addAField')} desktopWidth={680}>
         <div className="pb-2">
@@ -426,6 +528,7 @@ export function FormBuilder({ token }: { token: string }) {
             filterableFields={activeFields}
             steps={steps.filter((s) => s.id).map((s) => ({ id: s.id!, title: s.title }))}
             defaultStepId={selectedStepIndex >= 0 ? steps[selectedStepIndex].id : null}
+            sections={(version?.sections ?? []).map((sec) => ({ id: sec.id, title: sec.titleAr }))}
             onAdded={() => {
               setAddOpen('none');
               void load();

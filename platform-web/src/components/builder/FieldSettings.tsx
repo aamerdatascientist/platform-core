@@ -1,3 +1,4 @@
+import { FieldExtrasCard } from './FieldExtrasCard';
 import { useEffect, useId, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -390,6 +391,8 @@ export function FieldSettings({
               </div>
             </SettingsCard>
           )}
+
+          <FieldExtrasCard key={field.id} token={token} formId={formId} field={field} busy={busy} run={run} />
 
           {/* Dropdown: value + Arabic label + English label rows (values can't change here). */}
           {staticDropdown && (

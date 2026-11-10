@@ -18,10 +18,18 @@ export interface FieldRules {
   unique: boolean;
   /** Unique only among records with the same value in this sibling field (zone codes within one project). */
   uniqueWithin: string | null;
+  /** Block-when (2026-11-10): a choice whose option has this attribute at one of these values can't be sent. */
+  blockWhenAttribute: string | null;
+  blockWhenValues: string[];
+  blockMessage: string | null;
+  blockMessageEn: string | null;
 }
 
 export function parseRules(json: string | null | undefined): FieldRules {
-  const empty: FieldRules = { min: null, max: null, minExclusive: false, regex: null, noFutureDates: false, unique: false, uniqueWithin: null };
+  const empty: FieldRules = {
+    min: null, max: null, minExclusive: false, regex: null, noFutureDates: false, unique: false, uniqueWithin: null,
+    blockWhenAttribute: null, blockWhenValues: [], blockMessage: null, blockMessageEn: null,
+  };
   if (!json) return empty;
   try {
     // Property names are matched case-insensitively, like the backend does.
@@ -37,6 +45,10 @@ export function parseRules(json: string | null | undefined): FieldRules {
       noFutureDates: raw.nofuturedates === true,
       unique: raw.unique === true,
       uniqueWithin: typeof raw.uniquewithin === 'string' && raw.uniquewithin.length > 0 ? raw.uniquewithin : null,
+      blockWhenAttribute: typeof raw.blockwhenattribute === 'string' && raw.blockwhenattribute ? raw.blockwhenattribute : null,
+      blockWhenValues: Array.isArray(raw.blockwhenvalues) ? raw.blockwhenvalues.map(String) : [],
+      blockMessage: typeof raw.blockmessage === 'string' ? raw.blockmessage : null,
+      blockMessageEn: typeof raw.blockmessageen === 'string' ? raw.blockmessageen : null,
     };
   } catch {
     return empty;
@@ -69,11 +81,111 @@ export function parseAllowedValues(json: string | null | undefined): string[] {
 
 /** A field with no condition is always visible; otherwise only when its controlling field's
  *  current value is one of the allowed values. */
-export function isFieldVisible(field: FieldDefinitionDto, values: Record<string, string>): boolean {
+/**
+ * attributeOf: for a field shown by an attribute of another field's chosen option
+ * (visibleWhenAttribute, 2026-11-10) - (controlling code, attribute) -> that attribute of what
+ * is chosen there, read from the options the form loaded. Same rule as the backend's
+ * SubmissionValueValidator.IsFieldVisible.
+ */
+export function isFieldVisible(
+  field: FieldDefinitionDto,
+  values: Record<string, string>,
+  attributeOf?: (controllerCode: string, attribute: string) => string | undefined,
+): boolean {
   if (!field.visibleWhenFieldCode) return true;
-  const controllingValue = values[field.visibleWhenFieldCode];
+  let controllingValue: string | undefined = values[field.visibleWhenFieldCode];
   if (controllingValue === undefined || controllingValue === '') return false;
+  if (field.visibleWhenAttribute) {
+    controllingValue = attributeOf?.(field.visibleWhenFieldCode, field.visibleWhenAttribute);
+    if (controllingValue === undefined) return false;
+  }
   return parseAllowedValues(field.visibleWhenValuesJson).includes(controllingValue);
+}
+
+/** Multi-select answers are kept in the form's text map as a JSON array. */
+export function readList(raw: string | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.map(String).filter((v) => v !== '') : [];
+  } catch {
+    return [];
+  }
+}
+
+export const writeList = (values: string[]) => (values.length === 0 ? '' : JSON.stringify(values));
+
+export const isMulti = (field: FieldDefinitionDto) => field.fieldType === 'MultiSelect' || field.fieldType === 'MultiLookup';
+
+/** A repeatable section's blocks are kept in the form's text map under the section code, as JSON. */
+export function readBlocks(raw: string | undefined): Record<string, string>[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed.filter((b): b is Record<string, string> => typeof b === 'object' && b !== null) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** A field's answer as the API wants it (number, yes/no, list, text), or null. */
+export function toPayloadValue(field: FieldDefinitionDto, rawValue: string | undefined): unknown {
+  if (isMulti(field)) {
+    const list = readList(rawValue);
+    return list.length === 0 ? null : list;
+  }
+  const raw = rawValue?.trim();
+  if (raw === undefined || raw === '') return null;
+  if (field.fieldType === 'Number' || field.fieldType === 'Decimal') return Number(raw);
+  if (field.fieldType === 'Boolean') return raw === 'true';
+  return raw;
+}
+
+/**
+ * A calculated field's value from its formula (same grammar and result as the backend's
+ * FieldFormula: + - * / and brackets over sibling number fields; a missing input gives '').
+ */
+export function evaluateFormula(formula: string, values: Record<string, string>): string {
+  const tokens = formula.match(/\d+\.?\d*|\.\d+|[a-z][a-z0-9_]*|[-+*/()]/g) ?? [];
+  let pos = 0;
+  let missing = false;
+  const peek = () => tokens[pos];
+  const factor = (): number => {
+    const tok = tokens[pos++];
+    if (tok === '-') return -factor();
+    if (tok === '(') {
+      const v = expr();
+      pos++;
+      return v;
+    }
+    if (tok !== undefined && /^[a-z]/.test(tok)) {
+      const raw = (values[tok] ?? '').trim();
+      if (raw === '' || Number.isNaN(Number(raw))) missing = true;
+      return Number(raw);
+    }
+    return Number(tok);
+  };
+  const term = (): number => {
+    let v = factor();
+    while (peek() === '*' || peek() === '/') {
+      const op = tokens[pos++];
+      const r = factor();
+      v = op === '*' ? v * r : v / r;
+    }
+    return v;
+  };
+  const expr = (): number => {
+    let v = term();
+    while (peek() === '+' || peek() === '-') {
+      const op = tokens[pos++];
+      const r = term();
+      v = op === '+' ? v + r : v - r;
+    }
+    return v;
+  };
+  const result = expr();
+  if (missing || !Number.isFinite(result)) return '';
+  return String(Math.round(result * 10000) / 10000);
 }
 
 export function parseOptions(optionsJson: string | null): DropdownOption[] {
@@ -127,6 +239,8 @@ export function recordToFormValues(fields: FieldDefinitionDto[], values: Record<
       if (date) result[field.code] = date;
     } else if (field.fieldType === 'Boolean') {
       result[field.code] = value === true || value === 'true' ? 'true' : 'false';
+    } else if (isMulti(field)) {
+      result[field.code] = Array.isArray(value) ? writeList(value.map(String)) : '';
     } else {
       result[field.code] = String(value);
     }

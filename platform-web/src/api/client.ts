@@ -1,4 +1,7 @@
 import type {
+  ChoiceOptionDto,
+  FormSectionDto,
+  ProjectProgressDto,
   MyEntriesPageDto,
   RecordDetailDto,
   RecordQuery,
@@ -221,6 +224,12 @@ export const api = {
         /** English label and step (redesign §9.1/§9.2). */
         labelEn?: string | null;
         stepId?: string | null;
+        /** Repeatable section and the settings added with stage progress (2026-11-10). */
+        sectionId?: string | null;
+        optionsProvider?: string | null;
+        formula?: string | null;
+        rowFilterJson?: string | null;
+        visibleWhenAttribute?: string | null;
       },
     ) => request<{ id: string }>(`/api/forms/${formId}/fields`, { method: 'POST', body: JSON.stringify(input) }, token),
 
@@ -338,14 +347,33 @@ export const api = {
      * open the target form itself. filterValue: the sibling value a cascading Lookup is
      * narrowed by (e.g. the picked project, for Zone).
      */
-    lookupOptions: (token: string, formId: string, fieldId: string, filterValue?: string) =>
-      request<{ id: string; label: string }[]>(
-        `/api/forms/${formId}/fields/${fieldId}/lookup-options${
-          filterValue ? `?filterValue=${encodeURIComponent(filterValue)}` : ''
-        }`,
-        {},
-        token,
-      ),
+    lookupOptions: (token: string, formId: string, fieldId: string, filterValue?: string, values?: Record<string, string>) => {
+      // values: the form's current values a provider needs (e.g. project and stage of a block).
+      const query = new URLSearchParams();
+      if (filterValue) query.set('filterValue', filterValue);
+      Object.entries(values ?? {}).forEach(([code, value]) => {
+        if (value) query.append('v', `${code}:${value}`);
+      });
+      const qs = query.toString();
+      return request<ChoiceOptionDto[]>(`/api/forms/${formId}/fields/${fieldId}/lookup-options${qs ? `?${qs}` : ''}`, {}, token);
+    },
+
+    // Repeatable sections and the field settings added with stage progress (2026-11-10).
+    addSection: (token: string, formId: string, body: { code: string; titleAr: string; titleEn: string | null; minBlocks: number; maxBlocks: number }) =>
+      request<FormSectionDto>(`/api/forms/${formId}/sections`, { method: 'POST', body: JSON.stringify(body) }, token),
+    updateSection: (token: string, formId: string, sectionId: string, body: { titleAr: string; titleEn: string | null; minBlocks: number; maxBlocks: number }) =>
+      request<FormSectionDto>(`/api/forms/${formId}/sections/${sectionId}`, { method: 'PUT', body: JSON.stringify(body) }, token),
+    removeSection: (token: string, formId: string, sectionId: string) =>
+      request<void>(`/api/forms/${formId}/sections/${sectionId}`, { method: 'DELETE' }, token),
+    moveFieldToSection: (token: string, formId: string, fieldId: string, sectionId: string | null) =>
+      request<void>(`/api/forms/${formId}/fields/${fieldId}/section`, { method: 'PUT', body: JSON.stringify({ sectionId }) }, token),
+    updateFieldSettings: (
+      token: string, formId: string, fieldId: string,
+      body: { formula: string | null; rowFilterJson: string | null; visibleWhenAttribute: string | null; optionsProvider: string | null },
+    ) => request<void>(`/api/forms/${formId}/fields/${fieldId}/settings`, { method: 'PUT', body: JSON.stringify(body) }, token),
+    setFlags: (token: string, formId: string, isSystem: boolean, isHidden: boolean) =>
+      request<void>(`/api/forms/${formId}/flags`, { method: 'PUT', body: JSON.stringify({ isSystem, isHidden }) }, token),
+    optionsProviders: (token: string) => request<{ key: string; description: string }[]>(`/api/forms/options-providers`, {}, token),
 
     /** Takes the complete ordered list of ACTIVE field ids - a partial list is rejected. */
     reorderFields: (token: string, formId: string, orderedFieldIds: string[]) =>
@@ -472,6 +500,12 @@ export const api = {
       if (options.before) params.set('before', options.before);
       return request<MyEntriesPageDto>(`/api/submissions/mine?${params}`, {}, token);
     },
+  },
+
+  stageProgress: {
+    project: (token: string, projectId: string) => request<ProjectProgressDto>(`/api/stage-progress/projects/${projectId}`, {}, token),
+    reopen: (token: string, projectId: string, body: { stageCode: string; substepCode: string | null; levelId: string | null; side: number | null; reason: string | null }) =>
+      request<void>(`/api/stage-progress/projects/${projectId}/reopen`, { method: 'POST', body: JSON.stringify(body) }, token),
   },
 
   analytics: {

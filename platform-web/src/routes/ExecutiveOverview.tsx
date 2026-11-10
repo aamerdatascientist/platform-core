@@ -14,6 +14,7 @@ import {
   StockTable,
   useOverviewFormat,
   WeekBars,
+  stageNameOf,
 } from '../components/ExecutiveOverviewPanels';
 import { Icon, LogoMark } from '../components/icons';
 import { LanguageToggle } from '../components/LanguageToggle';
@@ -23,6 +24,7 @@ import { ModeToggle } from '../components/ModeToggle';
 import { buildDashboardUrl, readDashboardLink } from '../dashboardLink';
 import { getMode, onModeChanged, setMode } from '../theme/mode';
 import type { ExecutiveOverviewDto, OverviewPhase } from '../types';
+import { pickLanguage } from '../forms/localized';
 
 /**
  * The page is drawn once, on a fixed 16:9 "stage" of this size, and the whole stage is then
@@ -38,8 +40,6 @@ const REFRESH_MS = 5 * 60 * 1000;
 
 const DELAY_CAUSES_SHOWN = 4;
 
-/** The stage filter's choices, in the order the work happens (OverviewProgressPlan.Phases). */
-const PHASES: OverviewPhase[] = ['paperwork', 'excavation', 'foundation', 'structural', 'mep'];
 
 function useStageScale() {
   const [scale, setScale] = useState(1);
@@ -297,12 +297,13 @@ export function ExecutiveOverview({ token }: { token: string | null }) {
           )}
           {filterButton(
             t('executiveOverview.filter.stageLabel'),
-            selectedPhase ? t(`executiveOverview.phase.${selectedPhase}`) : t('executiveOverview.filter.stageAll'),
+            selectedPhase && data ? stageNameOf(data, selectedPhase, i18n.language, t) : t('executiveOverview.filter.stageAll'),
             <select id="executive-overview-stage" aria-label={t('executiveOverview.filter.stageLabel')} className={selectOverlay} value={selectedPhase ?? ''} onChange={(event) => setSelectedPhase((event.target.value || null) as OverviewPhase | null)}>
               <option value="">{t('executiveOverview.filter.stageAll')}</option>
-              {PHASES.map((phase) => (
-                <option key={phase} value={phase}>
-                  {t(`executiveOverview.phase.${phase}`)}
+              {/* The stages of the plans in scope, in plan order (2026-11-10). */}
+              {(data?.stages ?? []).map((stage) => (
+                <option key={stage.code} value={stage.code}>
+                  {pickLanguage(stage.nameAr, stage.nameEn, i18n.language)}
                 </option>
               ))}
             </select>,
@@ -360,7 +361,7 @@ export function ExecutiveOverview({ token }: { token: string | null }) {
                 : undefined
             }
           >
-            <ProblemsList problems={data.latestProblems} since={reportsSince} />
+            <ProblemsList problems={data.latestProblems} since={reportsSince} stageName={(code) => stageNameOf(data, code, i18n.language, t)} />
           </Panel>
         </div>
       </div>

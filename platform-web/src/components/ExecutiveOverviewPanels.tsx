@@ -1,6 +1,14 @@
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ExecutiveOverviewDto, OverviewKpiTone, OverviewPhase, OverviewProjectDto, OverviewStockMaterialDto } from '../types';
+import { pickLanguage } from '../forms/localized';
+import type { TFunction } from 'i18next';
+
+/** A stage's name in the UI language: from the plans (data.stages), else an old phase's label. */
+export function stageNameOf(data: ExecutiveOverviewDto, code: string, lang: string, t: TFunction): string {
+  const stage = data.stages?.find((s) => s.code === code);
+  return stage ? pickLanguage(stage.nameAr, stage.nameEn, lang) : t(`executiveOverview.phase.${code}`, { defaultValue: code });
+}
 
 // The dashboard is drawn on a fixed 1760x990 stage scaled to fit the window (routes/
 // ExecutiveOverview.tsx), so nothing here uses a responsive (sm:/lg:) class. The redesign was
@@ -80,7 +88,7 @@ function Tile({ label, value, detail, tone, title }: { label: string; value: Rea
 }
 
 export function OverviewTiles({ data, selected, phase }: { data: ExecutiveOverviewDto; selected: OverviewProjectDto | null; phase: OverviewPhase | null }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const format = useOverviewFormat();
   const tiles = data.tiles;
   const dash = t('common.empty');
@@ -99,7 +107,7 @@ export function OverviewTiles({ data, selected, phase }: { data: ExecutiveOvervi
             ? t('executiveOverview.tiles.forecastEarly', { n: -tiles.forecastDaysLate })
             : t('executiveOverview.tiles.forecastOnTime');
   const forecastTitle = tiles.forecastTarget === null ? undefined : t('executiveOverview.tiles.forecastTarget', { date: format.date(tiles.forecastTarget) });
-  const stageName = phase ? t(`executiveOverview.phase.${phase}`) : null;
+  const stageName = phase ? stageNameOf(data, phase, i18n.language, t) : null;
 
   return (
     <div className="grid h-full grid-cols-8 gap-[11px]">
@@ -188,7 +196,12 @@ const QUIET_AFTER_DAYS = 3;
  * "No report for n days" when quiet. A row selects (or clears) the project filter.
  */
 export function ProjectsTable({ projects, selectedId, onSelect }: { projects: OverviewProjectDto[]; selectedId: string | null; onSelect: (projectId: string | null) => void }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  // Stage names come with each project's stages (its own plan).
+  const phaseName = (project: OverviewProjectDto, code: string) => {
+    const p = project.phases.find((x) => x.phase === code);
+    return p?.nameAr ? pickLanguage(p.nameAr, p.nameEn ?? null, i18n.language) : t(`executiveOverview.phase.${code}`, code);
+  };
   const format = useOverviewFormat();
   const dash = t('common.empty');
   if (projects.length === 0) return <EmptyBox title={t('executiveOverview.projects.empty')} />;
@@ -241,7 +254,7 @@ export function ProjectsTable({ projects, selectedId, onSelect }: { projects: Ov
               <span className={`truncate text-[14.3px] font-bold ${STATUS_COLOUR[project.status ?? ''] ?? 'text-ink-soft'}`}>
                 {project.status ? `● ${t(`executiveOverview.projectStatus.${project.status}`, project.status)}` : dash}
               </span>
-              <span className="truncate">{finished || project.currentPhases.length === 0 ? dash : project.currentPhases.map((p) => t(`executiveOverview.phase.${p}`, p)).join(' + ')}</span>
+              <span className="truncate">{finished || project.currentPhases.length === 0 ? dash : project.currentPhases.map((p) => phaseName(project, p)).join(' + ')}</span>
               <span className="flex items-center gap-[9px]">
                 <span className="font-extrabold">{format.percent(project.workComplete)}</span>
                 <span
@@ -253,11 +266,11 @@ export function ProjectsTable({ projects, selectedId, onSelect }: { projects: Ov
                   {project.timeElapsed !== null && <span className="absolute -top-[4.4px] h-[17.6px] w-[2px] bg-ink" style={{ insetInlineStart: `calc(${Math.round(project.timeElapsed * 100)}% - 1px)` }} />}
                 </span>
               </span>
-              <span className="grid grid-cols-5 gap-[3px]" role="img" aria-label={project.phases.map(({ phase, complete }) => `${t(`executiveOverview.phase.${phase}`, phase)} ${format.percent(complete)}`).join(', ')}>
+              <span className="grid gap-[2px]" style={{ gridTemplateColumns: `repeat(${Math.max(1, project.phases.length)}, minmax(0, 1fr))` }} role="img" aria-label={project.phases.map(({ phase, complete }) => `${phaseName(project, phase)} ${format.percent(complete)}`).join(', ')}>
                 {project.phases.map(({ phase, complete }) => (
                   <span
                     key={phase}
-                    title={`${t(`executiveOverview.phase.${phase}`, phase)} ${format.percent(complete)}`}
+                    title={`${phaseName(project, phase)} ${format.percent(complete)}`}
                     className="h-[9px] rounded-[3px]"
                     style={{ background: `linear-gradient(var(--grad-dir, 90deg), var(--accent) ${Math.round(complete * 100)}%, var(--border) ${Math.round(complete * 100)}%)` }}
                   />
@@ -407,7 +420,7 @@ export function StockTable({ materials }: { materials: OverviewStockMaterialDto[
 /** How many of the latest problems the panel has room for. */
 export const PROBLEMS_SHOWN = 4;
 
-export function ProblemsList({ problems, since }: { problems: ExecutiveOverviewDto['latestProblems']; since: string }) {
+export function ProblemsList({ problems, since, stageName }: { problems: ExecutiveOverviewDto['latestProblems']; since: string; stageName?: (code: string) => string }) {
   const { t } = useTranslation();
   const format = useOverviewFormat();
   if (problems.length === 0) return <EmptyBox title={t('executiveOverview.problems.empty')} body={since ? t('overviewV2.problemsSince', { date: since }) : undefined} />;
@@ -417,7 +430,7 @@ export function ProblemsList({ problems, since }: { problems: ExecutiveOverviewD
         <li key={index} className="flex flex-col gap-0.5 border-b border-divider py-[7px] last:border-b-0">
           <span className="flex justify-between gap-2 text-[12.1px] text-ink-soft">
             <span>{format.day(problem.date)}</span>
-            <span className="truncate">{t(`executiveOverview.phase.${problem.phase}`, problem.phase)}</span>
+            <span className="truncate">{stageName ? stageName(problem.phase) : t(`executiveOverview.phase.${problem.phase}`, problem.phase)}</span>
           </span>
           <span dir="auto" className="line-clamp-2 text-[14.3px] leading-snug text-ink" title={problem.description}>
             {problem.description}

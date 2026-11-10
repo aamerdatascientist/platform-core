@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { AnimationEvent, ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import i18n from '../i18n';
 import { api, ApiError } from '../api/client';
@@ -19,9 +19,13 @@ import { Button, InfoBanner, useIsDesktop } from './ui';
 import { lastChoice, recentChoices, rememberChoice } from '../forms/lookupMemory';
 import { clearDraft, loadDraft, loadDraftFiles, saveDraft, saveDraftFiles } from '../forms/draftStore';
 import { useLocalized } from '../forms/localized';
-import { checkValue, isFieldVisible as fieldIsVisible, parseAllowedValues, parseOptions, recordToFormValues } from '../forms/fieldValues';
+import {
+  checkValue, evaluateFormula, isFieldVisible as fieldIsVisible, isMulti, parseAllowedValues, parseOptions, parseRules,
+  readBlocks, readList, recordToFormValues, toPayloadValue,
+} from '../forms/fieldValues';
 import type { FieldProblem } from '../forms/fieldValues';
-import type { FieldDefinitionDto, FormDefinitionDto } from '../types';
+import { choiceContext, RepeatableSection, serverChoices, useServerOptions } from './form/RepeatableSection';
+import type { ChoiceOptionDto, FieldDefinitionDto, FormDefinitionDto, FormSectionDto, RecordBlockDto } from '../types';
 
 interface FormRendererProps {
   token: string;
@@ -31,17 +35,15 @@ interface FormRendererProps {
   onSentChange?: (shown: boolean) => void;
   /** Set to correct an existing record (administrators): the form opens with its values and
    *  saving replaces them. Attachments aren't edited here - they have their own panel. */
-  editRecord?: { id: string; values: Record<string, unknown> };
+  editRecord?: { id: string; values: Record<string, unknown>; sections?: Record<string, RecordBlockDto[]> | null };
   onCancelEdit?: () => void;
   /** Builder live preview (screen 21): the phone layout inside a frame, showing one step, with
    *  the selected field outlined. Nothing is saved, sent or kept as a draft. */
   preview?: { stepId: string | null; highlightFieldId: string | null };
 }
 
-interface LookupChoice {
-  id: string;
-  label: string;
-}
+/** A Lookup row or a provider option, with the attributes other fields depend on. */
+type LookupChoice = ChoiceOptionDto;
 
 // A per-field problem is either one this component found itself (an i18n key, so it
 // re-translates live on a language switch) or the backend's own message, already resolved to
@@ -87,14 +89,32 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
     [formDefinition, isEditing],
   );
 
+  // Repeatable sections (2026-11-10): their fields are filled once per block; the blocks live in
+  // `values` under the section code as JSON, so drafts and the offline queue carry them as-is.
+  const sections: FormSectionDto[] = useMemo(() => formDefinition.publishedVersion?.sections ?? [], [formDefinition]);
+  const headerFields = useMemo(() => activeFields.filter((f) => !f.sectionId), [activeFields]);
+  const sectionFieldsOf = (id: string) => activeFields.filter((f) => f.sectionId === id);
+  const readOptions = useServerOptions(token, formDefinition.id);
+  // Values another page asked to start with (e.g. Pause project: the project and the action).
+  const prefill = (useLocation().state as { prefill?: Record<string, string> } | null)?.prefill;
+
   // A required date starts on today: most entries (a daily report, a stock movement) are for
   // today, and it is one less thing to fill in. Optional dates (e.g. a project's expected
   // completion) start empty, since today would usually be wrong for them. A record being
   // edited starts from its own stored values instead.
-  const initialValues = (): Record<string, string> =>
-    editRecord
-      ? recordToFormValues(activeFields, editRecord.values)
-      : Object.fromEntries(activeFields.filter((f) => f.fieldType === 'DateTime' && f.isRequired).map((f) => [f.code, todayIso()]));
+  const initialValues = (): Record<string, string> => {
+    if (!editRecord)
+      return {
+        ...Object.fromEntries(headerFields.filter((f) => f.fieldType === 'DateTime' && f.isRequired).map((f) => [f.code, todayIso()])),
+        ...Object.fromEntries(Object.entries(prefill ?? {}).filter(([code]) => headerFields.some((f) => f.code === code))),
+      };
+    const result = recordToFormValues(headerFields, editRecord.values);
+    for (const section of sections) {
+      const blocks = (editRecord.sections?.[section.code] ?? []).map((b) => recordToFormValues(sectionFieldsOf(section.id), b.values));
+      result[section.code] = JSON.stringify(blocks);
+    }
+    return result;
+  };
 
   const [values, setValues] = useState<Record<string, string>>(initialValues);
   // Set when a submission has just been saved: the form is replaced by a confirmation until
@@ -167,7 +187,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
     // to fetch once at load, since their candidates depend on another field's current value.
     // The effect below handles those, reactively, keyed off that value instead of form load.
     const lookupFields = activeFields.filter(
-      (f) => f.fieldType === 'Lookup' && f.lookupFormDefinitionId && !f.filterByFieldCode,
+      (f) => !f.sectionId && f.fieldType === 'Lookup' && f.lookupFormDefinitionId && !f.filterByFieldCode && !f.optionsProvider,
     );
     lookupFields.forEach(async (field) => {
       try {
@@ -185,7 +205,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
   }, [formDefinition.id, formDefinition.publishedVersion?.id, token, editRecord?.id]);
 
   const filteredLookupFields = useMemo(
-    () => activeFields.filter((f) => f.fieldType === 'Lookup' && f.lookupFormDefinitionId && f.filterByFieldCode),
+    () => activeFields.filter((f) => !f.sectionId && f.fieldType === 'Lookup' && f.lookupFormDefinitionId && f.filterByFieldCode),
     [activeFields],
   );
 
@@ -222,7 +242,21 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
 
   function setValue(code: string, value: string) {
     dirty.current = true;
-    setValues((prev) => ({ ...prev, [code]: value }));
+    const header = headerFields.find((f) => f.code === code);
+    const isChoice = header && (header.fieldType === 'Lookup' || header.fieldType === 'Dropdown');
+    setValues((prev) => {
+      const next = { ...prev, [code]: value };
+      // A header choice (e.g. the project) decides the blocks' choices: clear those.
+      if (isChoice && prev[code] !== value)
+        for (const section of sections) {
+          const fields = sectionFieldsOf(section.id).filter(serverChoices);
+          if (fields.length === 0 || !prev[section.code]) continue;
+          next[section.code] = JSON.stringify(
+            readBlocks(prev[section.code]).map((b) => Object.fromEntries(Object.entries(b).filter(([k]) => !fields.some((f) => f.code === k)))),
+          );
+        }
+      return next;
+    });
     // The problem shown under a field goes away as soon as it is being fixed.
     setFieldErrors((prev) => {
       if (!(code in prev)) return prev;
@@ -340,10 +374,44 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
 
   /** The problem with one field's current answer, or null. Same rules as on Send. */
   function problemFor(f: FieldDefinitionDto): FieldError | null {
-    const isMissing = f.fieldType === 'Attachment' ? !(attachmentFiles[f.code]?.length) : !(values[f.code] ?? '').trim();
+    if (f.formula) return null; // calculated by the server
+    const isMissing = f.fieldType === 'Attachment' ? !(attachmentFiles[f.code]?.length) : isMulti(f) ? readList(values[f.code]).length === 0 : !(values[f.code] ?? '').trim();
     if (isMissing) return f.isRequired ? REQUIRED : null;
     if (f.fieldType === 'Attachment') return null;
-    return checkValue(f, values[f.code]) ?? null;
+    const blocked = blockedMessage(f);
+    if (blocked) return { text: blocked };
+    return isMulti(f) ? null : (checkValue(f, values[f.code]) ?? null);
+  }
+
+  /** A block-when rule on a choice: the chosen option's attribute is a blocking value (e.g. a paused project). */
+  function blockedMessage(f: FieldDefinitionDto): string | null {
+    const rules = parseRules(f.validationRulesJson);
+    const chosen = values[f.code];
+    if (!rules.blockWhenAttribute || !chosen) return null;
+    const attribute = lookupChoices[f.code]?.find((c) => c.id === chosen)?.attributes?.[rules.blockWhenAttribute];
+    if (attribute === undefined || !rules.blockWhenValues.includes(attribute)) return null;
+    return (lang.startsWith('ar') ? rules.blockMessage : rules.blockMessageEn) ?? rules.blockMessage ?? rules.blockMessageEn ?? t('formRenderer.cantChoose');
+  }
+
+  /** The visible fields of one block of a section, by the block's own answers. */
+  function blockVisibleFields(section: FormSectionDto, block: Record<string, string>): FieldDefinitionDto[] {
+    const fields = sectionFieldsOf(section.id);
+    const merged = { ...values, ...block };
+    const all = [...headerFields, ...fields];
+    const optionsFor = (f: FieldDefinitionDto) =>
+      serverChoices(f) ? (f.sectionId ? readOptions(f, choiceContext(all, merged, f.code)) : lookupChoices[f.code]) : undefined;
+    const attributeOf = (controller: string, attribute: string) => {
+      const f = all.find((x) => x.code === controller);
+      return f && merged[controller] ? optionsFor(f)?.find((o) => o.id === merged[controller])?.attributes?.[attribute] : undefined;
+    };
+    return fields.filter((f) => fieldIsVisible(f, merged, attributeOf));
+  }
+
+  function blockProblem(f: FieldDefinitionDto, block: Record<string, string>): FieldError | null {
+    if (f.formula) return null;
+    const isMissing = isMulti(f) ? readList(block[f.code]).length === 0 : !(block[f.code] ?? '').trim();
+    if (isMissing) return f.isRequired ? REQUIRED : null;
+    return isMulti(f) ? null : (checkValue(f, block[f.code]) ?? null);
   }
 
   function onFieldBlur(f: FieldDefinitionDto) {
@@ -361,9 +429,12 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
   // allowed values the same tolerant way - see forms/fieldValues.ts). This is what shows the
   // right block as the person picks a Phase; the backend copy still enforces it if a
   // submission ever bypasses this UI.
-  const isFieldVisible = (field: FieldDefinitionDto) => fieldIsVisible(field, values);
+  const headerAttributeOf = (controller: string, attribute: string) =>
+    lookupChoices[controller]?.find((c) => c.id === values[controller])?.attributes?.[attribute];
+  const isFieldVisible = (field: FieldDefinitionDto) => !field.sectionId && fieldIsVisible(field, values, headerAttributeOf);
 
-  const visibleFields = useMemo(() => activeFields.filter(isFieldVisible), [activeFields, values]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const visibleFields = useMemo(() => headerFields.filter(isFieldVisible), [headerFields, values, lookupChoices]);
 
   // When a controlling field's value changes and that hides a field that previously had a
   // value, drop the stale value from state too - otherwise switching Phase from Excavation to
@@ -371,7 +442,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
   // footing one, even though the zone input is no longer shown. Comparing against
   // visibleFields (not activeFields) is what limits this to fields that just became hidden.
   useEffect(() => {
-    const hiddenCodesWithValues = activeFields
+    const hiddenCodesWithValues = headerFields
       .filter((f) => !isFieldVisible(f) && values[f.code] !== undefined)
       .map((f) => f.code);
     if (hiddenCodesWithValues.length === 0) return;
@@ -410,16 +481,29 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
     setAttempted(true);
     const problems: Record<string, FieldError> = {};
     // Blank or spaces-only counts as not answered, as it does on the server.
-    fields.forEach((f) => {
+    fields.filter((f) => !f.sectionId).forEach((f) => {
       const problem = problemFor(f);
       if (problem) problems[f.code] = problem;
     });
+    // Every block of every section with a field among these, by its own visible fields.
+    let firstBlock: { field: FieldDefinitionDto; index: number } | null = null;
+    for (const section of sections.filter((sec) => fields.some((f) => f.sectionId === sec.id))) {
+      readBlocks(values[section.code]).forEach((block, index) => {
+        blockVisibleFields(section, block).forEach((f) => {
+          const problem = blockProblem(f, block);
+          if (!problem) return;
+          problems[`${section.code}[${index}].${f.code}`] = problem;
+          firstBlock ??= { field: f, index };
+        });
+      });
+    }
     setFieldErrors(problems);
-    const first = fields.find((f) => problems[f.code]);
-    if (!first) return true;
+    const first = fields.find((f) => !f.sectionId && problems[f.code]);
+    if (!first && !firstBlock) return true;
+    const target = (first ?? (firstBlock as { field: FieldDefinitionDto; index: number } | null)?.field)!;
     // On a phone the first problem may be on an earlier step (Send checks them all).
-    if (!(desktop || isEditing)) setStepIndex(stepIndexOf(first));
-    setFocusField(first.id);
+    if (!(desktop || isEditing)) setStepIndex(stepIndexOf(target));
+    setFocusField(first ? first.id : `${target.id}-${(firstBlock as { index: number } | null)!.index}`);
     return false;
   }
 
@@ -433,7 +517,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
 
   /** Next validates only the current step (HANDOFF 03). */
   function next() {
-    if (!validate(steps[current].fields.filter(isFieldVisible))) return;
+    if (!validate(steps[current].fields.filter((f) => f.sectionId || isFieldVisible(f)))) return;
     setAttempted(false);
     goToStep(current + 1);
   }
@@ -465,24 +549,21 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
       next();
       return;
     }
-    if (!validate(visibleFields)) return;
+    if (!validate([...visibleFields, ...activeFields.filter((f) => f.sectionId)])) return;
 
     setSubmitting(true);
     try {
       const payload: Record<string, unknown> = {};
       visibleFields.forEach((f) => {
         if (f.fieldType === 'Attachment') return; // never part of the JSON body - no physical column
-        const raw = values[f.code]?.trim();
-        if (raw === undefined || raw === '') {
-          payload[f.code] = null;
-        } else if (f.fieldType === 'Number' || f.fieldType === 'Decimal') {
-          payload[f.code] = Number(raw);
-        } else if (f.fieldType === 'Boolean') {
-          payload[f.code] = raw === 'true';
-        } else {
-          payload[f.code] = raw;
-        }
+        payload[f.code] = toPayloadValue(f, values[f.code]);
       });
+      // Each section: its blocks, each with only the fields that block shows.
+      for (const section of sections) {
+        payload[section.code] = readBlocks(values[section.code]).map((block) =>
+          Object.fromEntries(blockVisibleFields(section, block).map((f) => [f.code, toPayloadValue(f, block[f.code])])),
+        );
+      }
 
       if (editRecord) {
         await api.submissions.update(token, formDefinition.id, editRecord.id, payload);
@@ -619,7 +700,8 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
     >
       <FieldControl
         field={field}
-        value={values[field.code] ?? ''}
+        value={field.formula ? evaluateFormula(field.formula, values) : (values[field.code] ?? '')}
+        blockedMessage={blockedMessage(field)}
         onChange={(v) => {
           setValue(field.code, field.fieldType === 'Number' || field.fieldType === 'Decimal' ? toLatinDigits(v) : v);
           if (preselected[field.code] !== undefined && v !== preselected[field.code]) setPreselected((p) => ({ ...p, [field.code]: '' }));
@@ -688,6 +770,59 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
     return blocks;
   };
 
+  /** A step's fields in order: runs of header fields as before, and each repeatable section
+   *  once, where its first field sits. */
+  const stepContent = (fields: FieldDefinitionDto[]): ReactNode[] => {
+    const out: ReactNode[] = [];
+    let run: FieldDefinitionDto[] = [];
+    const placed = new Set<string>();
+    const flush = () => {
+      if (run.length > 0) out.push(...blocksFor(run.filter(isFieldVisible)));
+      run = [];
+    };
+    for (const f of fields) {
+      if (!f.sectionId) {
+        run.push(f);
+        continue;
+      }
+      if (placed.has(f.sectionId)) continue;
+      placed.add(f.sectionId);
+      const section = sections.find((sec) => sec.id === f.sectionId);
+      if (!section) continue;
+      flush();
+      out.push(
+        <RepeatableSection
+          key={`section-${section.id}`}
+          token={token}
+          formId={formDefinition.id}
+          section={section}
+          fields={sectionFieldsOf(section.id)}
+          headerFields={headerFields}
+          header={values}
+          blocks={readBlocks(values[section.code])}
+          readOptions={readOptions}
+          preview={!!preview}
+          errorText={errorText}
+          onChange={(blocks, changed) => {
+            dirty.current = true;
+            setValues((prev) => ({ ...prev, [section.code]: JSON.stringify(blocks) }));
+            setFieldErrors((prev) => {
+              const keys = Object.keys(prev).filter((k) => k.startsWith(`${section.code}[`));
+              if (keys.length === 0) return prev;
+              const next = { ...prev };
+              // A removed block shifts the others: drop all of this section's messages; a
+              // changed answer drops only its own.
+              (changed ? keys.filter((k) => k === `${section.code}[${changed.index}].${changed.code}`) : keys).forEach((k) => delete next[k]);
+              return next;
+            });
+          }}
+        />,
+      );
+    }
+    flush();
+    return out;
+  };
+
   // ---------------------------------------------------------------- review (06)
 
   /** An answer as people read it: option/choice labels, Yes/No, "Today · 7 November". */
@@ -742,6 +877,10 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
 
   const review = steps.slice(0, -1).map((step, i) => {
     const rows = reviewRows(step.fields.filter(isFieldVisible));
+    for (const section of sections.filter((sec) => step.fields.some((f) => f.sectionId === sec.id))) {
+      const count = readBlocks(values[section.code]).length;
+      rows.push({ id: section.id, label: lang.startsWith('ar') ? section.titleAr : (section.titleEn ?? section.titleAr), value: t('sections.count', { count }) });
+    }
     return (
       <section key={step.id} className="flex flex-col rounded-[18px] border border-border bg-panel">
         <div className="flex items-center justify-between px-4 pb-1 pt-3">
@@ -820,7 +959,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
             <h2 className="text-[18px] font-bold text-ink">
               <bdi>{step.title}</bdi>
             </h2>
-            {blocksFor(step.fields.filter(isFieldVisible))}
+            {stepContent(step.fields)}
           </section>
         ))}
         {messages}
@@ -853,7 +992,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
         />
         <div key={step.id} className={`flex flex-1 animate-[step-in-from-end_200ms_ease-out] flex-col p-5 ${last && steps.length > 1 ? 'gap-5' : 'gap-[22px]'}`}>
           {resumed && <InfoBanner>{t('steps.resumeDraft')}</InfoBanner>}
-          {blocksFor(step.fields.filter(isFieldVisible))}
+          {stepContent(step.fields)}
           {last && review}
           {messages}
         </div>

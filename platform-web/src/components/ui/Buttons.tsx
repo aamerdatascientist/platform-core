@@ -141,6 +141,62 @@ export function ChipGroup<T extends string>({
   );
 }
 
+/**
+ * Several of a list (2026-11-10: floors and sides worked today): the same chips as ChipGroup,
+ * each a checkbox that toggles. "All" picks every option at once when there are more than two.
+ */
+export function ChipMulti<T extends string>({
+  options,
+  value,
+  onChange,
+  labelledBy,
+  invalid,
+  describedBy,
+  allLabel,
+}: {
+  options: ChoiceOption<T>[];
+  value: T[];
+  onChange: (value: T[]) => void;
+  labelledBy?: string;
+  invalid?: boolean;
+  describedBy?: string;
+  allLabel?: string;
+}) {
+  const chosen = new Set(value);
+  const toggle = (v: T) => onChange(options.map((o) => o.value).filter((o) => (o === v ? !chosen.has(o) : chosen.has(o))));
+  const all = options.length > 2 && options.every((o) => chosen.has(o.value));
+  return (
+    <div role="group" aria-labelledby={labelledBy} aria-invalid={invalid || undefined} aria-describedby={describedBy} className="flex flex-wrap gap-2">
+      {options.map((option) => {
+        const on = chosen.has(option.value);
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="checkbox"
+            aria-checked={on}
+            onClick={() => toggle(option.value)}
+            className={`inline-flex h-[46px] items-center gap-1.5 rounded-ui-pill border-[1.5px] px-4 text-[16px] ${on ? choiceOn : choiceOff} ${invalid && !on ? '!border-danger' : ''}`}
+          >
+            {on && <Icon name="check" size={16} strokeWidth={2.6} />}
+            <bdi>{option.label}</bdi>
+          </button>
+        );
+      })}
+      {allLabel && options.length > 2 && (
+        <button
+          type="button"
+          aria-pressed={all}
+          onClick={() => onChange(all ? [] : options.map((o) => o.value))}
+          className={`inline-flex h-[46px] items-center rounded-ui-pill border-[1.5px] border-dashed px-4 text-[15px] ${all ? choiceOn : choiceOff}`}
+        >
+          {allLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
 /** Yes/No (05): two equal 52px buttons, Yes first (on the right in Arabic). */
 export function YesNo({
   value,
