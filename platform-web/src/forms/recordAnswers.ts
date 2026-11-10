@@ -68,7 +68,10 @@ function valueText(field: FieldDefinitionDto, value: unknown, label: string | un
 
 /** The fields that were shown when the record was sent (conditions met), in builder order. */
 export function shownFields(form: FormDefinitionDto, record: RecordItemDto): FieldDefinitionDto[] {
-  const fields = [...(form.publishedVersion?.fields ?? [])].filter((f) => f.isActive && !f.sectionId).sort((a, b) => a.displayOrder - b.displayOrder);
+  // Archived fields stay readable on the records that answered them (old phase-based reports).
+  const fields = [...(form.publishedVersion?.fields ?? [])]
+    .filter((f) => !f.sectionId && (f.isActive || (record.values[f.code] !== null && record.values[f.code] !== undefined && record.values[f.code] !== '')))
+    .sort((a, b) => a.displayOrder - b.displayOrder);
   const asText = recordToFormValues(fields, record.values);
   return fields.filter((f) => isFieldVisible(f, asText));
 }
@@ -110,12 +113,12 @@ export function entrySummary(form: FormDefinitionDto, record: RecordItemDto, ctx
     .sort((a, b) => rank(a) - rank(b) || a.displayOrder - b.displayOrder)
     .slice(0, 3)
     .sort((a, b) => a.displayOrder - b.displayOrder);
-  const parts = picked.map((f) => answerText(f, record, ctx));
-  // A report with blocks: what each block was about (its first answer - the stage).
+  // A report with blocks: two header answers, then what each block was about (its first answer - the stage).
   const blocks = shownSections(form, record, ctx)[0]?.blocks ?? [];
   const about = blocks.map((b) => b.rows[0]?.value).filter(Boolean);
+  const parts = picked.slice(0, about.length > 0 ? 2 : 3).map((f) => answerText(f, record, ctx));
   if (about.length > 0) parts.push(about.join(' + '));
-  return parts.slice(0, 3).join(' · ');
+  return parts.join(' · ');
 }
 
 export type EntryTag = { tone: 'success' | 'danger' | 'warning' | 'info'; label: string };

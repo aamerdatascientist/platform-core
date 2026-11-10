@@ -64,7 +64,13 @@ public static class ProjectProgressCalculator
 
         var pauses = PauseSpans.From(data.Pauses.Where(p => p.Date <= asOf), asOf);
         var dates = new StageDates(start, WorkingWeek.Calendar().Excluding(pauses));
-        var elapsed = asOf < start ? 0 : dates.Elapsed(asOf);
+        // Elapsed time runs from the ACTUAL start (owner's spec, 2026-11-10): the first stage report,
+        // unless work was already under way when the project joined (a starting position) or no
+        // report exists yet - then the planned start. Planned dates always run from the planned start.
+        var actualStart = data.Baselines.Any(b => b.EarnedDays > 0 || b.Finished) || blocks.Count == 0
+            ? start
+            : blocks.Min(b => b.Date);
+        var elapsed = asOf < actualStart ? 0 : dates.Calendar.WorkingDaysBetween(actualStart, asOf);
         return new ProjectProgress(
             schedule, units, stages, elapsed,
             StageProgressCalculator.PlannedShare(schedule, elapsed, StageDates.Slack),

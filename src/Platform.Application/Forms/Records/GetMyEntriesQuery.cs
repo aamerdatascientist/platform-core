@@ -64,7 +64,9 @@ public class GetMyEntriesQueryHandler : IRequestHandler<GetMyEntriesQuery, MyEnt
         {
             var version = form.GetPublishedVersion();
             if (version is null) continue;
-            var fields = version.Fields.Where(f => f.IsActive).ToList();
+            // Archived fields too: old records keep showing their answers (2026-11-10: the daily
+            // report's phase questions were archived when it moved to stage blocks).
+            var fields = version.Fields.ToList();
             var rows = await _repository.SearchAsync(form.TableName!, fields,
                 new RecordSearch(1, pageSize + 1, CreatedByUserId: userId, Before: before, CountTotal: false), cancellationToken);
             found.AddRange(rows.Items.Select(r => (form, r)));
@@ -75,7 +77,9 @@ public class GetMyEntriesQueryHandler : IRequestHandler<GetMyEntriesQuery, MyEnt
         var items = new List<RecordItemDto>();
         foreach (var group in pageRows.GroupBy(x => x.Form))
         {
-            var fields = group.Key.GetPublishedVersion()!.Fields.Where(f => f.IsActive).ToList();
+            // Archived fields too: old records keep showing their answers (2026-11-10: the daily
+            // report's phase questions were archived when it moved to stage blocks).
+            var fields = group.Key.GetPublishedVersion()!.Fields.ToList();
             items.AddRange(await RecordViews.ToItemsAsync(_db, _repository, group.Key.Id, fields, group.Select(x => x.Row).ToList(), cancellationToken, _providers));
         }
         items = items.OrderByDescending(i => i.CreatedAtUtc).ThenByDescending(i => i.Id).ToList();

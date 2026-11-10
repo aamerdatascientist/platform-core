@@ -145,7 +145,8 @@ public class ExecutiveOverviewLoader
                 Flag(row, "has_problem_today"),
                 Text(row, "problem_description"),
                 Flag(row, "plan_completed_today"),
-                row.Id));
+                row.Id,
+                FromStageBlock: false));
         }
 
         var stock = new List<OverviewStockRow>();
@@ -206,8 +207,10 @@ public class ExecutiveOverviewLoader
         var rows = new List<DynamicRow>();
         if (form is null) return (rows, null);
 
+        // Archived fields too: old reports keep their answers (2026-11-10 - the daily report's phase
+        // questions were archived; old reports still feed the crew, weather, delay and problem panels).
         IReadOnlyCollection<FieldDefinition> activeFields =
-            form.GetPublishedVersion()!.Fields.Where(f => f.IsActive).ToList();
+            form.GetPublishedVersion()!.Fields.ToList();
 
         for (var page = 1; ; page++)
         {

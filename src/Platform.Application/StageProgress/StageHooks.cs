@@ -207,3 +207,65 @@ public sealed class FloorsHook : IFormSubmissionHook
     public Task BeforeDeleteAsync(FormDefinition form, Guid recordId, CancellationToken cancellationToken) =>
         throw HookSupport.Refuse(ProjectPlanHook.DeactivateInstead, "is_active", "Floors are never deleted - set Active to No instead.");
 }
+
+/// <summary>
+/// stage-plan-default and stage-plan-project rows (2026-11-10): one active row per stage + step
+/// (per project), a unique order, a per-floor row with levels to cover, and one duration type
+/// and level scope per stage - otherwise units and the schedule would be ambiguous.
+/// </summary>
+public abstract class PlanRowsHook(StageProgressData data) : IFormSubmissionHook
+{
+    public const string Duplicate = "stage.planDuplicate";
+    public const string SortOrderTaken = "stage.planSortOrder";
+    public const string NeedsLevels = "stage.planNeedsLevels";
+    public const string Mixed = "stage.planMixed";
+
+    public abstract string FormCode { get; }
+    protected abstract bool PerProject { get; }
+
+    public string? LockKey(SubmissionHookContext context) => $"stage-plan:{FormCode}";
+
+    public async Task ValidateAsync(SubmissionHookContext context, CancellationToken cancellationToken)
+    {
+        var header = context.Submission.Header;
+        var text = SubmissionPreparer.AsText(header);
+        var row = new StagePlanRow(
+            HookSupport.Int(header, StageForms.Plan.SortOrder) ?? 0, text.GetValueOrDefault(StageForms.Plan.StageCode) ?? "", "", "",
+            string.IsNullOrWhiteSpace(text.GetValueOrDefault(StageForms.Plan.SubstepCode)) ? null : text[StageForms.Plan.SubstepCode], null, null,
+            HookSupport.Int(header, StageForms.Plan.Days) ?? 0,
+            StagePlanValues.ParseDurationType(text.GetValueOrDefault(StageForms.Plan.DurationType)),
+            StagePlanValues.ParseLevelScope(text.GetValueOrDefault(StageForms.Plan.LevelScope)),
+            StagePlanValues.ParseAppliesWhen(text.GetValueOrDefault(StageForms.Plan.AppliesWhen)),
+            text.GetValueOrDefault(StageForms.Plan.IsActive) != "false");
+
+        if (row.DurationType == DurationType.PerFloor && row.LevelScope == LevelScope.None)
+            throw HookSupport.Refuse(NeedsLevels, StageForms.Plan.LevelScope, "A per-floor stage needs the levels it covers.");
+
+        data.Invalidate();
+        var (_, rows) = await data.FormAsync(FormCode, cancellationToken);
+        var project = PerProject ? HookSupport.Guid(header, StageForms.Plan.Project) : null;
+        var others = rows
+            .Where(r => r.Id != context.RecordId && (!PerProject || StageProgressData.Id(r, StageForms.Plan.Project) == project))
+            .Select(StageProgressData.ToPlanRow)
+            .ToList();
+
+        if (row.IsActive && others.Any(o => o.IsActive && o.StageCode == row.StageCode && o.SubstepCode == row.SubstepCode))
+            throw HookSupport.Refuse(Duplicate, StageForms.Plan.SubstepCode, "This stage and step are already in the plan.");
+        if (others.Any(o => o.SortOrder == row.SortOrder))
+            throw HookSupport.Refuse(SortOrderTaken, StageForms.Plan.SortOrder, "Another row already has this order number.");
+        if (others.Any(o => o.IsActive && o.StageCode == row.StageCode && (o.DurationType != row.DurationType || o.LevelScope != row.LevelScope)))
+            throw HookSupport.Refuse(Mixed, StageForms.Plan.DurationType, "Every step of a stage needs the same duration type and levels.");
+    }
+}
+
+public sealed class DefaultPlanRowsHook(StageProgressData data) : PlanRowsHook(data)
+{
+    public override string FormCode => StageForms.DefaultPlan;
+    protected override bool PerProject => false;
+}
+
+public sealed class ProjectPlanRowsHook(StageProgressData data) : PlanRowsHook(data)
+{
+    public override string FormCode => StageForms.ProjectPlan;
+    protected override bool PerProject => true;
+}

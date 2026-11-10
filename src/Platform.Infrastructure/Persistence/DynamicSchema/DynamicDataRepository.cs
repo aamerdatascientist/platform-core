@@ -476,7 +476,7 @@ public class DynamicDataRepository : IDynamicDataRepository
         if (parentIds.Count == 0) return Array.Empty<BlockRow>();
         var fields = BlockColumns(sectionFields);
         var sql = $"""
-            SELECT "Id", "ParentId", "BlockIndex"{BuildSelectColumnList(fields)} FROM "{childTableName}"
+            SELECT "Id", "ParentId", "BlockIndex", "CreatedAtUtc"{BuildSelectColumnList(fields)} FROM "{childTableName}"
             WHERE "IsDeleted" = false AND "ParentId" = ANY(@Ids)
             ORDER BY "ParentId", "BlockIndex";
             """;
@@ -494,7 +494,7 @@ public class DynamicDataRepository : IDynamicDataRepository
         var fields = BlockColumns(sectionFields);
         var columns = string.Concat(fields.Select(f => $", c.\"{f.Code}\""));
         var sql = $"""
-            SELECT c."Id", c."ParentId", c."BlockIndex"{columns} FROM "{childTableName}" c
+            SELECT c."Id", c."ParentId", c."BlockIndex", c."CreatedAtUtc"{columns} FROM "{childTableName}" c
             JOIN "{parentTableName}" p ON p."Id" = c."ParentId" AND p."IsDeleted" = false
             WHERE c."IsDeleted" = false
             ORDER BY c."ParentId", c."BlockIndex";
@@ -508,7 +508,8 @@ public class DynamicDataRepository : IDynamicDataRepository
     {
         var dict = (IDictionary<string, object?>)row;
         var values = fields.ToDictionary(f => f.Code, f => dict.TryGetValue(f.Code, out var v) ? v : null);
-        return new BlockRow((Guid)dict["Id"]!, (Guid)dict["ParentId"]!, (int)dict["BlockIndex"]!, values);
+        DateTime? created = dict.TryGetValue("CreatedAtUtc", out var at) && at is DateTime dt ? DateTime.SpecifyKind(dt, DateTimeKind.Utc) : null;
+        return new BlockRow((Guid)dict["Id"]!, (Guid)dict["ParentId"]!, (int)dict["BlockIndex"]!, values, created);
     }
 
     private static string BuildSelectColumnList(IEnumerable<FieldDefinition> fields)

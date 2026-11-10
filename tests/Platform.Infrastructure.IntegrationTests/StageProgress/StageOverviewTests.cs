@@ -129,4 +129,15 @@ public class StageOverviewTests
         var later = new StageReportBlock(Guid.NewGuid(), AsOf.AddDays(1), "plastering_parking", null, [], [], true, false);
         ProjectProgressCalculator.Compute(Data([later], Position119()), AsOf).EarnedDays.Should().Be(158);
     }
+
+    [Fact]
+    public void AnOldReportWhosePhaseMatchesAStageCode_FeedsThePanels_ButNotThatStage()
+    {
+        var old = Row(AsOf.AddDays(-3), "foundation", false, 30) with { FromStageBlock = false };
+        var dto = Calc(Data(baselines: Position119()), [Row(AsOf, StageCodes.Structure, true), old], "foundation");
+        dto.Tiles.LateDays.Should().Be(0, "the old foundation report isn't a stage-block report");
+        var all = Calc(Data(baselines: Position119()), [Row(AsOf, StageCodes.Structure, true), old]);
+        all.Tiles.ReportsLast30Days.Should().Be(2, "it still counts as a report");
+        all.Projects.Single().CurrentPhases.Should().Equal(StageCodes.Structure);
+    }
 }

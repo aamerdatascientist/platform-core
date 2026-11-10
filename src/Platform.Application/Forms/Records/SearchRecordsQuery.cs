@@ -60,7 +60,9 @@ public class SearchRecordsQueryHandler : IRequestHandler<SearchRecordsQuery, Rec
         var version = form.GetPublishedVersion();
         if (version is null || form.TableName is null)
             return new RecordsPageDto(Array.Empty<RecordItemDto>(), 0, request.Page, request.PageSize);
-        var fields = version.Fields.Where(f => f.IsActive).ToList();
+        // Archived fields too: old records keep showing their answers (2026-11-10: the daily
+        // report's phase questions were archived when it moved to stage blocks).
+        var fields = version.Fields.ToList();
 
         var matches = new List<DynamicRowFilter>();
         foreach (var raw in request.Filters ?? Array.Empty<string>())

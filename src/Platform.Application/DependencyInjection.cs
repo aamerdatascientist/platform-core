@@ -39,6 +39,8 @@ public static class DependencyInjection
         services.AddScoped<Forms.IFormSubmissionHook, StageProgress.PauseLogHook>();
         services.AddScoped<Forms.IFormSubmissionHook, StageProgress.ProjectPlanHook>();
         services.AddScoped<Forms.IFormSubmissionHook, StageProgress.FloorsHook>();
+        services.AddScoped<Forms.IFormSubmissionHook, StageProgress.DefaultPlanRowsHook>();
+        services.AddScoped<Forms.IFormSubmissionHook, StageProgress.ProjectPlanRowsHook>();
 
         return services;
     }

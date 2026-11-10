@@ -128,7 +128,7 @@ public class ClaudeReportAnalyst : IReportAnalyst
 
         Field notes: planMetPercent = share of reports in which that day's planned work was
         fully done. workCompletePercent = days earned against the client's plan. daysLate =
-        forecast finish minus contract end in calendar days (negative = ahead). tone is
+        forecast finish minus the planned finish (contractEnd: the stage plan's finish with 10% slack) in calendar days (negative = ahead). tone is
         good/warn/bad. Stages lists, per stage, plannedDays, reportDays and lostDays (days on
         which the plan was not met) - that is "where the time went". missingReports for a week
         or month counts working days without any report.

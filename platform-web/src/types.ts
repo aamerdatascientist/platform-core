@@ -568,6 +568,8 @@ export interface StageUnitDto {
   actualStart: string | null;
   actualFinish: string | null;
   plannedFinish: string | null;
+  /** Actual minus planned finish in working days; positive = late. */
+  lateByDays?: number | null;
 }
 
 export interface ProjectProgressDto {

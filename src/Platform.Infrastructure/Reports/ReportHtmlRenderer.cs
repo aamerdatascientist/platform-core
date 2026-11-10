@@ -84,7 +84,7 @@ public class ReportHtmlRenderer : IReportRenderer
         }
 
         html.Append("<p class=\"method\">طريقة الحساب: نسبة الإنجاز = أيام العمل التي أُنجزت فيها الخطة مقسومة على الأيام المخططة لكل وحدة ")
-            .Append("(خطة العميل: 18 يوماً لكل منطقة حفر، 14 لكل قاعدة، 17 لكل طابق، 6 لكل تخصص كهروميكانيكي في كل طابق). ")
+            .Append("(من خطة مراحل كل مشروع: الأيام لكل مرحلة، ولكل دور أو واجهة حيث ينطبق؛ والمواعيد المخططة بمتوسط الأسرع والأبطأ مع هامش 10%). ")
             .Append("الانتهاء المتوقع يُحسب بوتيرة آخر 30 يوماً مع استثناء أيام الجمعة. ")
             .Append(analysis is null ? "" : "التحليل المكتوب أعده Claude من الأرقام أعلاه، وكل رقم فيه مطابق للبيانات.")
             .Append("</p><div class=\"foot\"><span>أُعد تلقائياً من منصة أساس · ").Append(E(ReportTexts.Date(r.To, weekday: true)))
@@ -152,18 +152,22 @@ public class ReportHtmlRenderer : IReportRenderer
             .Append("<div class=\"pag\"><div class=\"pav\"><div class=\"big num\">").Append(p.WorkCompletePercent).Append("%<small> منجز</small></div>");
         if (!r.IsDaily && p.WorkCompleteChangePoints != 0)
             h.Append("<div class=\"dl up\">▲ ").Append(p.WorkCompleteChangePoints).Append(" نقطة ").Append(PeriodWord(r)).Append("</div>");
-        if (p.TimeElapsedPercent is { } elapsed) h.Append("<div class=\"sub\">مضى ").Append(elapsed).Append("% من مدة العقد</div>");
+        if (p.TimeElapsedPercent is { } elapsed) h.Append("<div class=\"sub\">مضى ").Append(elapsed).Append("% من المدة المخططة</div>");
 
         h.Append("<div class=\"pstrip\">");
-        foreach (var s in p.Stages)
+        // A plan has 20-odd stages: the strip shows the ones under way or done, then the next one.
+        var started = p.Stages.Where(s => s.CompletePercent > 0 || p.CurrentStages.Contains(s.Label)).ToList();
+        var next = p.Stages.FirstOrDefault(s => s.CompletePercent == 0 && !started.Contains(s));
+        var strip = p.Stages.Where(s => started.Contains(s) || s == next).ToList();
+        foreach (var s in strip.Count > 0 ? strip : p.Stages.Take(1).ToList())
         {
             var current = p.CurrentStages.Contains(s.Label);
-            h.Append("<div class=\"ps").Append(current ? " cur" : "").Append("\"><div class=\"psl\">").Append(E(ShortStage(s.Stage))).Append("</div>")
+            h.Append("<div class=\"ps").Append(current ? " cur" : "").Append("\"><div class=\"psl\">").Append(E(StageName(s.Stage, s.Label))).Append("</div>")
                 .Append(Progress(s.CompletePercent, s.Finished ? Good : Accent)).Append("<div class=\"psv\">").Append(s.CompletePercent).Append("%</div></div>");
         }
         h.Append("</div>");
         Kv(h, "الانتهاء المتوقع", p.ForecastFinish is { } f ? ReportTexts.Date(f) : "—");
-        Kv(h, "موعد العقد", p.ContractEnd is { } c ? ReportTexts.Date(c) : "—");
+        Kv(h, "الانتهاء المخطط", p.ContractEnd is { } c ? ReportTexts.Date(c) : "—");
         Kv(h, "الفرق", $"<b style=\"color:{tone}\">{LateText(p.DaysLate)}</b>", raw: true);
         if (!r.IsDaily && p.DaysLateChange is { } change && change != 0)
             Kv(h, "تغيّر التوقع " + PeriodWord(r), change > 0 ? $"تأخر {change} يوماً" : $"تحسّن {-change} يوماً");
@@ -202,7 +206,7 @@ public class ReportHtmlRenderer : IReportRenderer
         {
             h.Append("<table class=\"units hide-phone\"><tr><th>المرحلة</th><th>الوحدة</th><th class=\"c\">العمالة</th><th>الطقس</th><th class=\"c\">الخطة</th><th>ملاحظات</th></tr>");
             foreach (var u in p.UnitReports)
-                h.Append("<tr><td>").Append(E(ShortStage(u.Stage))).Append("</td><td><b>").Append(E(u.Unit)).Append("</b></td><td class=\"c num\">").Append(u.Crew)
+                h.Append("<tr><td>").Append(E(StageName(u.Stage, u.StageLabel))).Append("</td><td><b>").Append(E(u.Unit)).Append("</b></td><td class=\"c num\">").Append(u.Crew)
                     .Append("</td><td>").Append(E(u.Weather)).Append("</td><td class=\"c\">").Append(u.PlanMet ? "<span class=\"ok\">✓ نعم</span>" : "<span class=\"no\">✗ لا</span>")
                     .Append("</td><td>").Append(UnitNotes(u)).Append("</td></tr>");
             foreach (var m in p.MissingUnits)
@@ -210,7 +214,7 @@ public class ReportHtmlRenderer : IReportRenderer
             h.Append("</table><div class=\"show-phone\">");
             foreach (var u in p.UnitReports)
                 h.Append("<div class=\"rc\"><div class=\"rch\"><b>").Append(E(u.Unit)).Append("</b>").Append(u.PlanMet ? "<span class=\"ok\">✓ أُنجزت الخطة</span>" : "<span class=\"no\">✗ لم تُنجز</span>")
-                    .Append("</div><div class=\"sub\">").Append(E(ShortStage(u.Stage))).Append(" · ").Append(u.Crew).Append(" عمال · ").Append(E(u.Weather)).Append("</div>").Append(u.DelayCause is null && u.Problem is null ? "" : UnitNotes(u)).Append("</div>");
+                    .Append("</div><div class=\"sub\">").Append(E(StageName(u.Stage, u.StageLabel))).Append(" · ").Append(u.Crew).Append(" عمال · ").Append(E(u.Weather)).Append("</div>").Append(u.DelayCause is null && u.Problem is null ? "" : UnitNotes(u)).Append("</div>");
             foreach (var m in p.MissingUnits) h.Append("<div class=\"rc miss\"><b>").Append(E(m)).Append("</b><div>لم يصل تقرير اليوم</div></div>");
             h.Append("</div>");
         }
@@ -365,6 +369,10 @@ public class ReportHtmlRenderer : IReportRenderer
         "bad" => Bad,
         _ => fallback,
     };
+
+    /// <summary>A stage's name: the plan's Arabic name, or an old phase's short name.</summary>
+    private static string StageName(string code, string? label) =>
+        !string.IsNullOrWhiteSpace(label) && label != code ? label : ShortStage(code);
 
     private static string ShortStage(string stage) => stage switch
     {

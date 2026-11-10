@@ -164,7 +164,8 @@ public sealed class StageProgressData(IApplicationDbContext db, IDynamicDataRepo
             result.Add(new StageBlockRow(b.ParentId, projectId, new StageReportBlock(
                 b.ParentId, date, stage, BlockText(b, StageForms.Report.Substep), levels.Distinct().ToList(), sides,
                 b.Values.GetValueOrDefault(StageForms.Report.PlanMet) is true,
-                b.Values.GetValueOrDefault(StageForms.Report.Finished) is true)));
+                b.Values.GetValueOrDefault(StageForms.Report.Finished) is true,
+                b.CreatedAtUtc)));
         }
         return _blocks = result;
     }
@@ -193,7 +194,8 @@ public sealed class StageProgressData(IApplicationDbContext db, IDynamicDataRepo
         return new ProjectStageData(
             project, plan, blocks,
             baselines.Select(b => new StageBaseline(b.StageCode, b.SubstepCode, b.LevelId, b.Side, b.EarnedDays, b.Finished)).ToList(),
-            reopenings.Select(r => new StageReopening(UnitKeys.For(r.StageCode, r.SubstepCode, r.LevelId, r.Side), r.ReopenedOn)).ToList(),
+            reopenings.Select(r => new StageReopening(UnitKeys.For(r.StageCode, r.SubstepCode, r.LevelId, r.Side), r.ReopenedOn,
+                DateTime.SpecifyKind(r.CreatedAtUtc, DateTimeKind.Utc))).ToList(),
             await PausesAsync(projectId, ct));
     }
 

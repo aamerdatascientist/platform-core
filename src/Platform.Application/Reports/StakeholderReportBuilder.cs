@@ -160,7 +160,7 @@ public static class StakeholderReportBuilder
         {
             var summary = progress?.Stages.FirstOrDefault(s => s.StageCode == phase.Phase);
             var planned = summary?.PlannedDays ?? 0;
-            var phaseReports = own.Where(r => r.Phase == phase.Phase).ToList();
+            var phaseReports = own.Where(r => r.FromStageBlock && r.Phase == phase.Phase).ToList();
             if (planned == 0 && phaseReports.Count == 0) continue;
             var reportDays = phaseReports.GroupBy(r => r.Date).ToList();
             var startComplete = dtoStart?.Phases.FirstOrDefault(p => p.Phase == phase.Phase)?.Complete ?? 0;
@@ -219,7 +219,8 @@ public static class StakeholderReportBuilder
             CurrentStages: dto.CurrentPhases.Select(p => StageLabel(labels, p)).ToList(),
             Stages: stages,
             ForecastFinish: tilesNow.ForecastFinish,
-            ContractEnd: project.ExpectedCompletion,
+            // The planned finish the lateness is measured against (stage plan, midpoint + 10%).
+            ContractEnd: tilesNow.ForecastTarget ?? project.ExpectedCompletion,
             DaysLate: tilesNow.ForecastDaysLate,
             DaysLateAtStart: tilesStart?.ForecastDaysLate,
             DaysLateChange: tilesNow.ForecastDaysLate is { } now && tilesStart?.ForecastDaysLate is { } start ? now - start : null,

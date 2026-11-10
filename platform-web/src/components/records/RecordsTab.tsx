@@ -7,7 +7,8 @@ import { useErrorMessage } from '../../hooks/useErrorMessage';
 import { parseOptions, storedToSaudiDate } from '../../forms/fieldValues';
 import { useLocalized } from '../../forms/localized';
 import { RecordBlocks } from './RecordBlocks';
-import { answerText, dayLabel, DELAY_FIELD, localeFor, PLAN_FIELD, sentDay, sentTime, shownFields } from '../../forms/recordAnswers';
+import { answerText, BLOCK_PLAN_FIELD, dayLabel, DELAY_FIELD, localeFor, PLAN_FIELD, sentDay, sentTime, shownFields, shownSections } from '../../forms/recordAnswers';
+import { pickLanguage } from '../../forms/localized';
 import { Thumbnail } from '../../routes/EntryDetail';
 import type { FieldDefinitionDto, FormDefinitionDto, RecordDetailDto, RecordItemDto } from '../../types';
 import { Icon } from '../icons';
@@ -52,7 +53,9 @@ export function RecordsTab({
   const locale = localeFor(i18n.language);
   const ctx = useMemo(() => ({ t, lang: i18n.language, locale }), [t, i18n.language, locale]);
 
-  const fields = useMemo(() => [...(form.publishedVersion?.fields ?? [])].filter((f) => f.isActive).sort((a, b) => a.displayOrder - b.displayOrder), [form]);
+  // Header fields only: a repeatable section's fields live in its blocks (own column below).
+  const fields = useMemo(() => [...(form.publishedVersion?.fields ?? [])].filter((f) => f.isActive && !f.sectionId).sort((a, b) => a.displayOrder - b.displayOrder), [form]);
+  const sections = form.publishedVersion?.sections ?? [];
   // The filter row's fields: the first Lookup (the record's project), the first dropdown other
   // fields depend on (the phase - or simply the first dropdown), the delay question, the first date.
   const projectField = fields.find((f) => f.fieldType === 'Lookup' && !f.visibleWhenFieldCode);
@@ -253,6 +256,11 @@ export function RecordsTab({
                       <bdi>{fieldLabel(f)}</bdi>
                     </th>
                   ))}
+                  {sections.map((sec) => (
+                    <th key={sec.id} className={thClass}>
+                      <bdi>{pickLanguage(sec.titleAr, sec.titleEn, i18n.language)}</bdi>
+                    </th>
+                  ))}
                   <th className={thClass}>{t('records.sentBy')}</th>
                 </tr>
               </thead>
@@ -263,6 +271,11 @@ export function RecordsTab({
                     {shownColumns.map((f) => (
                       <td key={f.id} className={`${tdClass} whitespace-nowrap`}>
                         {cell(f, r)}
+                      </td>
+                    ))}
+                    {sections.map((sec) => (
+                      <td key={sec.id} className={tdClass}>
+                        <BlocksCell form={form} record={r} sectionCode={sec.code} />
                       </td>
                     ))}
                     <td className={`${tdClass} whitespace-nowrap`}>
@@ -502,5 +515,31 @@ function ProjectActions({ record }: { record: RecordItemDto }) {
         {t('stageProgress.openProgress')}
       </Button>
     </div>
+  );
+}
+
+/** A section's blocks in one table cell: what each block was about (its first answer) and, when the
+ *  blocks say, whether the day's plan was met in each. */
+function BlocksCell({ form, record, sectionCode }: { form: FormDefinitionDto; record: RecordItemDto; sectionCode: string }) {
+  const { t, i18n } = useTranslation();
+  const ctx = { t, lang: i18n.language, locale: localeFor(i18n.language) };
+  const section = shownSections(form, record, ctx).find((s) => s.section.code === sectionCode);
+  if (!section) return <>—</>;
+  return (
+    <span className="flex flex-col gap-1">
+      {section.blocks.map((b) => {
+        const met = record.sections?.[sectionCode]?.find((x) => x.index === b.index)?.values[BLOCK_PLAN_FIELD];
+        return (
+          <span key={b.index} className="flex items-center gap-1.5 whitespace-nowrap">
+            <bdi>{b.rows[0]?.value ?? '—'}</bdi>
+            {typeof met === 'boolean' && (
+              <span className={`rounded-ui-pill px-[7px] py-[1px] text-[11px] font-bold ${met ? 'bg-success-soft text-success' : 'bg-danger-soft text-danger'}`}>
+                {met ? t('entries.tagPlanMet') : t('entries.tagPlanNotMet')}
+              </span>
+            )}
+          </span>
+        );
+      })}
+    </span>
   );
 }

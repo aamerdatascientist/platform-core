@@ -406,7 +406,7 @@
     },
     "projects": {
       "title": "Projects",
-      "caption": "Bar: work complete. Tick: time elapsed. Planned days are placeholders. Select a row to focus on one project.",
+      "caption": "Bar: work complete. Tick: time elapsed. Days come from each project's stage plan. Select a row to focus on one project.",
       "empty": "No project has submitted a daily report yet.",
       "project": "Project",
       "status": "Status",
@@ -1110,7 +1110,11 @@
     "loadError": "Couldn't load the project's progress.",
     "pauseProject": "Pause project",
     "resumeProject": "Resume project",
-    "openProgress": "Stage progress"
+    "openProgress": "Stage progress",
+    "colLate": "Against plan",
+    "lateBy": "{{count}} days late",
+    "earlyBy": "{{count}} days early",
+    "onTime": "On time"
   },
   "sectionsBuilder": {
     "add": "Add a repeatable section",

@@ -4,9 +4,11 @@ namespace Platform.Application.StageProgress;
 /// One stage block of a daily report (or a whole v2 report with one block). Levels are the
 /// floors ticked (or the one level for structure); sides are 1..N; a fixed stage has neither.
 /// </summary>
+/// <remarks><paramref name="SavedAtUtc"/>: when the block was saved - a reopening voids the
+/// "finished" of blocks saved before it, whatever their report date.</remarks>
 public sealed record StageReportBlock(
     Guid SubmissionId, DateOnly Date, string StageCode, string? SubstepCode,
-    IReadOnlyList<Guid> LevelIds, IReadOnlyList<int> Sides, bool PlanMet, bool Finished);
+    IReadOnlyList<Guid> LevelIds, IReadOnlyList<int> Sides, bool PlanMet, bool Finished, DateTime? SavedAtUtc = null);
 
 /// <summary>
 /// A unit's position recorded when a project joins the stage model part-way through (owner,
@@ -18,9 +20,10 @@ public sealed record StageBaseline(string StageCode, string? SubstepCode, Guid? 
     public string Key => UnitKeys.For(StageCode, SubstepCode, LevelId, Side);
 }
 
-/// <summary>An administrator reopened a finished unit on <paramref name="On"/>: every "finished"
-/// dated on or before that day no longer counts, and the unit can be reported again.</summary>
-public sealed record StageReopening(string UnitKey, DateOnly On);
+/// <summary>An administrator reopened a finished unit at <paramref name="AtUtc"/> (on <paramref name="On"/>):
+/// every "finished" saved before then no longer counts, and the unit can be reported again. Without
+/// a time, the date decides (finishes dated on or before it are void).</summary>
+public sealed record StageReopening(string UnitKey, DateOnly On, DateTime? AtUtc = null);
 
 public sealed record UnitProgress(
     StageUnit Unit, int EarnedDays, bool Finished, DateOnly? ActualStart, DateOnly? ActualFinish, bool FromBaseline)
@@ -50,29 +53,32 @@ public static class StageProgressCalculator
         IEnumerable<StageBaseline>? baselines = null,
         IEnumerable<StageReopening>? reopenings = null)
     {
-        var byKey = new Dictionary<string, List<(DateOnly Date, bool PlanMet, bool Finished)>>();
+        var byKey = new Dictionary<string, List<(DateOnly Date, bool PlanMet, bool Finished, DateTime? SavedAt)>>();
         foreach (var block in blocks)
         {
             foreach (var key in KeysOf(block))
             {
                 if (!byKey.TryGetValue(key, out var list)) byKey[key] = list = [];
-                list.Add((block.Date, block.PlanMet, block.Finished));
+                list.Add((block.Date, block.PlanMet, block.Finished, block.SavedAtUtc));
             }
         }
         var baselineByKey = (baselines ?? []).GroupBy(b => b.Key).ToDictionary(g => g.Key, g => g.Last());
-        var reopenedOn = (reopenings ?? []).GroupBy(r => r.UnitKey).ToDictionary(g => g.Key, g => g.Max(r => r.On));
+        var lastReopen = (reopenings ?? []).GroupBy(r => r.UnitKey)
+            .ToDictionary(g => g.Key, g => g.OrderBy(r => r.AtUtc ?? DateTime.MinValue).ThenBy(r => r.On).Last());
 
         return units.Select(unit =>
         {
             var reports = byKey.GetValueOrDefault(unit.Key) ?? [];
             var baseline = baselineByKey.GetValueOrDefault(unit.Key);
-            DateOnly? reopened = reopenedOn.TryGetValue(unit.Key, out var on) ? on : null;
+            var reopen = lastReopen.GetValueOrDefault(unit.Key);
+            bool AfterReopen((DateOnly Date, bool PlanMet, bool Finished, DateTime? SavedAt) r) =>
+                reopen is null || (r.SavedAt is { } saved && reopen.AtUtc is { } at ? saved > at : r.Date > reopen.On);
 
             var metDays = reports.Where(r => r.PlanMet).Select(r => r.Date).Distinct().Count();
             var earned = Math.Min(unit.PlannedDays, Math.Max(0, (baseline?.EarnedDays ?? 0) + metDays));
 
-            var finishes = reports.Where(r => r.Finished && (reopened is null || r.Date > reopened)).Select(r => r.Date).ToList();
-            var baselineFinished = baseline?.Finished == true && reopened is null;
+            var finishes = reports.Where(r => r.Finished && AfterReopen(r)).Select(r => r.Date).ToList();
+            var baselineFinished = baseline?.Finished == true && reopen is null;
             var finished = finishes.Count > 0 || baselineFinished;
             DateOnly? finishDate = finishes.Count > 0 ? finishes.Min() : null;
             if (finished) earned = unit.PlannedDays;

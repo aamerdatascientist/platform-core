@@ -38,7 +38,9 @@ public class GetRecordDetailQueryHandler : IRequestHandler<GetRecordDetailQuery,
             ?? throw new NotFoundException(nameof(FormDefinition), request.FormDefinitionId);
         var version = form.GetPublishedVersion();
         if (version is null || form.TableName is null) throw new NotFoundException("Record", request.RecordId);
-        var fields = version.Fields.Where(f => f.IsActive).ToList();
+        // Archived fields too: old records keep showing their answers (2026-11-10: the daily
+        // report's phase questions were archived when it moved to stage blocks).
+        var fields = version.Fields.ToList();
 
         var row = await _repository.GetRecordAsync(form.TableName, fields, request.RecordId, cancellationToken)
             ?? throw new NotFoundException("Record", request.RecordId);

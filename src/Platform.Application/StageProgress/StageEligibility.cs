@@ -34,7 +34,12 @@ public static class StageEligibility
         var rowsByStage = schedule.Units.Select(u => u.Row).Distinct().GroupBy(r => r.StageCode)
             .ToDictionary(g => g.Key, g => g.OrderBy(r => r.SortOrder).ToList());
         var seen = new HashSet<(string, string?)>();
+        // Every unit this report names, whatever the block order: an earlier step reported in the
+        // same report counts as started, before or after the later step's block.
         var startedHere = new HashSet<string>();
+        foreach (var b in blocks)
+            if (rowsByStage.TryGetValue(b.StageCode, out var rs) && rs.FirstOrDefault(r => r.SubstepCode == b.SubstepCode) is { } br)
+                foreach (var key in UnitsOf(b, br).Keys) startedHere.Add(key);
 
         for (var i = 0; i < blocks.Count; i++)
         {
@@ -84,7 +89,6 @@ public static class StageEligibility
                     }
                 }
             }
-            foreach (var key in keys) startedHere.Add(key);
         }
         return problems;
     }

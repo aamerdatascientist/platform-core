@@ -10,7 +10,9 @@ namespace Platform.Application.StageProgress;
 public record StageUnitDto(
     string Key, string StageCode, string? SubstepCode, Guid? LevelId, int? Side, string StageNameAr, string StageNameEn,
     string? SubstepNameAr, string? SubstepNameEn, string? LevelNameAr, string? LevelNameEn,
-    int PlannedDays, int EarnedDays, bool Finished, DateOnly? ActualStart, DateOnly? ActualFinish, DateOnly? PlannedFinish);
+    int PlannedDays, int EarnedDays, bool Finished, DateOnly? ActualStart, DateOnly? ActualFinish, DateOnly? PlannedFinish,
+    /// <summary>Actual finish minus planned finish in working days; positive = late. Null until both exist.</summary>
+    int? LateByDays = null);
 
 public record ProjectProgressDto(
     Guid ProjectId, string Code, string Name, string? Status, DateOnly? StartDate,
@@ -34,11 +36,14 @@ public class GetProjectProgressQueryHandler(StageProgressData data) : IRequestHa
         {
             var level = u.Unit.LevelId is { } id ? levels.GetValueOrDefault(id) : null;
             var window = progress.Schedule.UnitWindows.TryGetValue(u.Unit.Key, out var w) ? w : (PlannedWindow?)null;
+            DateOnly? planned = progress.Dates is { } dates && window is { } win ? dates.Finish(win.Middle.End) : null;
+            int? late = planned is { } p && u.ActualFinish is { } a && progress.Dates is { } d
+                ? a > p ? d.Calendar.WorkingDaysBetween(p.AddDays(1), a) : -d.Calendar.WorkingDaysBetween(a.AddDays(1), p)
+                : null;
             return new StageUnitDto(u.Unit.Key, u.Unit.StageCode, u.Unit.SubstepCode, u.Unit.LevelId, u.Unit.Side,
                 u.Unit.Row.StageNameAr, u.Unit.Row.StageNameEn, u.Unit.Row.SubstepNameAr, u.Unit.Row.SubstepNameEn,
                 level?.LabelAr ?? (u.Unit.Side is { } s ? $"الواجهة {s}" : null), level?.LabelEn ?? (u.Unit.Side is { } s2 ? $"Side {s2}" : null),
-                u.Unit.PlannedDays, u.EarnedDays, u.Finished, u.ActualStart, u.ActualFinish,
-                progress.Dates is { } dates && window is { } win ? dates.Finish(win.Middle.End) : null);
+                u.Unit.PlannedDays, u.EarnedDays, u.Finished, u.ActualStart, u.ActualFinish, planned, late);
         }).ToList();
         return new ProjectProgressDto(project.Project.Id, project.Project.Code, project.Project.Name, project.Project.Status, project.Project.StartDate,
             progress.EarnedDays, progress.PlannedDays, progress.WorkComplete, progress.PlannedShare, progress.ElapsedWorkingDays,

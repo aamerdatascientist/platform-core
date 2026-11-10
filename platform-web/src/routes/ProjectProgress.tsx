@@ -97,6 +97,7 @@ export function ProjectProgress({ token }: { token: string }) {
                     <th className={thClass}>{t('stageProgress.colDays')}</th>
                     <th className={thClass}>{t('stageProgress.colState')}</th>
                     <th className={thClass}>{t('stageProgress.colPlannedFinish')}</th>
+                    <th className={thClass}>{t('stageProgress.colLate')}</th>
                     <th className={thClass} aria-label={t('stageProgress.colActions')} />
                   </tr>
                 </thead>
@@ -122,6 +123,9 @@ export function ProjectProgress({ token }: { token: string }) {
                         )}
                       </td>
                       <td className={tdClass}>{date(u.plannedFinish)}</td>
+                      <td className={tdClass}>
+                        {u.lateByDays == null ? '—' : u.lateByDays > 0 ? t('stageProgress.lateBy', { count: u.lateByDays }) : u.lateByDays < 0 ? t('stageProgress.earlyBy', { count: -u.lateByDays }) : t('stageProgress.onTime')}
+                      </td>
                       <td className={tdClass}>
                         {u.finished && (
                           <Button size="compact" variant="link" disabled={busy !== null} onClick={() => void reopen(u)}>

@@ -21,7 +21,10 @@ public record OverviewProjectRow(
 public record OverviewReportRow(
     Guid ProjectId, DateOnly Date, string Phase, string? UnitKey, int CrewCount, string? Weather,
     bool HadDelay, string? DelayCause, bool HasProblem, string? ProblemDescription, bool PlanMet,
-    Guid SubmissionId = default);
+    Guid SubmissionId = default,
+    /// <summary>A v2 stage block (true) or a whole v1 report (false). Stage-level figures read
+    /// blocks only - two old phase codes (excavation, foundation) match stage codes by name.</summary>
+    bool FromStageBlock = true);
 
 /// <summary><paramref name="IsInflow"/> false means an outflow; <paramref name="Reason"/> is outflow-only.</summary>
 public record OverviewStockRow(
@@ -193,7 +196,7 @@ public static class ExecutiveOverviewCalculator
         // A selected stage narrows every report-based figure; the project table stays whole.
         var scopeReports = allReports
             .Where(r => selectedProjectId is not { } id || r.ProjectId == id)
-            .Where(r => selectedPhase is null || r.Phase == selectedPhase)
+            .Where(r => selectedPhase is null || (r.FromStageBlock && r.Phase == selectedPhase))
             .ToList();
         var scopeStock = selectedProjectId is { } selectedForStock
             ? stock.Where(s => s.ProjectId == selectedForStock).ToList()
@@ -283,7 +286,7 @@ public static class ExecutiveOverviewCalculator
             : null;
         var lastReportDate = reports.Max(r => r.Date);
         var order = stages.Select(s => s.StageCode).ToList();
-        var currentPhases = reports.Where(r => r.Date == lastReportDate && order.Contains(r.Phase))
+        var currentPhases = reports.Where(r => r.FromStageBlock && r.Date == lastReportDate && order.Contains(r.Phase))
             .Select(r => r.Phase).Distinct().OrderBy(order.IndexOf).ToList();
 
         var (scheduleStatus, gap) = ComputeSchedule(project.Status, workComplete, progress?.PlannedShare);
@@ -389,8 +392,9 @@ public static class ExecutiveOverviewCalculator
             LateShare: lateShare,
             LateDaysTone: workedDays == 0 ? null : OverviewKpiThresholds.LateDaysTone(lateDays),
             LateShareTone: OverviewKpiThresholds.LateShareTone(lateShare),
-            ForecastFinish: forecasts.Count == 0 ? null : forecasts.Max(f => f.Finish),
-            ForecastTarget: forecasts.Count == 0 ? null : forecasts.Select(f => f.Target).Max(),
+            // One project's finish and target together: the one that slips most (else the latest finish).
+            ForecastFinish: Headline(forecasts)?.Finish,
+            ForecastTarget: Headline(forecasts)?.Target,
             ForecastDaysLate: worstSlip,
             ForecastFinished: forecasts.Count > 0 && forecasts.All(f => f.Finished),
             ForecastTone: OverviewKpiThresholds.ForecastTone(worstSlip));
@@ -413,6 +417,10 @@ public static class ExecutiveOverviewCalculator
     // ----------------------------------------------------------------------------- forecast
 
     public sealed record ProjectForecast(DateOnly Finish, DateOnly? Target, int? DaysLate, bool Finished);
+
+    private static ProjectForecast? Headline(IReadOnlyList<ProjectForecast> forecasts) =>
+        forecasts.Where(f => f.DaysLate is not null).OrderByDescending(f => f.DaysLate).FirstOrDefault()
+        ?? forecasts.OrderByDescending(f => f.Finish).FirstOrDefault();
 
     /// <summary>Plan-met share over this many days sets the pace a forecast assumes.</summary>
     public const int ForecastPaceDays = 30;
@@ -453,7 +461,7 @@ public static class ExecutiveOverviewCalculator
         }
         if (planned == 0) return null;
 
-        var scope = stage is null ? reports : reports.Where(r => r.Phase == stage).ToList();
+        var scope = stage is null ? reports : reports.Where(r => r.FromStageBlock && r.Phase == stage).ToList();
         DateOnly finish;
         var finished = earned >= planned;
         if (finished)

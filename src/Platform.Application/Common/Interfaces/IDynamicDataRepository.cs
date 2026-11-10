@@ -44,7 +44,7 @@ public record RecordSearch(
 public record SectionRows(string ChildTableName, IReadOnlyCollection<FieldDefinition> Fields, IReadOnlyList<IReadOnlyDictionary<string, object?>> Blocks);
 
 /// <summary>One stored block of a repeatable section.</summary>
-public record BlockRow(Guid Id, Guid ParentId, int BlockIndex, IReadOnlyDictionary<string, object?> Values);
+public record BlockRow(Guid Id, Guid ParentId, int BlockIndex, IReadOnlyDictionary<string, object?> Values, DateTime? CreatedAtUtc = null);
 
 /// <summary>
 /// Options for a write that must be atomic with checks made against other rows: the write

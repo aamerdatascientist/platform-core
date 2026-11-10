@@ -66,8 +66,13 @@ public static class StageScheduleBuilder
         Applicable(plan, shape).SelectMany(row => UnitsFor(row, shape)).ToList();
 
     /// <summary>Active rows that apply to the project, in sort order.</summary>
+    /// <remarks>A second active row for the same stage + step (the plan forms refuse one, but data
+    /// saved another way could hold it) is ignored - the first by sort order wins.</remarks>
     public static IReadOnlyList<StagePlanRow> Applicable(IEnumerable<StagePlanRow> plan, ProjectShape shape) =>
-        plan.Where(r => r.IsActive && r.Days > 0 && shape.Applies(r)).OrderBy(r => r.SortOrder).ToList();
+        plan.Where(r => r.IsActive && r.Days > 0 && shape.Applies(r))
+            .OrderBy(r => r.SortOrder)
+            .DistinctBy(r => (r.StageCode, r.SubstepCode))
+            .ToList();
 
     private static IEnumerable<StageUnit> UnitsFor(StagePlanRow row, ProjectShape shape) => row.DurationType switch
     {
