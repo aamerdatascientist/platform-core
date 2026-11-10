@@ -488,5 +488,6 @@ public static class SubmissionValueValidator
     internal record ValidationRules(
         double? Min, double? Max, string? Regex, bool? NoFutureDates = null, bool? MinExclusive = null,
         bool? Unique = null, string? UniqueWithin = null,
-        string? BlockWhenAttribute = null, string[]? BlockWhenValues = null, string? BlockMessage = null, string? BlockMessageEn = null);
+        string? BlockWhenAttribute = null, string[]? BlockWhenValues = null, string? BlockMessage = null, string? BlockMessageEn = null,
+        string? Default = null);
 }

@@ -59,4 +59,12 @@ public class WorkingCalendarTests
         PauseSpans.IsPaused(events).Should().BeTrue();
         PauseSpans.IsPaused([.. events, new PauseEvent(new DateOnly(2026, 11, 9), PauseAction.Resume)]).Should().BeFalse();
     }
+
+    [Fact]
+    public void APauseAndAResumeOnTheSameDay_FollowTheOrderTheyWereSaved()
+    {
+        var day = new DateOnly(2026, 11, 10);
+        PauseSpans.IsPaused([new PauseEvent(day, PauseAction.Resume, 2), new PauseEvent(day, PauseAction.Pause, 1)]).Should().BeFalse();
+        PauseSpans.IsPaused([new PauseEvent(day, PauseAction.Pause, 2), new PauseEvent(day, PauseAction.Resume, 1)]).Should().BeTrue();
+    }
 }

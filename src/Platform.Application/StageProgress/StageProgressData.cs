@@ -172,10 +172,13 @@ public sealed class StageProgressData(IApplicationDbContext db, IDynamicDataRepo
     public async Task<IReadOnlyList<PauseEvent>> PausesAsync(Guid projectId, CancellationToken ct)
     {
         var (_, rows) = await FormAsync(StageForms.PauseLog, ct);
+        // Rows come newest first (the repository orders by save time): their position is the
+        // save order, which settles a pause and a resume entered on the same date.
         return rows
-            .Where(r => Id(r, StageForms.Pause.Project) == projectId && LocalDate(r, StageForms.Pause.Date) is not null)
-            .Select(r => new PauseEvent(LocalDate(r, StageForms.Pause.Date)!.Value,
-                Text(r, StageForms.Pause.Action) == "resume" ? PauseAction.Resume : PauseAction.Pause))
+            .Select((r, i) => (Row: r, Sequence: (long)(rows.Count - i)))
+            .Where(x => Id(x.Row, StageForms.Pause.Project) == projectId && LocalDate(x.Row, StageForms.Pause.Date) is not null)
+            .Select(x => new PauseEvent(LocalDate(x.Row, StageForms.Pause.Date)!.Value,
+                Text(x.Row, StageForms.Pause.Action) == "resume" ? PauseAction.Resume : PauseAction.Pause, x.Sequence))
             .ToList();
     }
 

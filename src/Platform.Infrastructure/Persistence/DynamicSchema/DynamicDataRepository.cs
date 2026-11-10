@@ -453,8 +453,8 @@ public class DynamicDataRepository : IDynamicDataRepository
         // Arrays: Npgsql infers text[] / uuid[] from the CLR type; a DbType would break that.
         if (type is FieldType.MultiSelect or FieldType.MultiLookup)
         {
-            if (value is DBNull) parameters.Add(name, type == FieldType.MultiSelect ? (object)Array.Empty<string>() : Array.Empty<Guid>());
-            else parameters.Add(name, value);
+            // No answer is NULL, like every other field (an untyped NULL suits any column).
+            parameters.Add(name, value is DBNull ? null : value);
         }
         else parameters.Add(name, value, MapToDbType(type));
     }

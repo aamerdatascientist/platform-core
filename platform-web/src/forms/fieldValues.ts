@@ -23,12 +23,14 @@ export interface FieldRules {
   blockWhenValues: string[];
   blockMessage: string | null;
   blockMessageEn: string | null;
+  /** The value a new entry starts with (2026-11-10, e.g. a plot of 600 m²). */
+  defaultValue: string | null;
 }
 
 export function parseRules(json: string | null | undefined): FieldRules {
   const empty: FieldRules = {
     min: null, max: null, minExclusive: false, regex: null, noFutureDates: false, unique: false, uniqueWithin: null,
-    blockWhenAttribute: null, blockWhenValues: [], blockMessage: null, blockMessageEn: null,
+    blockWhenAttribute: null, blockWhenValues: [], blockMessage: null, blockMessageEn: null, defaultValue: null,
   };
   if (!json) return empty;
   try {
@@ -49,6 +51,7 @@ export function parseRules(json: string | null | undefined): FieldRules {
       blockWhenValues: Array.isArray(raw.blockwhenvalues) ? raw.blockwhenvalues.map(String) : [],
       blockMessage: typeof raw.blockmessage === 'string' ? raw.blockmessage : null,
       blockMessageEn: typeof raw.blockmessageen === 'string' ? raw.blockmessageen : null,
+      defaultValue: typeof raw.default === 'string' && raw.default !== '' ? raw.default : null,
     };
   } catch {
     return empty;

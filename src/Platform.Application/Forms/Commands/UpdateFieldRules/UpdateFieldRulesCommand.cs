@@ -33,7 +33,14 @@ public record UpdateFieldRulesCommand(
     string? Regex,
     bool NoFutureDates,
     bool Unique = false,
-    string? UniqueWithin = null) : IRequest;
+    string? UniqueWithin = null,
+    // 2026-11-10: a starting value for new entries, and the block-when rule. Null keeps what
+    // is stored; an empty string (or an empty list) clears it.
+    string? Default = null,
+    string? BlockWhenAttribute = null,
+    string[]? BlockWhenValues = null,
+    string? BlockMessage = null,
+    string? BlockMessageEn = null) : IRequest;
 
 public class UpdateFieldRulesCommandValidator : AbstractValidator<UpdateFieldRulesCommand>
 {
@@ -120,13 +127,14 @@ public class UpdateFieldRulesCommandHandler : IRequestHandler<UpdateFieldRulesCo
             uniqueWithin)
         {
             // Rules this screen doesn't edit are kept as they were (the block-when rule, 2026-11-10).
-            BlockWhenAttribute = previous?.BlockWhenAttribute,
-            BlockWhenValues = previous?.BlockWhenValues,
-            BlockMessage = previous?.BlockMessage,
-            BlockMessageEn = previous?.BlockMessageEn,
+            BlockWhenAttribute = Pick(request.BlockWhenAttribute, previous?.BlockWhenAttribute),
+            BlockWhenValues = request.BlockWhenValues is null ? previous?.BlockWhenValues : request.BlockWhenValues.Length == 0 ? null : request.BlockWhenValues,
+            BlockMessage = Pick(request.BlockMessage, previous?.BlockMessage),
+            BlockMessageEn = Pick(request.BlockMessageEn, previous?.BlockMessageEn),
+            Default = Pick(request.Default, previous?.Default),
         };
         var hasAny = rules.Min is not null || rules.Max is not null || rules.Regex is not null ||
-                     rules.NoFutureDates is not null || rules.Unique is not null || rules.BlockWhenAttribute is not null;
+                     rules.NoFutureDates is not null || rules.Unique is not null || rules.BlockWhenAttribute is not null || rules.Default is not null;
 
         // DDL first (see the class summary): a nullable column under a still-required field
         // is harmless if the metadata save below then fails.
@@ -140,5 +148,8 @@ public class UpdateFieldRulesCommandHandler : IRequestHandler<UpdateFieldRulesCo
 
     private record StoredRules(
         double? Min, double? Max, string? Regex, bool? NoFutureDates, bool? MinExclusive, bool? Unique, string? UniqueWithin,
-        string? BlockWhenAttribute = null, string[]? BlockWhenValues = null, string? BlockMessage = null, string? BlockMessageEn = null);
+        string? BlockWhenAttribute = null, string[]? BlockWhenValues = null, string? BlockMessage = null, string? BlockMessageEn = null,
+        string? Default = null);
+
+    private static string? Pick(string? given, string? previous) => given is null ? previous : given.Trim().Length == 0 ? null : given.Trim();
 }

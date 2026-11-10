@@ -106,6 +106,12 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
     if (!editRecord)
       return {
         ...Object.fromEntries(headerFields.filter((f) => f.fieldType === 'DateTime' && f.isRequired).map((f) => [f.code, todayIso()])),
+        // Each repeatable section starts with its minimum number of blocks (at least one).
+        ...Object.fromEntries(sections.map((sec) => [sec.code, JSON.stringify(Array.from({ length: Math.max(1, sec.minBlocks) }, () => ({})))])),
+        // A field's own starting value (rules.default), e.g. a project's plot area.
+        ...Object.fromEntries(
+          headerFields.filter((f) => parseRules(f.validationRulesJson).defaultValue !== null).map((f) => [f.code, parseRules(f.validationRulesJson).defaultValue!]),
+        ),
         ...Object.fromEntries(Object.entries(prefill ?? {}).filter(([code]) => headerFields.some((f) => f.code === code))),
       };
     const result = recordToFormValues(headerFields, editRecord.values);

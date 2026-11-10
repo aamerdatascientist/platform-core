@@ -2,8 +2,9 @@ namespace Platform.Application.StageProgress;
 
 public enum PauseAction { Pause, Resume }
 
-/// <summary>One row of the <c>project-pause-log</c> form.</summary>
-public sealed record PauseEvent(DateOnly Date, PauseAction Action);
+/// <summary>One row of the <c>project-pause-log</c> form. <paramref name="Sequence"/> orders
+/// entries made on the same date (a pause and a resume on one day) by when they were saved.</summary>
+public sealed record PauseEvent(DateOnly Date, PauseAction Action, long Sequence = 0);
 
 public static class PauseSpans
 {
@@ -17,7 +18,7 @@ public static class PauseSpans
     {
         var spans = new List<DateSpan>();
         DateOnly? pausedOn = null;
-        foreach (var e in events.OrderBy(e => e.Date).ThenBy(e => e.Action == PauseAction.Resume ? 1 : 0))
+        foreach (var e in Ordered(events))
         {
             if (e.Action == PauseAction.Pause)
             {
@@ -35,5 +36,8 @@ public static class PauseSpans
 
     /// <summary>Whether the project is paused right now (its last event is a Pause).</summary>
     public static bool IsPaused(IEnumerable<PauseEvent> events) =>
-        events.OrderBy(e => e.Date).LastOrDefault()?.Action == PauseAction.Pause;
+        Ordered(events).LastOrDefault()?.Action == PauseAction.Pause;
+
+    private static IEnumerable<PauseEvent> Ordered(IEnumerable<PauseEvent> events) =>
+        events.OrderBy(e => e.Date).ThenBy(e => e.Sequence);
 }

@@ -201,7 +201,9 @@ public class FormsController : ControllerBase
 
     public record UpdateFieldRulesRequest(
         bool IsRequired, double? Min, double? Max, bool MinExclusive, string? Regex, bool NoFutureDates,
-        bool Unique = false, string? UniqueWithin = null);
+        bool Unique = false, string? UniqueWithin = null,
+        string? Default = null, string? BlockWhenAttribute = null, string[]? BlockWhenValues = null,
+        string? BlockMessage = null, string? BlockMessageEn = null);
 
     /// <summary>Safe: sets "required" and the value rules (min/max, pattern, no future
     /// dates). Works on a published form with live data; enforced for new submissions.</summary>
@@ -213,7 +215,8 @@ public class FormsController : ControllerBase
         await _sender.Send(
             new UpdateFieldRulesCommand(
                 id, fieldId, request.IsRequired, request.Min, request.Max, request.MinExclusive, request.Regex,
-                request.NoFutureDates, request.Unique, request.UniqueWithin),
+                request.NoFutureDates, request.Unique, request.UniqueWithin, request.Default,
+                request.BlockWhenAttribute, request.BlockWhenValues, request.BlockMessage, request.BlockMessageEn),
             cancellationToken);
         return NoContent();
     }
