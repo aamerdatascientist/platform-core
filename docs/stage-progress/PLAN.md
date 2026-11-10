@@ -1,6 +1,6 @@
 # Stage-based progress: audit and plan (awaiting approval)
 
-Status: **plan only, no code written.** Target: staging only. Date: 2026-11-10.
+Status: **built and on staging (2026-11-10, `feature/stage-progress`)**, not in production. Plan date: 2026-11-10.
 Branch: a new `feature/stage-progress` cut from `feature/redesign` (which today equals production `main`, v2.0), deployed by pushing it to `staging`.
 
 ---
@@ -344,3 +344,18 @@ Found in the audit:
 
 Opening position for an existing project is stored as baselines (no dates), not as invented reports.
 The project dropdown shows Planning, Active and On hold projects (On hold so the form can say it is paused and refuse to send).
+
+---
+
+## 6. Build status (2026-11-10)
+
+On staging (`feature/stage-progress` -> `staging`): migration `AddFormSectionsAndStageProgress` applied
+(backup taken first), the seed run with `--project-119`, 119 at 158 of 575 days.
+
+Tested: 312 backend tests (all, database tests on a real Postgres), 30 API checks and 21 browser
+checks (English desktop as administrator, Arabic phone as project manager) on a restored copy of
+staging, and 15 read-only browser checks on live staging. Reports and pauses were only sent on the copy.
+
+Production release, when approved: back up, apply the migration, deploy, run the seed with
+`--project-119` against production's API (it maps 119's floors PG/01-05 and records the starting
+position), check.

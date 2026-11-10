@@ -163,6 +163,43 @@ through the builder instead of a script.
   (`draft:{userId}:{formId}` in localStorage, photos in IndexedDB `asas-drafts`).
 - The daily report's 3 steps were made by `scripts/data/seed-daily-report-steps.mjs` (API, idempotent).
 
+## Stage progress and the engine pieces it added - 2026-11-10, staging only (plan: `docs/stage-progress/PLAN.md`)
+
+Progress is measured per **stage** of each project's own plan, in working days (owner-approved plan,
+decisions in PLAN.md §5). Code: `src/Platform.Application/StageProgress/` (pure calculators + a module).
+- **Engine pieces (generic, any form):** repeatable sections (`FormSection`, child table
+  `Data_{Form}__{Section}` with `ParentId`/`BlockIndex`, view `Report_{Form}__{Section}` = one row per
+  block with the header columns); `MultiSelect` (text[]) and `MultiLookup` (uuid[]); `RowFilterJson`
+  on lookups; `VisibleWhenAttribute` (show by an attribute of the chosen option); `Formula`
+  (server-computed number); `OptionsProvider` (named server options, `IFieldOptionsProvider`);
+  rules `default` and `blockWhen*`; `FormDefinition.IsSystem` (fields can't be renamed/retyped/
+  archived/deleted) and `IsHidden` (out of the menus). A submission carries a section's blocks under
+  the section code as an array; `SubmissionPreparer` validates/normalizes each block (errors keyed
+  `section[i].field`); parent + blocks are one transaction (`InsertWithSectionsAsync`). The
+  repository never writes section fields to the parent table, whatever it is passed.
+- **Keep in sync:** visibility-by-attribute and formulas exist twice - `SubmissionValueValidator` /
+  `FieldFormula` (C#) and `forms/fieldValues.ts` (`isFieldVisible`, `evaluateFormula`).
+  `FormVersion.CreateDraftFrom` copies sections and the new field properties.
+- **Form hooks** (`IFormSubmissionHook`, by form code): `LockKey` is taken as a Postgres advisory
+  lock in the write's transaction and `ValidateAsync` runs under it (two foremen on one project are
+  checked one after the other); `AfterSaveAsync` runs after commit and must be repeatable.
+- **Stage module:** providers `stage-plan.stages|substeps|floors|sides`; hooks for `projects` (floors +
+  plan copy via `ProjectSetup`, floor reduction refused when used), `daily-progress-report`
+  (`StageEligibility`, project must be Planning/Active), `project-pause-log` (admins, no double
+  pause/resume, sets status), plan rows and floors never deleted. Starting positions:
+  `StageBaselines` (no dates); reopenings: `StageUnitReopenings`. Admin API `api/stage-progress`.
+- **Calculations:** `StageScheduleBuilder` (fastest/slowest; structure+walls fixed 78-day overlap,
+  identified by stage codes `structure`/`walls`), `StageProgressCalculator` (1 day per unit per date
+  when plan met, capped; finished = planned), `ProjectProgressCalculator` (midpoint target + 10% slack,
+  pauses excluded). One weekly day off for everything: `WorkingWeek` (`Schedule:WeeklyDayOff`, Friday).
+  The Executive Overview and stakeholder reports read these; `OverviewProgressPlan` is gone.
+- **Setup:** migration `AddFormSectionsAndStageProgress` (additive), then
+  `scripts/data/seed-stage-progress.mjs [--project-119]` through the API (idempotent).
+- **Testing on a Mac without Docker:** a throwaway Postgres (`~/.local/pgsql/bin/initdb` +
+  `pg_ctl -o "-c unix_socket_directories='' -p 55432"`) and `TEST_POSTGRES="Host=127.0.0.1;Port=55432;Username=postgres"`
+  runs every database test (`TestPostgres` makes a database per test class).
+- Gotcha hit: same-date pause and resume must be ordered by save order (`PauseEvent.Sequence`).
+
 ## Form access control (role/user-based) - verified in the browser UI, 2026-10-04
 
 Per-form access is layered on `FormDefinitionRoles`/`FormDefinitionUsers`: a form with
