@@ -1088,7 +1088,7 @@
       "title": "Form reminders",
       "hint": "Reminds each person who hasn't filled their assigned form yet that day.",
       "times": "Times",
-      "who": "Who gets them: everyone with a form assignment, managed on"
+      "who": "Each person gets a reminder for every form they're assigned and haven't filled that day. You can also manage this on"
     },
     "assigned": {
       "title": "New assignment message",
@@ -1101,6 +1101,29 @@
       "lastDay": "The last day of each month",
       "channel": "Reports go out on WhatsApp to the recipients below."
     },
-    "recipientsError": "Couldn't load the report recipients."
+    "recipientsError": "Couldn't load the report recipients.",
+    "people": {
+      "title": "Recipients ({{count}})",
+      "add": "Add a recipient",
+      "addButton": "Add and start reminders",
+      "empty": "No one gets these yet. Add a recipient to choose a person and the form they fill each working day.",
+      "hint": "People in the app with a form to fill. Their WhatsApp number is the one saved on their account.",
+      "noNumber": "No WhatsApp number - add one to reach them",
+      "options": "Options for {{name}}",
+      "editNumber": "Edit WhatsApp number",
+      "stop": "Stop reminders",
+      "confirmStop": "Stop the reminders for {{name}}? Their form assignments end today; their past entries stay.",
+      "person": "Person",
+      "pickPerson": "Choose a person",
+      "form": "Form they fill every working day",
+      "pickForm": "Choose a form",
+      "number": "WhatsApp number",
+      "numberHint": "Saudi mobile, e.g. 05XXXXXXXX. Saved on their account.",
+      "numberClearHint": "Leave empty to stop WhatsApp messages to this person.",
+      "saveNumber": "Save number",
+      "already": "This person already has that form assigned - they're already a recipient.",
+      "saveError": "Couldn't save. Check the number and try again.",
+      "loadError": "Couldn't load the recipients."
+    }
   }
 }

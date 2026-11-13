@@ -7,6 +7,7 @@ import { localeFor } from '../forms/recordAnswers';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { DayName, MessagingScheduleDto, ReportRecipientDto, ReportScheduleDto } from '../types';
 import { Recipients } from './StakeholderReports';
+import { ReminderRecipients } from '../components/ReminderRecipients';
 
 /** The working week, Saturday first (Friday is the day off). */
 export const WEEK: DayName[] = ['Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
@@ -55,6 +56,8 @@ export function MessagingSchedule({ token }: { token: string }) {
   const [recipientsFailed, setRecipientsFailed] = useState(false);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  // Bumped when either recipients list changes, so the other one reloads too.
+  const [peopleVersion, setPeopleVersion] = useState(0);
   const [error, setError] = useErrorMessage();
 
   // The recipients come with the reports overview; if that fails, the schedule still loads.
@@ -143,6 +146,9 @@ export function MessagingSchedule({ token }: { token: string }) {
             <Channels whatsApp={draft.reminderWhatsApp} telegram={draft.reminderTelegram} onChange={(w, tg) => set({ reminderWhatsApp: w, reminderTelegram: tg })} />
           </Row>
         </fieldset>
+        <div className="border-t border-divider pt-4">
+          <ReminderRecipients token={token} version={peopleVersion} onChanged={() => setPeopleVersion((v) => v + 1)} />
+        </div>
         <p className="text-[13px] text-ink-soft">
           {t('messages.reminders.who')}{' '}
           <Link to="/admin/assignments" className="font-bold text-accent-strong underline">
@@ -159,6 +165,9 @@ export function MessagingSchedule({ token }: { token: string }) {
             <Channels whatsApp={draft.assignedWhatsApp} telegram={draft.assignedTelegram} onChange={(w, tg) => set({ assignedWhatsApp: w, assignedTelegram: tg })} />
           </Row>
         </fieldset>
+        <div className="border-t border-divider pt-4">
+          <ReminderRecipients compact token={token} version={peopleVersion} onChanged={() => setPeopleVersion((v) => v + 1)} />
+        </div>
       </section>
 
       {/* -------------------------------------------------------------- reports */}
