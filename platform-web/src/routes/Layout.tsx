@@ -7,6 +7,7 @@ import { OfflineBanner, QueueProvider } from '../components/shell/OfflineQueue';
 import { SideMenu } from '../components/shell/SideMenu';
 import { TabBar } from '../components/shell/TabBar';
 import { useIsDesktop } from '../components/ui';
+import { useAppUpdate } from '../components/AppUpdate';
 
 interface LayoutProps {
   token: string;
@@ -31,6 +32,7 @@ export function Layout({ token }: LayoutProps) {
 function Shell() {
   const desktop = useIsDesktop();
   const { pathname } = useLocation();
+  useAppUpdate(pathname);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const openPalette = useCallback(() => setPaletteOpen(true), []);
   useCommandPaletteShortcut(openPalette, desktop);
