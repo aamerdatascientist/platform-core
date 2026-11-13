@@ -43,6 +43,7 @@ public class ApplicationDbContext : DbContext, IApplicationDbContext
     public DbSet<Platform.Domain.Forms.FormDefinitionUser> FormDefinitionUsers => Set<Platform.Domain.Forms.FormDefinitionUser>();
     public DbSet<Platform.Domain.Forms.FormAssignment> FormAssignments => Set<Platform.Domain.Forms.FormAssignment>();
     public DbSet<Platform.Domain.Notifications.NotificationLog> NotificationLogs => Set<Platform.Domain.Notifications.NotificationLog>();
+    public DbSet<Platform.Domain.Notifications.MessagingSchedule> MessagingSchedules => Set<Platform.Domain.Notifications.MessagingSchedule>();
     public DbSet<Platform.Domain.Reports.ReportRecipient> ReportRecipients => Set<Platform.Domain.Reports.ReportRecipient>();
     public DbSet<Platform.Domain.Reports.ReportRun> ReportRuns => Set<Platform.Domain.Reports.ReportRun>();
     public DbSet<Platform.Domain.Reports.ReportDelivery> ReportDeliveries => Set<Platform.Domain.Reports.ReportDelivery>();

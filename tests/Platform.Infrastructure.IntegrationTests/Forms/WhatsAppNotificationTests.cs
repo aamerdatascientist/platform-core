@@ -27,12 +27,12 @@ public class WhatsAppNotificationTests
 
     [Theory]
     [InlineData("08:59", null)]
-    [InlineData("09:00", 1)]
-    [InlineData("10:59", 1)]
+    [InlineData("09:00", "09:00")]
+    [InlineData("10:59", "09:00")]
     [InlineData("11:00", null)] // more than 2 hours late: skipped, not sent at an odd hour
-    [InlineData("14:30", 2)]
-    public void TheLatestPassedReminderTime_IsDue(string now, int? slot) =>
-        AssignmentReminderService.DueSlot(new[] { "09:00", "14:00" }, TimeOnly.Parse(now)).Should().Be(slot);
+    [InlineData("14:30", "14:00")]
+    public void TheLatestPassedReminderTime_IsDue(string now, string? time) =>
+        AssignmentReminderService.DueTime(new[] { "14:00", "09:00" }, TimeOnly.Parse(now)).Should().Be(time);
 
     [Fact]
     public void Dates_InMessages_AreGregorianInArabic() =>

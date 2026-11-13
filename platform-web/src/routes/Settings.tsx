@@ -115,6 +115,7 @@ export function Settings({ token }: SettingsProps) {
             <AdminRow to="/builder" title={t('settings.formBuilder')} hint={t('settings.formBuilderHint')} />
             <AdminRow to="/admin/assignments" title={t('settings.assignments')} hint={t('settings.assignmentsHint')} />
             <AdminRow to="/admin/reports" title={t('reports.title')} hint={t('settings.reportsHint')} />
+            <AdminRow to="/admin/messages" title={t('messages.title')} hint={t('settings.messagesHint')} />
             <AdminRow to="/admin/users" title={t('userManagement.title')} hint={t('settings.usersHint')} />
           </Card>
         </Section>

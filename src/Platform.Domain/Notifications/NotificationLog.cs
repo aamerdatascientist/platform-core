@@ -17,7 +17,7 @@ public class NotificationLog : BaseEntity
     public Guid UserId { get; private set; }
     public Guid? AssignmentId { get; private set; }
 
-    /// <summary>"assigned", "reminder-1", "reminder-2", ... or "test".</summary>
+    /// <summary>"assigned", "reminder-09:00" (by time; "reminder-1"/"reminder-2" before 2026-11-13), "manual" or "test".</summary>
     public string Kind { get; private set; } = default!;
 
     /// <summary>The Saudi day a reminder is about; null for one-off messages.</summary>

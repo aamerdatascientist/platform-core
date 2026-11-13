@@ -9,32 +9,44 @@ import { Button, ErrorState, LoadingState, Segmented, Sheet, TableCard, tdClass,
 import { dayLabel, localeFor } from '../forms/recordAnswers';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import { useWhatsAppGate } from '../config/whatsapp';
-import type { ReportKind, ReportRecipientDto, ReportRunDto, ReportsOverviewDto } from '../types';
+import { Link } from 'react-router-dom';
+import type { DayName, MessagingScheduleDto, ReportKind, ReportRecipientDto, ReportRunDto, ReportScheduleDto, ReportsOverviewDto } from '../types';
 
 const KINDS: ReportKind[] = ['daily', 'weekly', 'monthly'];
 type RecipientDraft = Omit<ReportRecipientDto, 'id'>;
-const emptyRecipient: RecipientDraft = { name: '', phoneNumber: '', receivesDaily: true, receivesWeekly: true, receivesMonthly: true, isActive: true };
+const emptyRecipient: RecipientDraft = {
+  name: '',
+  phoneNumber: '',
+  receivesDaily: true,
+  receivesWeekly: true,
+  receivesMonthly: true,
+  isActive: true,
+};
 const card = 'flex flex-col rounded-ui-2xl border border-border bg-panel';
 
 /** Saudi "now" as a calendar day and minutes past midnight. */
 function saudiNow() {
   const d = new Date(Date.now() + 3 * 3600_000);
-  return { day: d.toISOString().slice(0, 10), minutes: d.getUTCHours() * 60 + d.getUTCMinutes() };
+  return {
+    day: d.toISOString().slice(0, 10),
+    minutes: d.getUTCHours() * 60 + d.getUTCMinutes(),
+  };
 }
 const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 const weekday = (iso: string) => new Date(`${iso}T00:00:00Z`).getUTCDay();
 const lastOfMonth = (iso: string) => new Date(Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)), 0)).toISOString().slice(0, 10);
 
+const DAY_NAMES: DayName[] = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
 /**
- * The next send day of each report, worked out here from the schedule (24, HANDOFF §9.7):
- * daily = the next working day (Saturday-Thursday), weekly = the next Thursday, monthly = the
- * last day of the month - today counts while the send time hasn't passed.
+ * The next send day of a report, from its schedule on the Messages page (2026-11-13): one of
+ * its days (monthly: the last day of the month) - today counts while its time hasn't passed.
  */
-export function nextSendDay(kind: ReportKind, sendTime: string) {
+export function nextSendDay(kind: ReportKind, schedule: ReportScheduleDto) {
   const { day, minutes } = saudiNow();
-  const [h, m] = sendTime.split(':').map(Number);
+  const [h, m] = schedule.time.split(':').map(Number);
   const passed = minutes >= h * 60 + (m || 0);
-  const fits = (d: string) => (kind === 'daily' ? weekday(d) !== 5 : kind === 'weekly' ? weekday(d) === 4 : d === lastOfMonth(d));
+  const fits = (d: string) => (kind === 'monthly' ? d === lastOfMonth(d) : schedule.days.includes(DAY_NAMES[weekday(d)]));
   let d = passed ? addDays(day, 1) : day;
   for (let i = 0; i < 40 && !fits(d); i++) d = addDays(d, 1);
   return d;
@@ -49,11 +61,14 @@ export function StakeholderReports({ token }: { token: string }) {
   const { t, i18n } = useTranslation();
   const locale = localeFor(i18n.language);
   const [overview, setOverview] = useState<ReportsOverviewDto | null>(null);
+  const [schedule, setSchedule] = useState<MessagingScheduleDto | null>(null);
   const [error, setError] = useErrorMessage();
 
   const load = useCallback(async () => {
     try {
-      setOverview(await api.reports.overview(token));
+      const [o, s] = await Promise.all([api.reports.overview(token), api.messagingSchedule.get(token)]);
+      setOverview(o);
+      setSchedule(s);
       setError(null);
     } catch (err) {
       setError({ err, fallbackKey: 'reports.loadError' });
@@ -64,9 +79,31 @@ export function StakeholderReports({ token }: { token: string }) {
     void load();
   }, [load]);
 
-  if (!overview) return error ? <ErrorState message={error} onRetry={() => (setError(null), void load())} /> : <LoadingState />;
-  const [h, m] = overview.sendTime.split(':').map(Number);
-  const time = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' }).format(new Date(Date.UTC(2026, 0, 1, h, m || 0)));
+  if (!overview || !schedule) return error ? <ErrorState message={error} onRetry={() => (setError(null), void load())} /> : <LoadingState />;
+  const timeOf = (hhmm: string) => {
+    const [h, m] = hhmm.split(':').map(Number);
+    return new Intl.DateTimeFormat(locale, {
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: 'UTC',
+    }).format(new Date(Date.UTC(2026, 0, 1, h, m || 0)));
+  };
+  const dayOf = (d: DayName) =>
+    new Intl.DateTimeFormat(locale, {
+      weekday: 'long',
+      timeZone: 'UTC',
+    }).format(new Date(Date.UTC(2026, 10, 1 + DAY_NAMES.indexOf(d))));
+  const when = (kind: ReportKind) => {
+    const r = schedule[kind];
+    const time = timeOf(r.time);
+    if (kind === 'monthly') return t('reportsV2.monthlyWhen', { time });
+    if (kind === 'weekly')
+      return t('reportsV2.weeklyOn', {
+        day: r.days[0] ? dayOf(r.days[0]) : '',
+        time,
+      });
+    return r.days.length === 6 && !r.days.includes('Friday') ? t('reportsV2.dailyWhen', { time }) : t('reportsV2.daysAt', { days: r.days.map(dayOf).join('، '), time });
+  };
   const share = overview.monthlyBudgetUsd > 0 ? Math.min(1, overview.spentThisMonthUsd / overview.monthlyBudgetUsd) : 0;
   const setup: [string, boolean][] = [
     [t('reports.setup.analysis'), overview.analysisConfigured],
@@ -80,7 +117,12 @@ export function StakeholderReports({ token }: { token: string }) {
         <div className="flex flex-col gap-1">
           <span className="text-[14px] text-ink-soft">{t('nav.administration')}</span>
           <h1 className="text-[28px] font-extrabold text-ink">{t('reports.title')}</h1>
-          <p className="text-[14px] text-ink-soft">{t('reportsV2.intro', { time })}</p>
+          <p className="text-[14px] text-ink-soft">
+            {t('reportsV2.introSchedule')}{' '}
+            <Link to="/admin/messages" className="font-bold text-accent-strong underline">
+              {t('reportsV2.changeSchedule')}
+            </Link>
+          </p>
         </div>
         <div className="flex flex-wrap gap-1.5">
           {setup.map(([name, ok]) => (
@@ -96,8 +138,18 @@ export function StakeholderReports({ token }: { token: string }) {
         {KINDS.map((kind) => (
           <div key={kind} className={`${card} gap-1 px-4 py-[14px]`}>
             <span className="text-[16px] font-extrabold text-ink">{t(`reports.kind.${kind}`)}</span>
-            <span className="text-[13px] text-ink-soft">{t(`reportsV2.${kind}When`, { time })}</span>
-            <span className="mt-1.5 text-[13px] font-bold text-accent-strong">{t('reportsV2.next', { date: dayLabel(nextSendDay(kind, overview.sendTime), locale) })}</span>
+            {schedule[kind].enabled ? (
+              <>
+                <span className="text-[13px] text-ink-soft">{when(kind)}</span>
+                <span className="mt-1.5 text-[13px] font-bold text-accent-strong">
+                  {t('reportsV2.next', {
+                    date: dayLabel(nextSendDay(kind, schedule[kind]), locale),
+                  })}
+                </span>
+              </>
+            ) : (
+              <span className="text-[13px] font-bold text-ink-soft">{t('reportsV2.off')}</span>
+            )}
           </div>
         ))}
         <div className={`${card} gap-2 px-4 py-[14px]`}>
@@ -120,7 +172,7 @@ export function StakeholderReports({ token }: { token: string }) {
   );
 }
 
-function Recipients({ token, recipients, onChanged }: { token: string; recipients: ReportRecipientDto[]; onChanged: () => Promise<void> }) {
+export function Recipients({ token, recipients, onChanged }: { token: string; recipients: ReportRecipientDto[]; onChanged: () => Promise<void> }) {
   const { t } = useTranslation();
   const [editing, setEditing] = useState<string | 'new' | null>(null);
   const [draft, setDraft] = useState<RecipientDraft>(emptyRecipient);
@@ -132,7 +184,7 @@ function Recipients({ token, recipients, onChanged }: { token: string; recipient
   async function save() {
     setBusy(true);
     try {
-      await api.reports.saveRecipient(token, draft, editing === 'new' ? undefined : editing ?? undefined);
+      await api.reports.saveRecipient(token, draft, editing === 'new' ? undefined : (editing ?? undefined));
       setEditing(null);
       await onChanged();
     } catch (err) {
@@ -184,12 +236,22 @@ function Recipients({ token, recipients, onChanged }: { token: string; recipient
               </span>
             ))}
           </div>
-          <button type="button" aria-label={t('reports.recipients.edit')} aria-expanded={menu === r.id} onClick={() => setMenu(menu === r.id ? null : r.id)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-ui-md text-ink-soft hover:bg-field-muted">
+          <button
+            type="button"
+            aria-label={t('reports.recipients.edit')}
+            aria-expanded={menu === r.id}
+            onClick={() => setMenu(menu === r.id ? null : r.id)}
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-ui-md text-ink-soft hover:bg-field-muted"
+          >
             <Icon name="sliders" size={16} />
           </button>
           {menu === r.id && (
             <div className="absolute end-2 top-[52px] z-20 flex min-w-[160px] flex-col rounded-ui-lg border border-border bg-panel p-1 shadow-elev-1">
-              <button type="button" className="min-h-[40px] rounded-ui-md px-3 text-start text-[14px] text-ink hover:bg-field-muted" onClick={() => (setMenu(null), setError(null), setDraft({ ...r }), setEditing(r.id))}>
+              <button
+                type="button"
+                className="min-h-[40px] rounded-ui-md px-3 text-start text-[14px] text-ink hover:bg-field-muted"
+                onClick={() => (setMenu(null), setError(null), setDraft({ ...r }), setEditing(r.id))}
+              >
                 {t('reports.recipients.edit')}
               </button>
               <button type="button" className="min-h-[40px] rounded-ui-md px-3 text-start text-[14px] text-danger hover:bg-danger-soft" onClick={() => (setMenu(null), setConfirmRemove(r.id))}>
@@ -242,7 +304,11 @@ function Recipients({ token, recipients, onChanged }: { token: string; recipient
       </Sheet>
       <Sheet open={confirmRemove !== null} onClose={() => setConfirmRemove(null)} title={t('reports.recipients.delete')} desktopWidth={440}>
         <div className="flex flex-col gap-3 pb-2">
-          <p className="text-[14px] text-ink">{t('reports.recipients.confirmDelete', { name: recipients.find((r) => r.id === confirmRemove)?.name ?? '' })}</p>
+          <p className="text-[14px] text-ink">
+            {t('reports.recipients.confirmDelete', {
+              name: recipients.find((r) => r.id === confirmRemove)?.name ?? '',
+            })}
+          </p>
           <div className="flex gap-2">
             <Button size="desktop" variant="danger" disabled={busy} onClick={() => confirmRemove && remove(confirmRemove)}>
               {t('reports.recipients.delete')}
@@ -275,7 +341,14 @@ function RunNow({ token, onDone }: { token: string; onDone: () => Promise<void> 
     setResult(null);
     setError(null);
     try {
-      setResult(await api.reports.run(token, { kind, to: date || null, withAnalysis, deliver }));
+      setResult(
+        await api.reports.run(token, {
+          kind,
+          to: date || null,
+          withAnalysis,
+          deliver,
+        }),
+      );
       await onDone();
     } catch (err) {
       setError({ err, fallbackKey: 'reports.run.error' });
@@ -287,7 +360,16 @@ function RunNow({ token, onDone }: { token: string; onDone: () => Promise<void> 
   return (
     <section className={`${card} flex-[1_1_360px] gap-3 px-[18px] py-4`}>
       <h2 className="text-[17px] font-extrabold text-ink">{t('reports.run.title')}</h2>
-      <Segmented<ReportKind> size="desktop" label={t('reports.run.kind')} value={kind} onChange={setKind} options={KINDS.map((k) => ({ value: k, label: t(`reports.kind.${k}`) }))} />
+      <Segmented<ReportKind>
+        size="desktop"
+        label={t('reports.run.kind')}
+        value={kind}
+        onChange={setKind}
+        options={KINDS.map((k) => ({
+          value: k,
+          label: t(`reports.kind.${k}`),
+        }))}
+      />
       <div className="flex flex-wrap items-center gap-[10px] text-[14px]">
         <span className="text-ink-soft">{t('reports.run.date')}</span>
         <DateButton value={date} onPick={setDate} title={t('reports.run.date')} maxDate={todayIso()} className="h-[38px] px-3" />
@@ -329,13 +411,20 @@ function RunNow({ token, onDone }: { token: string; onDone: () => Promise<void> 
 }
 
 /** A run's outcome in plain words (no raw errors - those are behind "Show reason"). */
-function outcome(run: ReportRunDto): { tone: 'success' | 'warning' | 'danger'; key: string } {
+function outcome(run: ReportRunDto): {
+  tone: 'success' | 'warning' | 'danger';
+  key: string;
+} {
   if (run.status === 'failed') return { tone: 'danger', key: 'reportsV2.resultFailed' };
   if (run.deliveries.some((d) => d.status === 'failed')) return { tone: 'warning', key: 'reportsV2.resultNotSent' };
   if (run.analysis !== 'written') return { tone: 'warning', key: 'reportsV2.resultDoneNoAnalysis' };
   return { tone: 'success', key: 'reportsV2.resultDoneAnalysis' };
 }
-const DOT = { success: 'bg-success text-success', warning: 'bg-warning text-warning', danger: 'bg-danger text-danger' };
+const DOT = {
+  success: 'bg-success text-success',
+  warning: 'bg-warning text-warning',
+  danger: 'bg-danger text-danger',
+};
 
 function RunResult({ token, run }: { token: string; run: ReportRunDto }) {
   return (
@@ -414,8 +503,16 @@ function History({ token, runs }: { token: string; runs: ReportRunDto[] }) {
   const { t, i18n } = useTranslation();
   const locale = localeFor(i18n.language);
   const when = (iso: string) => {
-    const day = new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'long', timeZone: 'Asia/Riyadh' }).format(new Date(iso));
-    const time = new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Riyadh' }).format(new Date(iso));
+    const day = new Intl.DateTimeFormat(locale, {
+      day: 'numeric',
+      month: 'long',
+      timeZone: 'Asia/Riyadh',
+    }).format(new Date(iso));
+    const time = new Intl.DateTimeFormat(locale, {
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: 'Asia/Riyadh',
+    }).format(new Date(iso));
     return `${day} · ${time}`;
   };
   return (

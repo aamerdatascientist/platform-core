@@ -37,7 +37,9 @@ public static class StakeholderReportBuilder
                 // A day is compared with the two weeks before it - one day is too noisy to compare with one day.
                 return (to, to, to.AddDays(-14), to.AddDays(-1));
             case ReportRun.Weekly:
-                var weekStart = ExecutiveOverviewCalculator.WeekStart(to);
+                // The working week so far when it ends on a Thursday or Friday; on any other day
+                // (the weekly report's day can be changed on the Messages page) the 7 days to it.
+                var weekStart = to.DayOfWeek is DayOfWeek.Thursday or DayOfWeek.Friday ? ExecutiveOverviewCalculator.WeekStart(to) : to.AddDays(-6);
                 return (weekStart, to, weekStart.AddDays(-7), to.AddDays(-7));
             case ReportRun.Monthly:
                 var monthStart = new DateOnly(to.Year, to.Month, 1);

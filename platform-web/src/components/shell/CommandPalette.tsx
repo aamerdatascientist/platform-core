@@ -51,6 +51,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           { id: 'builder', label: t('settings.formBuilder'), group: t('nav.administration'), run: go('/builder') },
           { id: 'assign', label: t('settings.assignments'), group: t('nav.administration'), run: go('/admin/assignments') },
           { id: 'reports', label: t('reports.title'), group: t('nav.administration'), run: go('/admin/reports') },
+          { id: 'messages', label: t('messages.title'), group: t('nav.administration'), run: go('/admin/messages') },
           { id: 'users', label: t('userManagement.title'), group: t('nav.administration'), run: go('/admin/users') },
         ]
       : [];

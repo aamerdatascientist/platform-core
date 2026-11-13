@@ -760,6 +760,88 @@ namespace Platform.Infrastructure.Migrations.Postgres
                     b.ToTable("UserRoles", (string)null);
                 });
 
+            modelBuilder.Entity("Platform.Domain.Notifications.MessagingSchedule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("AssignedEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("AssignedTelegram")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("AssignedWhatsApp")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("DailyReportDays")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("DailyReportEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("DailyReportTime")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("character varying(5)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("ModifiedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ModifiedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("MonthlyReportEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("MonthlyReportTime")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("character varying(5)");
+
+                    b.Property<int>("ReminderDays")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("ReminderTelegram")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ReminderTimes")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<bool>("ReminderWhatsApp")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("RemindersEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("WeeklyReportDay")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("WeeklyReportEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("WeeklyReportTime")
+                        .IsRequired()
+                        .HasMaxLength(5)
+                        .HasColumnType("character varying(5)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("MessagingSchedules", (string)null);
+                });
+
             modelBuilder.Entity("Platform.Domain.Notifications.NotificationLog", b =>
                 {
                     b.Property<Guid>("Id")

@@ -9,8 +9,8 @@ using Platform.Application.Notifications;
 namespace Platform.Infrastructure.Notifications;
 
 /// <summary>
-/// Once a minute: on a working day, once a reminder time (Notifications:ReminderTimes, Saudi time)
-/// has passed, reminds everyone who hasn't filled today's assigned form. Only the latest time
+/// Once a minute: on a reminder day, once a reminder time (the Messages page; until it is saved,
+/// Notifications:ReminderTimes - Saudi time) has passed, reminds everyone who hasn't filled today's assigned form. Only the latest time
 /// that has passed is sent, and only within <see cref="LateWindow"/> of it - an API that comes
 /// back from a restart in the afternoon sends the afternoon reminder, not the morning one as
 /// well. Sending twice is impossible either way (see NotificationLog).
@@ -37,14 +37,15 @@ public class AssignmentReminderService : BackgroundService
         _logger = logger;
     }
 
-    /// <summary>The 1-based reminder slot due at <paramref name="saudiNow"/>, or null.</summary>
-    public static int? DueSlot(IReadOnlyList<string> reminderTimes, TimeOnly saudiNow)
+    /// <summary>The latest reminder time ("HH:mm") due at <paramref name="saudiNow"/>, or null.</summary>
+    public static string? DueTime(IReadOnlyList<string> reminderTimes, TimeOnly saudiNow)
     {
-        int? due = null;
-        for (var i = 0; i < reminderTimes.Count; i++)
+        string? due = null;
+        TimeOnly latest = default;
+        foreach (var time in reminderTimes)
         {
-            if (!TimeOnly.TryParseExact(reminderTimes[i], "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var at)) continue;
-            if (saudiNow >= at && saudiNow.ToTimeSpan() - at.ToTimeSpan() < LateWindow) due = i + 1;
+            if (!TimeOnly.TryParseExact(time, "HH:mm", CultureInfo.InvariantCulture, DateTimeStyles.None, out var at)) continue;
+            if (saudiNow >= at && saudiNow.ToTimeSpan() - at.ToTimeSpan() < LateWindow && (due is null || at > latest)) (due, latest) = (time, at);
         }
         return due;
     }
@@ -64,12 +65,17 @@ public class AssignmentReminderService : BackgroundService
             {
                 var saudiNow = DateTime.UtcNow + SaudiArabiaOffset;
                 var today = DateOnly.FromDateTime(saudiNow);
-                if (FormAssignmentTracker.IsWorkingDay(today) && DueSlot(_settings.EffectiveReminderTimes, TimeOnly.FromDateTime(saudiNow)) is { } slot)
+                if (FormAssignmentTracker.IsWorkingDay(today))
                 {
                     using var scope = _scopeFactory.CreateScope();
-                    var notifier = scope.ServiceProvider.GetRequiredService<AssignmentNotifier>();
-                    var sent = await notifier.SendDueRemindersAsync(today, slot, stoppingToken);
-                    if (sent > 0) _logger.LogInformation("Sent {Count} assignment reminders (slot {Slot}).", sent, slot);
+                    var db = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();
+                    var schedule = await MessagingScheduleStore.LoadAsync(db, _settings, null, stoppingToken);
+                    if (schedule.RemindsOn(today) && DueTime(schedule.ReminderTimes, TimeOnly.FromDateTime(saudiNow)) is { } time)
+                    {
+                        var notifier = scope.ServiceProvider.GetRequiredService<AssignmentNotifier>();
+                        var sent = await notifier.SendDueRemindersAsync(today, time, schedule, stoppingToken);
+                        if (sent > 0) _logger.LogInformation("Sent {Count} assignment reminders ({Time}).", sent, time);
+                    }
                 }
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
