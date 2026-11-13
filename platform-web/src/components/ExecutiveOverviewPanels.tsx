@@ -47,13 +47,13 @@ export function Panel({ title, caption, aside, children }: { title: ReactNode; c
       <div className="flex shrink-0 items-baseline justify-between gap-3">
         <h2 className="shrink-0 text-[16.5px] font-extrabold text-ink">{title}</h2>
         {aside && (
-          <span className="min-w-0 truncate text-[13px] text-ink-soft" title={aside as string}>
+          <span className="min-w-0 break-words text-end text-[13px] leading-tight text-ink-soft">
             {aside}
           </span>
         )}
       </div>
       {caption && (
-        <p className="-mt-1.5 line-clamp-2 shrink-0 text-[13px] leading-tight text-ink-soft" title={caption}>
+        <p className="-mt-1.5 shrink-0 break-words text-[13px] leading-tight text-ink-soft">
           {caption}
         </p>
       )}
@@ -77,12 +77,18 @@ export function EmptyBox({ title, body }: { title: string; body?: string }) {
 /** Value colour (25): --success for good, --danger for late/behind, --ink otherwise. No side borders. */
 const TONE_VALUE: Record<OverviewKpiTone, string> = { good: 'text-success', warn: 'text-ink', bad: 'text-danger' };
 
+/** Long values (dates, stage names) get a smaller size so they fit and wrap instead of being cut off. */
+function valueSize(value: ReactNode) {
+  const length = typeof value === 'string' || typeof value === 'number' ? String(value).length : 0;
+  return length <= 6 ? 'text-[30.8px] leading-[1.15]' : length <= 11 ? 'text-[24px] leading-[1.2]' : length <= 20 ? 'text-[19px] leading-[1.25]' : 'text-[16.5px] leading-[1.3]';
+}
+
 function Tile({ label, value, detail, tone, title }: { label: string; value: ReactNode; detail: ReactNode; tone?: OverviewKpiTone | null; title?: string }) {
   return (
     <div title={title} className="flex min-h-[119px] min-w-0 flex-col gap-[4.4px] rounded-[15px] border border-border bg-panel px-[15px] py-[13px]">
-      <span className="line-clamp-2 text-[13.2px] font-medium leading-tight text-ink-soft">{label}</span>
-      <span className={`truncate text-[30.8px] font-extrabold leading-[1.15] ${tone ? TONE_VALUE[tone] : 'text-ink'}`}>{value}</span>
-      <span className="line-clamp-2 text-[13.2px] leading-[1.4] text-ink-soft">{detail}</span>
+      <span className="break-words text-[13.2px] font-medium leading-tight text-ink-soft">{label}</span>
+      <span className={`break-words font-extrabold ${valueSize(value)} ${tone ? TONE_VALUE[tone] : 'text-ink'}`}>{value}</span>
+      <span className="break-words text-[13.2px] leading-[1.4] text-ink-soft">{detail}</span>
     </div>
   );
 }
@@ -185,7 +191,7 @@ export function OverviewTiles({ data, selected, phase }: { data: ExecutiveOvervi
 
 // -------------------------------------------------------------------------- project table
 
-const PROJECT_COLUMNS = '1.1fr 0.8fr 0.9fr 2fr 1.4fr 0.9fr 0.7fr 1fr';
+const PROJECT_COLUMNS = '1.1fr 0.8fr 1.3fr 1.6fr 1.4fr 0.9fr 0.7fr 1fr';
 const STATUS_COLOUR: Record<string, string> = { active: 'text-success', on_hold: 'text-danger', completed: 'text-accent', planning: 'text-ink-soft', cancelled: 'text-ink-soft' };
 /** A project that isn't finished and hasn't reported for longer than this is called out. */
 const QUIET_AFTER_DAYS = 3;
@@ -210,7 +216,7 @@ export function ProjectsTable({ projects, selectedId, onSelect }: { projects: Ov
     <div className="flex h-full flex-col">
       <div className="grid gap-[9px] border-b border-border pb-[9px] text-[13.2px] text-ink-soft" style={{ gridTemplateColumns: PROJECT_COLUMNS }}>
         {(['project', 'status', 'nowIn', 'workComplete', 'phases', 'schedule', 'planMet', 'lastReport'] as const).map((k) => (
-          <span key={k} className="truncate">
+          <span key={k} className="min-w-0 break-words leading-tight">
             {t(`executiveOverview.projects.${k}`)}
           </span>
         ))}
@@ -238,10 +244,10 @@ export function ProjectsTable({ projects, selectedId, onSelect }: { projects: Ov
               style={{ gridTemplateColumns: PROJECT_COLUMNS }}
             >
               <span className="flex min-w-0 flex-col">
-                <span className="truncate font-extrabold" dir="auto" title={project.name}>
+                <span className="break-words font-extrabold leading-tight" dir="auto">
                   {project.name}
                 </span>
-                <span className="truncate text-[13.2px] text-ink-soft">
+                <span className="break-words text-[13.2px] leading-tight text-ink-soft">
                   {project.code}
                   {project.city && (
                     <>
@@ -251,11 +257,11 @@ export function ProjectsTable({ projects, selectedId, onSelect }: { projects: Ov
                   )}
                 </span>
               </span>
-              <span className={`truncate text-[14.3px] font-bold ${STATUS_COLOUR[project.status ?? ''] ?? 'text-ink-soft'}`}>
+              <span className={`min-w-0 break-words text-[14.3px] font-bold leading-tight ${STATUS_COLOUR[project.status ?? ''] ?? 'text-ink-soft'}`}>
                 {project.status ? `● ${t(`executiveOverview.projectStatus.${project.status}`, project.status)}` : dash}
               </span>
-              <span className="truncate">{finished || project.currentPhases.length === 0 ? dash : project.currentPhases.map((p) => phaseName(project, p)).join(' + ')}</span>
-              <span className="flex items-center gap-[9px]">
+              <span className="min-w-0 break-words leading-tight">{finished || project.currentPhases.length === 0 ? dash : project.currentPhases.map((p) => phaseName(project, p)).join(' + ')}</span>
+              <span className="flex min-w-0 items-center gap-[9px]">
                 <span className="font-extrabold">{format.percent(project.workComplete)}</span>
                 <span
                   aria-hidden="true"
@@ -276,7 +282,7 @@ export function ProjectsTable({ projects, selectedId, onSelect }: { projects: Ov
                   />
                 ))}
               </span>
-              <span className={`truncate text-[14.3px] font-bold ${project.scheduleStatus === 'behind' ? 'text-danger' : project.scheduleStatus === 'ahead' ? 'text-success' : 'text-ink-soft'}`}>
+              <span className={`min-w-0 break-words text-[14.3px] font-bold leading-tight ${project.scheduleStatus === 'behind' ? 'text-danger' : project.scheduleStatus === 'ahead' ? 'text-success' : 'text-ink-soft'}`}>
                 {finished
                   ? t('executiveOverview.schedule.finished', { date: format.day(project.lastReportDate) })
                   : project.scheduleStatus === 'ahead' || project.scheduleStatus === 'behind'
@@ -286,7 +292,7 @@ export function ProjectsTable({ projects, selectedId, onSelect }: { projects: Ov
               <span className="font-bold">{format.percent(project.planMet)}</span>
               <span className="flex min-w-0 flex-col">
                 <span className={`font-bold ${quiet ? 'text-danger' : ''}`}>{format.day(project.lastReportDate)}</span>
-                {quiet && <span className="truncate text-[13.2px] text-ink-soft">{t('executiveOverview.projects.quiet', { n: project.daysSinceLastReport })}</span>}
+                {quiet && <span className="break-words text-[13.2px] leading-tight text-ink-soft">{t('executiveOverview.projects.quiet', { n: project.daysSinceLastReport })}</span>}
               </span>
             </div>
           );
@@ -360,10 +366,10 @@ export function HBars({ items, max, emptyText, thick = false }: { items: HBar[];
       {items.map((item) => (
         <div key={item.label} className="flex flex-col gap-[4.4px]" title={item.title}>
           <div className="flex justify-between gap-[11px] text-[14.3px] text-ink">
-            <span className="truncate" dir={item.rtl ? 'rtl' : undefined} lang={item.rtl ? 'ar' : undefined}>
+            <span className="min-w-0 break-words leading-tight" dir={item.rtl ? 'rtl' : undefined} lang={item.rtl ? 'ar' : undefined}>
               {item.label}
             </span>
-            <span className="font-extrabold">{item.text}</span>
+            <span className="shrink-0 font-extrabold">{item.text}</span>
           </div>
           <div aria-hidden="true" className={`rounded-ui-pill bg-border ${thick ? 'h-[11px]' : 'h-[9px]'}`}>
             <div className={`rounded-ui-pill ${thick ? 'h-[11px]' : 'h-[9px]'}`} style={{ width: `${Math.max(0, Math.min(1, item.value / max)) * 100}%`, background: item.colour }} />
@@ -397,7 +403,7 @@ export function StockTable({ materials }: { materials: OverviewStockMaterialDto[
         <tbody>
           {materials.slice(0, STOCK_ROWS_SHOWN).map((m) => (
             <tr key={`${m.isCustomMaterial}-${m.material}`} className="border-b border-divider last:border-b-0">
-              <td className="max-w-[132px] truncate py-[5px]">
+              <td className="break-words py-[5px] leading-tight">
                 <span dir="auto" className="text-ink">
                   {/* A material typed into the "other" box has no translation - it is shown as written. */}
                   {m.isCustomMaterial ? m.material : t(`executiveOverview.material.${m.material}`, m.material)}
@@ -425,17 +431,17 @@ export function ProblemsList({ problems, since, stageName }: { problems: Executi
   const format = useOverviewFormat();
   if (problems.length === 0) return <EmptyBox title={t('executiveOverview.problems.empty')} body={since ? t('overviewV2.problemsSince', { date: since }) : undefined} />;
   return (
-    <ul className="flex h-full flex-col overflow-hidden">
+    <ul className="flex h-full flex-col overflow-auto">
       {problems.slice(0, PROBLEMS_SHOWN).map((problem, index) => (
         <li key={index} className="flex flex-col gap-0.5 border-b border-divider py-[7px] last:border-b-0">
           <span className="flex justify-between gap-2 text-[12.1px] text-ink-soft">
-            <span>{format.day(problem.date)}</span>
-            <span className="truncate">{stageName ? stageName(problem.phase) : t(`executiveOverview.phase.${problem.phase}`, problem.phase)}</span>
+            <span className="shrink-0">{format.day(problem.date)}</span>
+            <span className="min-w-0 break-words text-end">{stageName ? stageName(problem.phase) : t(`executiveOverview.phase.${problem.phase}`, problem.phase)}</span>
           </span>
-          <span dir="auto" className="line-clamp-2 text-[14.3px] leading-snug text-ink" title={problem.description}>
+          <span dir="auto" className="break-words text-[14.3px] leading-snug text-ink">
             {problem.description}
           </span>
-          <span dir="auto" className="truncate text-[12.1px] text-ink-soft">
+          <span dir="auto" className="break-words text-[12.1px] text-ink-soft">
             {problem.projectName}
           </span>
         </li>

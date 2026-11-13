@@ -85,7 +85,7 @@ function Message({ title, body, onRetry }: { title: string; body?: string; onRet
 }
 
 /** Header buttons (25): 42px, radius 11, --panel on 1px --border, 15px (the 1600x900 design x1.1). */
-const HEADER_BUTTON_CLASS = 'relative flex h-[42px] items-center gap-2 whitespace-nowrap rounded-[11px] border border-border bg-panel px-[15px] text-[15.4px] text-ink hover:border-ink-soft';
+const HEADER_BUTTON_CLASS = 'relative flex min-h-[42px] min-w-0 items-center gap-2 rounded-[11px] py-1 text-start leading-tight border border-border bg-panel px-[15px] text-[15.4px] text-ink hover:border-ink-soft';
 
 /**
  * The Executive Overview as a standalone, full-window page.
@@ -273,12 +273,12 @@ export function ExecutiveOverview({ token }: { token: string | null }) {
   return (
     <Stage>
       {/* 25 at x1.1: 24/29px padding, 15px gaps; rows: header, tiles (119), projects + plan (330), the rest. */}
-      <div className="grid h-full gap-[15px] px-[29px] py-[24px]" style={{ gridTemplateRows: '42px 119px 330px minmax(0, 1fr)' }}>
+      <div className="grid h-full gap-[15px] px-[29px] py-[24px]" style={{ gridTemplateRows: 'auto auto 330px minmax(0, 1fr)' }}>
         <header className="flex items-center gap-[15px]">
           <LogoMark size={37} />
           <div className="flex min-w-0 flex-col">
-            <h1 className="truncate text-[26.4px] font-extrabold text-ink">{t('executiveOverview.title')}</h1>
-            <span className="truncate text-[14.3px] text-ink-soft" dir="auto">
+            <h1 className="break-words text-[26.4px] font-extrabold leading-tight text-ink">{t('executiveOverview.title')}</h1>
+            <span className="break-words text-[14.3px] leading-tight text-ink-soft" dir="auto">
               {data.dataFrom ? t('executiveOverview.subtitle', { asOf: format.day(data.asOf), from: reportsSince }) : t('executiveOverview.subtitleEmpty')}
             </span>
           </div>
@@ -315,7 +315,7 @@ export function ExecutiveOverview({ token }: { token: string | null }) {
           )}
           <button
             type="button"
-            className={`${HEADER_BUTTON_CLASS} w-[42px] justify-center !px-0`}
+            className={`${HEADER_BUTTON_CLASS} w-[42px] shrink-0 justify-center !px-0`}
             onClick={toggleFullScreen}
             aria-label={isFullScreen ? t('executiveOverview.share.exitFullScreen') : t('executiveOverview.share.fullScreen')}
             title={isFullScreen ? t('executiveOverview.share.exitFullScreen') : t('executiveOverview.share.fullScreen')}
@@ -323,7 +323,7 @@ export function ExecutiveOverview({ token }: { token: string | null }) {
             <Icon name="expand" size={18} />
           </button>
           {/* Kept from before: a shared link opens in its language and mode, and these switch them. */}
-          <div dir="ltr" className="flex items-center gap-2">
+          <div dir="ltr" className="flex shrink-0 items-center gap-2">
             <LanguageToggle />
             <ModeToggle />
           </div>

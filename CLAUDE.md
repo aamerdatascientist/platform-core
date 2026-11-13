@@ -300,7 +300,7 @@ loads rows). Three static classes there are the knobs:
 `GET /api/analytics/executive-overview?projectId=&phase=` (and the public endpoint) take an
 optional `phase` (`paperwork|excavation|foundation|structural|mep`); every KPI then reads that
 stage only. Time elapsed is capped at 100%. Weather chart needs >= 5 reports per condition. The
-stage is still a fixed 1760x990 canvas - tile text uses `line-clamp-2`, never `sm:`/`lg:`.
+stage is still a fixed 1760x990 canvas - never `sm:`/`lg:`. Since 2026-11-13 text wraps everywhere (no `truncate`/`line-clamp`, owner: no "..."); tile values shrink by length (`valueSize`) and the header and tile rows are `auto` height.
 
 **Project 119 history is generated, not real**: 273 rows dated 2026-01-20..2026-11-01 tagged
 `Extensions = '{"backfill":"2026-11-02"}'` (generator `scripts/data/backfill-project-119.mjs`).
