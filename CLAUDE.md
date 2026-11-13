@@ -321,7 +321,12 @@ Real data starts 2026-11-02. Never treat those rows as client input; delete by t
 - Automatic reminders are logged as `reminder-HH:mm` (was `reminder-1/2`), so editing the times
   never re-sends a time already sent that day. A weekly report on a day other than Thu/Fri covers
   the 7 days to it. Migration `AddMessagingSchedule` (one new table).
-- Form assignments grid on a phone: one Saturday-Friday week with previous/next arrows (no sideways scroll).
+- Form assignments grid ("who filled and when"): one Saturday-Friday week on every screen with
+  previous/next arrows (no 14/30/60-day range, no sideways scroll).
+- **Stale tabs update themselves** (`components/AppUpdate.ts`, used by `Layout`): each build writes
+  `/version.json` (`vite.config.ts`, `__BUILD_ID__`); an open tab checks it every 5 minutes and on
+  coming back into view, and reloads (once per build, `sessionStorage`) - at once on pages nobody
+  types into, else on the next page change. Drafts and the offline queue survive a reload.
 
 ### Telegram notifications - added 2026-11-05 (both channels are on since WhatsApp went live 2026-11-07)
 

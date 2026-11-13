@@ -25,9 +25,9 @@ const weekStartOf = (iso: string) => addDays(iso, -((new Date(`${iso}T00:00:00Z`
  * - Today card: "n of m filled", Filled / Due today / Not filled pills, and "Remind those who
  *   haven't filled (n)" - the existing sender, manual reminders once per person per day.
  * - "Who filled and when": one row per assignment, one cell per day (Fridays greyed), Rate = filled
- *   / due; a filled cell opens that entry; a day header lists who was due that day. Form and range
- *   filters, "Show ended". On a phone (owner, 2026-11-13: no sideways scrolling) it shows one
- *   Saturday-Friday week, the current one first, with arrows for the previous and next weeks.
+ *   / due; a filled cell opens that entry; a day header lists who was due that day. Form filter,
+ *   "Show ended". One Saturday-Friday week at a time on every screen (owner, 2026-11-13), the
+ *   current one first, with arrows for the previous and next weeks - no sideways scrolling.
  * - Assign panel: form, users (with their Telegram status), from / to, note, "Assign n users".
  */
 export function FormAssignments({ token }: { token: string }) {
@@ -45,8 +45,7 @@ export function FormAssignments({ token }: { token: string }) {
   const [todayDays, setTodayDays] = useState<AssignmentDayDto[]>([]);
   // The day cells couldn't load: say so, rather than drawing every day as blank.
   const [daysError, setDaysError] = useState<unknown>(null);
-  const [rangeDays, setRangeDays] = useState(14);
-  const [weekOffset, setWeekOffset] = useState(0); // phone: weeks back from the current one
+  const [weekOffset, setWeekOffset] = useState(0); // weeks back from the current one
   const [formFilter, setFormFilter] = useState('');
   const [showEnded, setShowEnded] = useState(false);
   const [tick, setTick] = useState(0);
@@ -58,8 +57,8 @@ export function FormAssignments({ token }: { token: string }) {
 
   const weekStart = addDays(weekStartOf(today), -7 * weekOffset);
   const weekEnd = addDays(weekStart, 6);
-  const from = desktop ? addDays(today, -(rangeDays - 1)) : weekStart;
-  const to = desktop || weekEnd > today ? today : weekEnd;
+  const from = weekStart;
+  const to = weekEnd > today ? today : weekEnd;
   useEffect(() => {
     Promise.all([api.assignments.list(token), api.users.list(token)])
       .then(([a, u]) => {
@@ -79,10 +78,7 @@ export function FormAssignments({ token }: { token: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, from, to, today, tick]);
 
-  const dates = useMemo(
-    () => (desktop ? Array.from({ length: rangeDays }, (_, i) => addDays(from, i)) : Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))),
-    [desktop, from, rangeDays, weekStart],
-  );
+  const dates = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
   const byCell = useMemo(() => new Map(days.map((d) => [`${d.assignmentId}|${d.date}`, d])), [days]);
   const rows = (assignments ?? [])
     .filter((a) => (showEnded || a.isActive) && (!formFilter || a.formId === formFilter))
@@ -134,6 +130,41 @@ export function FormAssignments({ token }: { token: string }) {
   const shortDay = (d: string, width: 'narrow' | 'short') => new Intl.DateTimeFormat(locale, { weekday: width, timeZone: 'UTC' }).format(new Date(`${d}T00:00:00Z`));
   const weekLabel = `${new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${weekStart}T00:00:00Z`))} – ${new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${weekEnd}T00:00:00Z`))}`;
 
+  /** Previous / next week (owner, 2026-11-13: a fixed Saturday-Friday week on every screen). */
+  const weekNav = (
+    <div className="flex items-center justify-between gap-2">
+      <button
+        type="button"
+        onClick={() => setWeekOffset((w) => w + 1)}
+        aria-label={t('assignmentsV2.prevWeek')}
+        className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-panel text-ink"
+      >
+        <Icon name="chevronBack" size={20} />
+      </button>
+      <div className="flex flex-col items-center text-center">
+        <span className="text-[15px] font-bold text-ink" dir="auto">
+          {weekLabel}
+        </span>
+        {weekOffset === 0 ? (
+          <span className="text-[12px] text-ink-soft">{t('assignmentsV2.thisWeek')}</span>
+        ) : (
+          <button type="button" onClick={() => setWeekOffset(0)} className="text-[12px] font-bold text-accent-strong underline">
+            {t('assignmentsV2.backToThisWeek')}
+          </button>
+        )}
+      </div>
+      <button
+        type="button"
+        disabled={weekOffset === 0}
+        onClick={() => setWeekOffset((w) => Math.max(0, w - 1))}
+        aria-label={t('assignmentsV2.nextWeek')}
+        className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-panel text-ink disabled:opacity-30"
+      >
+        <Icon name="chevronForward" size={20} />
+      </button>
+    </div>
+  );
+
   async function stop(id: string) {
     try {
       await api.assignments.stop(token, id);
@@ -167,8 +198,7 @@ export function FormAssignments({ token }: { token: string }) {
   if (!assignments) return error ? <ErrorState message={error} onRetry={() => (setError(null), setTick((x) => x + 1))} /> : <LoadingState />;
 
   // On a phone the cells are 44px tap targets and the grid scrolls sideways inside its card.
-  const cellW = desktop ? 30 : 48;
-  const grid = `210px repeat(${dates.length}, ${desktop ? 'minmax(0, 1fr)' : '44px'}) 92px`;
+  const grid = `210px repeat(${dates.length}, minmax(0, 1fr)) 92px`;
   return (
     <div className="flex flex-col gap-[18px]">
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -234,7 +264,7 @@ export function FormAssignments({ token }: { token: string }) {
           {/* Who filled and when */}
           <section className="flex flex-col gap-[14px] rounded-ui-2xl border border-border bg-panel px-[18px] py-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-[17px] font-extrabold text-ink">{desktop ? t('assignmentsV2.gridTitle') : t('assignmentsV2.gridTitleWeek')}</h2>
+              <h2 className="text-[17px] font-extrabold text-ink">{t('assignmentsV2.gridTitleWeek')}</h2>
               <div className="flex flex-wrap items-center gap-1.5">
                 <select
                   aria-label={t('assignments.admin.allForms')}
@@ -251,18 +281,6 @@ export function FormAssignments({ token }: { token: string }) {
                       </option>
                     ))}
                 </select>
-                {desktop && (
-                  <select
-                    aria-label={t('assignments.admin.period')}
-                    value={rangeDays}
-                    onChange={(e) => setRangeDays(Number(e.target.value))}
-                    className="h-[36px] rounded-ui-pill border border-border bg-panel px-3 text-[13px] text-ink"
-                  >
-                    <option value={14}>{t('assignmentsV2.last14')}</option>
-                    <option value={30}>{t('assignmentsV2.last30')}</option>
-                    <option value={60}>{t('assignmentsV2.last60')}</option>
-                  </select>
-                )}
                 <label className="flex h-[36px] items-center gap-1.5 rounded-ui-pill border border-border px-3 text-[13px] text-ink">
                   <input type="checkbox" checked={showEnded} onChange={(e) => setShowEnded(e.target.checked)} />
                   {t('assignmentsV2.showEnded')}
@@ -273,37 +291,7 @@ export function FormAssignments({ token }: { token: string }) {
               <ErrorState message={apiErrorMessage(daysError, t, 'assignments.admin.loadError')} onRetry={() => setTick((x) => x + 1)} />
             ) : !desktop ? (
               <div className="flex flex-col gap-3">
-                <div className="flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setWeekOffset((w) => w + 1)}
-                    aria-label={t('assignmentsV2.prevWeek')}
-                    className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-panel text-ink"
-                  >
-                    <Icon name="chevronBack" size={20} />
-                  </button>
-                  <div className="flex flex-col items-center text-center">
-                    <span className="text-[15px] font-bold text-ink" dir="auto">
-                      {weekLabel}
-                    </span>
-                    {weekOffset === 0 ? (
-                      <span className="text-[12px] text-ink-soft">{t('assignmentsV2.thisWeek')}</span>
-                    ) : (
-                      <button type="button" onClick={() => setWeekOffset(0)} className="text-[12px] font-bold text-accent-strong underline">
-                        {t('assignmentsV2.backToThisWeek')}
-                      </button>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    disabled={weekOffset === 0}
-                    onClick={() => setWeekOffset((w) => Math.max(0, w - 1))}
-                    aria-label={t('assignmentsV2.nextWeek')}
-                    className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-panel text-ink disabled:opacity-30"
-                  >
-                    <Icon name="chevronForward" size={20} />
-                  </button>
-                </div>
+                {weekNav}
                 <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-ink-soft">
                   {dates.map((d) => (
                     <button
@@ -350,13 +338,9 @@ export function FormAssignments({ token }: { token: string }) {
                 {rows.length === 0 && <EmptyState title={t('assignments.admin.noAssignments')} body={t('assignmentsV2.emptyBody')} />}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <div
-                  className="flex min-w-[760px] flex-col gap-1.5"
-                  style={{
-                    minWidth: Math.max(760, 210 + 92 + dates.length * cellW),
-                  }}
-                >
+              <div className="flex flex-col gap-3">
+                {weekNav}
+                <div className="flex flex-col gap-1.5">
                   <div className="grid items-end gap-1 text-center text-[11px] text-ink-soft" style={{ gridTemplateColumns: grid }}>
                     <span />
                     {dates.map((d) => (
@@ -371,7 +355,7 @@ export function FormAssignments({ token }: { token: string }) {
                       >
                         <span className="font-bold">
                           {new Intl.DateTimeFormat(locale, {
-                            weekday: 'narrow',
+                            weekday: 'short',
                             timeZone: 'UTC',
                           }).format(new Date(`${d}T00:00:00Z`))}
                         </span>
