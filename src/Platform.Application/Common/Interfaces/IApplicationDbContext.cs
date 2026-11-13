@@ -28,6 +28,7 @@ public interface IApplicationDbContext
     DbSet<Platform.Domain.Forms.FormDefinitionUser> FormDefinitionUsers { get; }
     DbSet<Platform.Domain.Forms.FormAssignment> FormAssignments { get; }
     DbSet<Platform.Domain.Notifications.NotificationLog> NotificationLogs { get; }
+    DbSet<Platform.Domain.Notifications.MessagingSchedule> MessagingSchedules { get; }
     DbSet<Platform.Domain.Reports.ReportRecipient> ReportRecipients { get; }
     DbSet<Platform.Domain.Reports.ReportRun> ReportRuns { get; }
     DbSet<Platform.Domain.Reports.ReportDelivery> ReportDeliveries { get; }

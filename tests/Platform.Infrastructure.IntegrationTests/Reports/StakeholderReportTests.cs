@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Platform.Application.Analytics.Queries.GetExecutiveOverview;
 using Platform.Application.Common.Interfaces;
+using Platform.Application.Notifications;
 using Platform.Application.Reports;
 using Platform.Domain.Reports;
 using Platform.Infrastructure.IntegrationTests.Analytics;
@@ -58,7 +59,7 @@ public class StakeholderReportTests
     [InlineData("2027-04-30", new[] { "monthly" })]                  // month end on a Friday: still the monthly
     [InlineData("2026-12-31", new[] { "daily", "weekly", "monthly" })] // Thursday and month end
     public void DueKinds_FollowsTheOwnersSchedule(string day, string[] expected) =>
-        StakeholderReportScheduler.DueKinds(DateOnly.Parse(day)).Should().Equal(expected);
+        StakeholderReportScheduler.DueKinds(MessagingScheduleStore.Defaults(new NotificationSettings(), "18:00"), DateOnly.Parse(day)).Should().Equal(expected);
 
     [Theory]
     [InlineData("17:59", false)]

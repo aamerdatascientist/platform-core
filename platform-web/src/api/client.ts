@@ -17,6 +17,7 @@ import type {
   ReportKind,
   ReportRecipientDto,
   ReportRunDto,
+  MessagingScheduleDto,
   ReportsOverviewDto,
   RoleDto,
   TelegramLinkDto,
@@ -560,6 +561,12 @@ export const api = {
   },
 
   /** Stakeholder reports (administrators). */
+  messagingSchedule: {
+    get: (token: string) => request<MessagingScheduleDto>('/api/messaging-schedule', {}, token),
+    save: (token: string, schedule: MessagingScheduleDto) =>
+      request<MessagingScheduleDto>('/api/messaging-schedule', { method: 'PUT', body: JSON.stringify(schedule) }, token),
+  },
+
   reports: {
     overview: (token: string) => request<ReportsOverviewDto>('/api/reports', {}, token),
 

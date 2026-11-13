@@ -4,16 +4,16 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Platform.Application.Common.Interfaces;
+using Platform.Application.Notifications;
 using Platform.Application.Reports;
 using Platform.Domain.Reports;
 
 namespace Platform.Infrastructure.Reports;
 
 /// <summary>
-/// Sends the stakeholder reports at the send time (Reports:SendTime, default 18:00 Saudi):
-/// the daily report on working days (Saturday-Thursday), the weekly one on Thursday (end of
-/// the Saudi working week) and the monthly one on the last day of the month (owner,
-/// 2026-11-06). Checked once a minute; a report missed by up to <see cref="LateWindow"/>
+/// Sends the stakeholder reports on the Messages page's schedule (owner, 2026-11-13; until it is
+/// saved: Reports:SendTime, daily Saturday-Thursday, weekly Thursday, monthly on the last day).
+/// Each kind has its own on/off, time and days. Checked once a minute; a report missed by up to <see cref="LateWindow"/>
 /// (a restart at 6 pm) still goes out. A report is only made when someone receives that kind,
 /// so nothing is spent on reports nobody gets, and never twice (see ReportRun).
 /// </summary>
@@ -24,24 +24,37 @@ public class StakeholderReportScheduler : BackgroundService
 
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ReportSettings _settings;
+    private readonly NotificationSettings _notifications;
     private readonly ILogger<StakeholderReportScheduler> _logger;
 
-    public StakeholderReportScheduler(IServiceScopeFactory scopeFactory, ReportSettings settings, ILogger<StakeholderReportScheduler> logger)
+    public StakeholderReportScheduler(IServiceScopeFactory scopeFactory, ReportSettings settings, NotificationSettings notifications, ILogger<StakeholderReportScheduler> logger)
     {
+        _notifications = notifications;
         _scopeFactory = scopeFactory;
         _settings = settings;
         _logger = logger;
     }
 
-    /// <summary>Which reports are due on a Saudi calendar day.</summary>
-    public static IReadOnlyList<string> DueKinds(DateOnly day)
+    /// <summary>Which reports go out on a Saudi calendar day (ignoring the time).</summary>
+    public static IReadOnlyList<string> DueKinds(MessagingScheduleDto schedule, DateOnly day)
     {
         var kinds = new List<string>();
-        if (StakeholderReportBuilder.IsWorkingDay(day)) kinds.Add(ReportRun.Daily);
-        if (day.DayOfWeek == DayOfWeek.Thursday) kinds.Add(ReportRun.Weekly);
-        if (day.AddDays(1).Month != day.Month) kinds.Add(ReportRun.Monthly);
+        if (schedule.Daily.Enabled && schedule.Daily.Days.Contains(day.DayOfWeek)) kinds.Add(ReportRun.Daily);
+        if (schedule.Weekly.Enabled && schedule.Weekly.Days.Contains(day.DayOfWeek)) kinds.Add(ReportRun.Weekly);
+        if (schedule.Monthly.Enabled && day.AddDays(1).Month != day.Month) kinds.Add(ReportRun.Monthly);
         return kinds;
     }
+
+    /// <summary>Which reports are due now: the right day, and inside that kind's send window.</summary>
+    public static IReadOnlyList<string> DueNow(MessagingScheduleDto schedule, DateOnly day, TimeOnly saudiNow) =>
+        DueKinds(schedule, day).Where(kind => IsSendWindow(TimeOf(schedule, kind), saudiNow)).ToList();
+
+    private static string TimeOf(MessagingScheduleDto schedule, string kind) => kind switch
+    {
+        ReportRun.Daily => schedule.Daily.Time,
+        ReportRun.Weekly => schedule.Weekly.Time,
+        _ => schedule.Monthly.Time,
+    };
 
     /// <summary>True from the send time until <see cref="LateWindow"/> after it.</summary>
     public static bool IsSendWindow(string sendTime, TimeOnly saudiNow)
@@ -64,8 +77,7 @@ public class StakeholderReportScheduler : BackgroundService
             try
             {
                 var saudiNow = DateTime.UtcNow + SaudiArabiaOffset;
-                if (IsSendWindow(_settings.SendTime, TimeOnly.FromDateTime(saudiNow)))
-                    await SendDueAsync(DateOnly.FromDateTime(saudiNow), stoppingToken);
+                await SendDueAsync(DateOnly.FromDateTime(saudiNow), TimeOnly.FromDateTime(saudiNow), stoppingToken);
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -74,9 +86,16 @@ public class StakeholderReportScheduler : BackgroundService
         } while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 
-    private async Task SendDueAsync(DateOnly today, CancellationToken cancellationToken)
+    private async Task SendDueAsync(DateOnly today, TimeOnly now, CancellationToken cancellationToken)
     {
-        foreach (var kind in DueKinds(today))
+        IReadOnlyList<string> due;
+        using (var check = _scopeFactory.CreateScope())
+        {
+            var schedule = await MessagingScheduleStore.LoadAsync(
+                check.ServiceProvider.GetRequiredService<IApplicationDbContext>(), _notifications, _settings.SendTime, cancellationToken);
+            due = DueNow(schedule, today, now);
+        }
+        foreach (var kind in due)
         {
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<IApplicationDbContext>();

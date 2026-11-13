@@ -5,6 +5,7 @@ import { api } from '../api/client';
 import { builderInput } from '../components/builder/FieldSettings';
 import { DateButton } from '../components/DateField';
 import { useShell } from '../components/shell/ShellData';
+import { Icon } from '../components/icons';
 import { Button, DayCell, DayLegend, EmptyState, ErrorState, LoadingState, Sheet, useIsDesktop } from '../components/ui';
 import { apiErrorMessage } from '../api/errorMessage';
 import type { DayState } from '../components/ui';
@@ -16,6 +17,8 @@ import type { AssignmentDayDto, FormAssignmentDto, FormSummaryDto, UserSummaryDt
 
 const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
 const isFriday = (iso: string) => new Date(`${iso}T00:00:00Z`).getUTCDay() === 5;
+/** The Saturday that starts the Saudi working week holding `iso`. */
+const weekStartOf = (iso: string) => addDays(iso, -((new Date(`${iso}T00:00:00Z`).getUTCDay() + 1) % 7));
 
 /**
  * Form assignments + daily tracking (screen 23), one page (the old "by day" page redirects here):
@@ -23,7 +26,8 @@ const isFriday = (iso: string) => new Date(`${iso}T00:00:00Z`).getUTCDay() === 5
  *   haven't filled (n)" - the existing sender, manual reminders once per person per day.
  * - "Who filled and when": one row per assignment, one cell per day (Fridays greyed), Rate = filled
  *   / due; a filled cell opens that entry; a day header lists who was due that day. Form and range
- *   filters, "Show ended".
+ *   filters, "Show ended". On a phone (owner, 2026-11-13: no sideways scrolling) it shows one
+ *   Saturday-Friday week, the current one first, with arrows for the previous and next weeks.
  * - Assign panel: form, users (with their Telegram status), from / to, note, "Assign n users".
  */
 export function FormAssignments({ token }: { token: string }) {
@@ -42,6 +46,7 @@ export function FormAssignments({ token }: { token: string }) {
   // The day cells couldn't load: say so, rather than drawing every day as blank.
   const [daysError, setDaysError] = useState<unknown>(null);
   const [rangeDays, setRangeDays] = useState(14);
+  const [weekOffset, setWeekOffset] = useState(0); // phone: weeks back from the current one
   const [formFilter, setFormFilter] = useState('');
   const [showEnded, setShowEnded] = useState(false);
   const [tick, setTick] = useState(0);
@@ -51,7 +56,10 @@ export function FormAssignments({ token }: { token: string }) {
   const [dayOpen, setDayOpen] = useState<string | null>(null);
   const panel = useRef<HTMLElement>(null);
 
-  const from = addDays(today, -(rangeDays - 1));
+  const weekStart = addDays(weekStartOf(today), -7 * weekOffset);
+  const weekEnd = addDays(weekStart, 6);
+  const from = desktop ? addDays(today, -(rangeDays - 1)) : weekStart;
+  const to = desktop || weekEnd > today ? today : weekEnd;
   useEffect(() => {
     Promise.all([api.assignments.list(token), api.users.list(token)])
       .then(([a, u]) => {
@@ -60,21 +68,39 @@ export function FormAssignments({ token }: { token: string }) {
       })
       .catch((err) => setError({ err, fallbackKey: 'assignments.admin.loadError' }));
     setDaysError(null);
-    api.assignments.days(token, { from, to: today }).then(setDays).catch((err) => (setDays([]), setDaysError(err)));
-    api.assignments.days(token, { from: today, to: today }).then(setTodayDays).catch((err) => (setTodayDays([]), setDaysError(err)));
+    api.assignments
+      .days(token, { from, to })
+      .then(setDays)
+      .catch((err) => (setDays([]), setDaysError(err)));
+    api.assignments
+      .days(token, { from: today, to: today })
+      .then(setTodayDays)
+      .catch((err) => (setTodayDays([]), setDaysError(err)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, from, today, tick]);
+  }, [token, from, to, today, tick]);
 
-  const dates = useMemo(() => Array.from({ length: rangeDays }, (_, i) => addDays(from, i)), [from, rangeDays]);
+  const dates = useMemo(
+    () => (desktop ? Array.from({ length: rangeDays }, (_, i) => addDays(from, i)) : Array.from({ length: 7 }, (_, i) => addDays(weekStart, i))),
+    [desktop, from, rangeDays, weekStart],
+  );
   const byCell = useMemo(() => new Map(days.map((d) => [`${d.assignmentId}|${d.date}`, d])), [days]);
   const rows = (assignments ?? [])
     .filter((a) => (showEnded || a.isActive) && (!formFilter || a.formId === formFilter))
-    .filter((a) => a.startDate <= today && (!a.endDate || a.endDate >= from))
+    .filter((a) => a.startDate <= to && (!a.endDate || a.endDate >= from))
     .sort((a, b) => Number(b.isActive) - Number(a.isActive) || a.userName.localeCompare(b.userName));
   const filled = todayDays.filter((d) => d.status === 'filled').length;
   const pending = todayDays.filter((d) => d.status === 'pending');
-  const lastReminded = pending.map((d) => d.lastRemindedAtUtc).filter(Boolean).sort().pop();
-  const time = (utc: string) => new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Riyadh' }).format(new Date(utc));
+  const lastReminded = pending
+    .map((d) => d.lastRemindedAtUtc)
+    .filter(Boolean)
+    .sort()
+    .pop();
+  const time = (utc: string) =>
+    new Intl.DateTimeFormat(locale, {
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: 'Asia/Riyadh',
+    }).format(new Date(utc));
   const statusLabel: Record<DayState, string> = {
     filled: t('assignments.status.filled'),
     missed: t('assignments.status.missed'),
@@ -85,6 +111,28 @@ export function FormAssignments({ token }: { token: string }) {
     const f = forms?.find((x) => x.id === formId);
     return f ? formName(f) : fallback;
   };
+
+  /** One assignment's cells for `dates`, with its filled / due count. */
+  const cellsFor = (a: FormAssignmentDto, height: number) => {
+    let due = 0;
+    let done = 0;
+    const cells = dates.map((d) => {
+      const day = byCell.get(`${a.id}|${d}`);
+      const state: DayState = !day || isFriday(d) ? 'off' : day.status === 'filled' ? 'filled' : day.status === 'missed' ? 'missed' : 'due';
+      if (state === 'filled' || state === 'missed') due++;
+      if (state === 'filled') done++;
+      const label =
+        t('assignmentsV2.cellLabel', {
+          user: a.userName,
+          date: dayLabel(d, locale),
+          status: statusLabel[state],
+        }) + (day?.lastRemindedAtUtc ? ` · ${t('assignmentsV2.remindedAt', { time: time(day.lastRemindedAtUtc) })}` : '');
+      return <DayCell key={d} state={state} size="fill" height={height} label={label} onClick={day?.recordId ? () => navigate(`/entries/${a.formId}/${day.recordId}`) : undefined} />;
+    });
+    return { cells, done, due };
+  };
+  const shortDay = (d: string, width: 'narrow' | 'short') => new Intl.DateTimeFormat(locale, { weekday: width, timeZone: 'UTC' }).format(new Date(`${d}T00:00:00Z`));
+  const weekLabel = `${new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${weekStart}T00:00:00Z`))} – ${new Intl.DateTimeFormat(locale, { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(new Date(`${weekEnd}T00:00:00Z`))}`;
 
   async function stop(id: string) {
     try {
@@ -100,7 +148,14 @@ export function FormAssignments({ token }: { token: string }) {
     setRemindResult(null);
     try {
       const r = await api.assignments.remindPending(token);
-      setRemindResult(t('assignmentsV2.remindResult', { sent: r.sent, failed: r.failed, already: r.alreadyReminded, none: r.noChannel }));
+      setRemindResult(
+        t('assignmentsV2.remindResult', {
+          sent: r.sent,
+          failed: r.failed,
+          already: r.alreadyReminded,
+          none: r.noChannel,
+        }),
+      );
       setTick((x) => x + 1);
     } catch (err) {
       setError({ err, fallbackKey: 'assignments.admin.loadError' });
@@ -122,7 +177,15 @@ export function FormAssignments({ token }: { token: string }) {
           <h1 className="text-[28px] font-extrabold text-ink">{t('assignments.admin.title')}</h1>
           <p className="text-[14px] text-ink-soft">{t('assignmentsV2.rule')}</p>
         </div>
-        <Button size="desktop" onClick={() => panel.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+        <Button
+          size="desktop"
+          onClick={() =>
+            panel.current?.scrollIntoView({
+              behavior: 'smooth',
+              block: 'start',
+            })
+          }
+        >
           {t('assignmentsV2.assignForm')}
         </Button>
       </div>
@@ -133,13 +196,26 @@ export function FormAssignments({ token }: { token: string }) {
           {/* Today */}
           <section className="flex flex-wrap items-center gap-[18px] rounded-ui-2xl border border-border bg-panel px-[18px] py-4">
             <div className="flex flex-col gap-0.5">
-              <span className="text-[13px] text-ink-soft">{t('assignmentsV2.todayLabel', { date: dayLabel(today, locale) })}</span>
-              <span className="text-[18px] font-extrabold text-ink">{t('assignmentsV2.filledOfTotal', { filled, total: todayDays.length })}</span>
+              <span className="text-[13px] text-ink-soft">
+                {t('assignmentsV2.todayLabel', {
+                  date: dayLabel(today, locale),
+                })}
+              </span>
+              <span className="text-[18px] font-extrabold text-ink">
+                {t('assignmentsV2.filledOfTotal', {
+                  filled,
+                  total: todayDays.length,
+                })}
+              </span>
             </div>
             <div className="flex flex-wrap gap-2">
               <span className="rounded-ui-pill bg-success-soft px-[11px] py-[5px] text-[13px] font-bold text-success">{t('assignmentsV2.pillFilled', { count: filled })}</span>
               <span className="rounded-ui-pill bg-warning-soft px-[11px] py-[5px] text-[13px] font-bold text-warning">{t('assignmentsV2.pillDue', { count: pending.length })}</span>
-              <span className="rounded-ui-pill bg-divider px-[11px] py-[5px] text-[13px] font-bold text-ink-soft">{t('assignmentsV2.pillMissed', { count: todayDays.filter((d) => d.status === 'missed').length })}</span>
+              <span className="rounded-ui-pill bg-divider px-[11px] py-[5px] text-[13px] font-bold text-ink-soft">
+                {t('assignmentsV2.pillMissed', {
+                  count: todayDays.filter((d) => d.status === 'missed').length,
+                })}
+              </span>
             </div>
             <span className="flex-1" />
             <div className="flex flex-col items-end gap-1">
@@ -158,21 +234,35 @@ export function FormAssignments({ token }: { token: string }) {
           {/* Who filled and when */}
           <section className="flex flex-col gap-[14px] rounded-ui-2xl border border-border bg-panel px-[18px] py-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-[17px] font-extrabold text-ink">{t('assignmentsV2.gridTitle')}</h2>
+              <h2 className="text-[17px] font-extrabold text-ink">{desktop ? t('assignmentsV2.gridTitle') : t('assignmentsV2.gridTitleWeek')}</h2>
               <div className="flex flex-wrap items-center gap-1.5">
-                <select aria-label={t('assignments.admin.allForms')} value={formFilter} onChange={(e) => setFormFilter(e.target.value)} className="h-[36px] rounded-ui-pill border border-border bg-panel px-3 text-[13px] text-ink">
+                <select
+                  aria-label={t('assignments.admin.allForms')}
+                  value={formFilter}
+                  onChange={(e) => setFormFilter(e.target.value)}
+                  className="h-[36px] rounded-ui-pill border border-border bg-panel px-3 text-[13px] text-ink"
+                >
                   <option value="">{t('assignments.admin.allForms')}</option>
-                  {(forms ?? []).filter((f) => f.status === 'Published').map((f: FormSummaryDto) => (
-                    <option key={f.id} value={f.id}>
-                      {formName(f)}
-                    </option>
-                  ))}
+                  {(forms ?? [])
+                    .filter((f) => f.status === 'Published')
+                    .map((f: FormSummaryDto) => (
+                      <option key={f.id} value={f.id}>
+                        {formName(f)}
+                      </option>
+                    ))}
                 </select>
-                <select aria-label={t('assignments.admin.period')} value={rangeDays} onChange={(e) => setRangeDays(Number(e.target.value))} className="h-[36px] rounded-ui-pill border border-border bg-panel px-3 text-[13px] text-ink">
-                  <option value={14}>{t('assignmentsV2.last14')}</option>
-                  <option value={30}>{t('assignmentsV2.last30')}</option>
-                  <option value={60}>{t('assignmentsV2.last60')}</option>
-                </select>
+                {desktop && (
+                  <select
+                    aria-label={t('assignments.admin.period')}
+                    value={rangeDays}
+                    onChange={(e) => setRangeDays(Number(e.target.value))}
+                    className="h-[36px] rounded-ui-pill border border-border bg-panel px-3 text-[13px] text-ink"
+                  >
+                    <option value={14}>{t('assignmentsV2.last14')}</option>
+                    <option value={30}>{t('assignmentsV2.last30')}</option>
+                    <option value={60}>{t('assignmentsV2.last60')}</option>
+                  </select>
+                )}
                 <label className="flex h-[36px] items-center gap-1.5 rounded-ui-pill border border-border px-3 text-[13px] text-ink">
                   <input type="checkbox" checked={showEnded} onChange={(e) => setShowEnded(e.target.checked)} />
                   {t('assignmentsV2.showEnded')}
@@ -181,76 +271,150 @@ export function FormAssignments({ token }: { token: string }) {
             </div>
             {daysError ? (
               <ErrorState message={apiErrorMessage(daysError, t, 'assignments.admin.loadError')} onRetry={() => setTick((x) => x + 1)} />
-            ) : (
-            <div className="overflow-x-auto">
-              <div className="flex min-w-[760px] flex-col gap-1.5" style={{ minWidth: Math.max(760, 210 + 92 + dates.length * cellW) }}>
-                <div className="grid items-end gap-1 text-center text-[11px] text-ink-soft" style={{ gridTemplateColumns: grid }}>
-                  <span />
+            ) : !desktop ? (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setWeekOffset((w) => w + 1)}
+                    aria-label={t('assignmentsV2.prevWeek')}
+                    className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-panel text-ink"
+                  >
+                    <Icon name="chevronBack" size={20} />
+                  </button>
+                  <div className="flex flex-col items-center text-center">
+                    <span className="text-[15px] font-bold text-ink" dir="auto">
+                      {weekLabel}
+                    </span>
+                    {weekOffset === 0 ? (
+                      <span className="text-[12px] text-ink-soft">{t('assignmentsV2.thisWeek')}</span>
+                    ) : (
+                      <button type="button" onClick={() => setWeekOffset(0)} className="text-[12px] font-bold text-accent-strong underline">
+                        {t('assignmentsV2.backToThisWeek')}
+                      </button>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    disabled={weekOffset === 0}
+                    onClick={() => setWeekOffset((w) => Math.max(0, w - 1))}
+                    aria-label={t('assignmentsV2.nextWeek')}
+                    className="flex h-11 w-11 items-center justify-center rounded-full border border-border bg-panel text-ink disabled:opacity-30"
+                  >
+                    <Icon name="chevronForward" size={20} />
+                  </button>
+                </div>
+                <div className="grid grid-cols-7 gap-1 text-center text-[11px] text-ink-soft">
                   {dates.map((d) => (
-                    <button key={d} type="button" onClick={() => setDayOpen(d)} className="flex min-h-[44px] flex-col justify-end leading-[1.3] hover:text-ink lg:min-h-0" aria-label={t('assignmentsV2.dayList', { date: dayLabel(d, locale) })}>
-                      <span className="font-bold">{new Intl.DateTimeFormat(locale, { weekday: 'narrow', timeZone: 'UTC' }).format(new Date(`${d}T00:00:00Z`))}</span>
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setDayOpen(d)}
+                      className={`flex min-h-[44px] flex-col items-center justify-end leading-[1.3] ${d === today ? 'font-bold text-ink' : ''}`}
+                      aria-label={t('assignmentsV2.dayList', {
+                        date: dayLabel(d, locale),
+                      })}
+                    >
+                      <span className="font-bold">{shortDay(d, 'short')}</span>
                       <span>{Number(d.slice(8))}</span>
                     </button>
                   ))}
-                  <span>{t('assignmentsV2.rate')}</span>
                 </div>
                 {rows.map((a) => {
-                  let due = 0;
-                  let done = 0;
+                  const { cells, done, due } = cellsFor(a, 40);
                   return (
-                    <div key={a.id} className={`group grid items-center gap-1 ${a.isActive ? '' : 'opacity-50'}`} style={{ gridTemplateColumns: grid }}>
-                      <span className="flex min-w-0 flex-col">
-                        <span className="truncate text-[14px] font-bold text-ink">
-                          <bdi>{a.userName}</bdi>
+                    <div key={a.id} className={`flex flex-col gap-1.5 border-t border-divider pt-3 ${a.isActive ? '' : 'opacity-50'}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <span className="flex min-w-0 flex-col">
+                          <span className="break-words text-[14px] font-bold text-ink">
+                            <bdi>{a.userName}</bdi>
+                          </span>
+                          <span className="flex flex-wrap items-center gap-x-1.5 text-[12px] text-ink-soft">
+                            <bdi>{nameOf(a.formId, a.formName)}</bdi>
+                            {!a.isActive && <span>· {t('assignmentsV2.rowEnded')}</span>}
+                            {a.isActive && (
+                              <button type="button" onClick={() => void stop(a.id)} className="text-danger hover:underline">
+                                {t('assignments.admin.stop')}
+                              </button>
+                            )}
+                          </span>
                         </span>
-                        <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-ink-soft">
-                          <bdi className="truncate">{nameOf(a.formId, a.formName)}</bdi>
-                          {!a.isActive && <span>· {t('assignmentsV2.rowEnded')}</span>}
-                          {a.isActive && (
-                            // The existing "Stop" (ends the assignment today): always shown on a phone (no hover), on hover or keyboard focus on desktop.
-                            <button type="button" onClick={() => void stop(a.id)} className="shrink-0 text-danger hover:underline focus:opacity-100 group-hover:opacity-100 lg:opacity-0">
-                              {t('assignments.admin.stop')}
-                            </button>
-                          )}
+                        <span className="shrink-0 text-[13px] font-bold text-ink" dir="ltr">
+                          {done} / {due}
                         </span>
-                      </span>
-                      {dates.map((d) => {
-                        const day = byCell.get(`${a.id}|${d}`);
-                        const state: DayState = !day || isFriday(d) ? 'off' : day.status === 'filled' ? 'filled' : day.status === 'missed' ? 'missed' : 'due';
-                        if (state === 'filled' || state === 'missed') due++;
-                        if (state === 'filled') done++;
-                        const label = t('assignmentsV2.cellLabel', { user: a.userName, date: dayLabel(d, locale), status: statusLabel[state] }) + (day?.lastRemindedAtUtc ? ` · ${t('assignmentsV2.remindedAt', { time: time(day.lastRemindedAtUtc) })}` : '');
-                        return (
-                          <DayCell
-                            key={d}
-                            state={state}
-                            size="fill"
-                            height={desktop ? 30 : 44}
-                            label={label}
-                            onClick={day?.recordId ? () => navigate(`/entries/${a.formId}/${day.recordId}`) : undefined}
-                          />
-                        );
-                      })}
-                      <span className="text-center text-[13px] font-bold text-ink" dir="ltr">
-                        {done} / {due}
-                      </span>
+                      </div>
+                      <div className="grid grid-cols-7 gap-1">{cells}</div>
                     </div>
                   );
                 })}
                 {rows.length === 0 && <EmptyState title={t('assignments.admin.noAssignments')} body={t('assignmentsV2.emptyBody')} />}
               </div>
-            </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <div
+                  className="flex min-w-[760px] flex-col gap-1.5"
+                  style={{
+                    minWidth: Math.max(760, 210 + 92 + dates.length * cellW),
+                  }}
+                >
+                  <div className="grid items-end gap-1 text-center text-[11px] text-ink-soft" style={{ gridTemplateColumns: grid }}>
+                    <span />
+                    {dates.map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setDayOpen(d)}
+                        className="flex min-h-[44px] flex-col justify-end leading-[1.3] hover:text-ink lg:min-h-0"
+                        aria-label={t('assignmentsV2.dayList', {
+                          date: dayLabel(d, locale),
+                        })}
+                      >
+                        <span className="font-bold">
+                          {new Intl.DateTimeFormat(locale, {
+                            weekday: 'narrow',
+                            timeZone: 'UTC',
+                          }).format(new Date(`${d}T00:00:00Z`))}
+                        </span>
+                        <span>{Number(d.slice(8))}</span>
+                      </button>
+                    ))}
+                    <span>{t('assignmentsV2.rate')}</span>
+                  </div>
+                  {rows.map((a) => {
+                    const { cells, done, due } = cellsFor(a, 30);
+                    return (
+                      <div key={a.id} className={`group grid items-center gap-1 ${a.isActive ? '' : 'opacity-50'}`} style={{ gridTemplateColumns: grid }}>
+                        <span className="flex min-w-0 flex-col">
+                          <span className="truncate text-[14px] font-bold text-ink">
+                            <bdi>{a.userName}</bdi>
+                          </span>
+                          <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-ink-soft">
+                            <bdi className="truncate">{nameOf(a.formId, a.formName)}</bdi>
+                            {!a.isActive && <span>· {t('assignmentsV2.rowEnded')}</span>}
+                            {a.isActive && (
+                              // The existing "Stop" (ends the assignment today): always shown on a phone (no hover), on hover or keyboard focus on desktop.
+                              <button type="button" onClick={() => void stop(a.id)} className="shrink-0 text-danger hover:underline focus:opacity-100 group-hover:opacity-100 lg:opacity-0">
+                                {t('assignments.admin.stop')}
+                              </button>
+                            )}
+                          </span>
+                        </span>
+                        {cells}
+                        <span className="text-center text-[13px] font-bold text-ink" dir="ltr">
+                          {done} / {due}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  {rows.length === 0 && <EmptyState title={t('assignments.admin.noAssignments')} body={t('assignmentsV2.emptyBody')} />}
+                </div>
+              </div>
             )}
             <DayLegend showOff />
           </section>
         </div>
 
-        <AssignPanel
-          panelRef={panel}
-          token={token}
-          users={users}
-          onAssigned={() => setTick((x) => x + 1)}
-        />
+        <AssignPanel panelRef={panel} token={token} users={users} onAssigned={() => setTick((x) => x + 1)} />
       </div>
 
       <Sheet open={dayOpen !== null} onClose={() => setDayOpen(null)} title={dayOpen ? t('assignmentsV2.dayList', { date: dayLabel(dayOpen, locale) }) : ''} desktopWidth={520}>
@@ -267,12 +431,16 @@ export function FormAssignments({ token }: { token: string }) {
                     <bdi>{nameOf(d.formId, d.formName)}</bdi>
                   </span>
                 </span>
-                <span className={`rounded-ui-pill px-[9px] py-[3px] text-[12px] font-bold ${d.status === 'filled' ? 'bg-success-soft text-success' : d.status === 'missed' ? 'bg-danger-soft text-danger' : 'bg-warning-soft text-warning'}`}>
+                <span
+                  className={`rounded-ui-pill px-[9px] py-[3px] text-[12px] font-bold ${d.status === 'filled' ? 'bg-success-soft text-success' : d.status === 'missed' ? 'bg-danger-soft text-danger' : 'bg-warning-soft text-warning'}`}
+                >
                   {d.status === 'filled' && d.filledAtUtc ? `${statusLabel.filled} · ${time(d.filledAtUtc)}` : statusLabel[d.status === 'pending' ? 'due' : (d.status as DayState)]}
                 </span>
               </li>
             ))}
-          {dayOpen && days.every((d) => d.date !== dayOpen) && <li className="py-3 text-[14px] text-ink-soft">{isFriday(dayOpen) ? t('assignments.tracking.notWorkingDay') : t('assignments.admin.noDays')}</li>}
+          {dayOpen && days.every((d) => d.date !== dayOpen) && (
+            <li className="py-3 text-[14px] text-ink-soft">{isFriday(dayOpen) ? t('assignments.tracking.notWorkingDay') : t('assignments.admin.noDays')}</li>
+          )}
         </ul>
       </Sheet>
     </div>
@@ -280,17 +448,7 @@ export function FormAssignments({ token }: { token: string }) {
 }
 
 /** The assign panel (23): form, users with their Telegram status, from / to, note, "Assign n users". */
-function AssignPanel({
-  panelRef,
-  token,
-  users,
-  onAssigned,
-}: {
-  panelRef: React.RefObject<HTMLElement>;
-  token: string;
-  users: UserSummaryDto[];
-  onAssigned: () => void;
-}) {
+function AssignPanel({ panelRef, token, users, onAssigned }: { panelRef: React.RefObject<HTMLElement>; token: string; users: UserSummaryDto[]; onAssigned: () => void }) {
   const { t } = useTranslation();
   const { formName } = useLocalized();
   const { forms } = useShell();
@@ -313,8 +471,25 @@ function AssignPanel({
     if (!formId || userIds.size === 0 || !start) return setError({ key: 'assignments.admin.chooseFormAndUsers' });
     setBusy(true);
     try {
-      const r = await api.assignments.create(token, { formDefinitionId: formId, userIds: [...userIds], startDate: start, endDate: end, note: note.trim() || null });
-      setResult([t('assignments.admin.created', { n: r.created }), r.alreadyAssigned.length ? t('assignments.admin.alreadyAssigned', { names: r.alreadyAssigned.join('، ') }) : ''].filter(Boolean).join(' '));
+      const r = await api.assignments.create(token, {
+        formDefinitionId: formId,
+        userIds: [...userIds],
+        startDate: start,
+        endDate: end,
+        note: note.trim() || null,
+      });
+      setResult(
+        [
+          t('assignments.admin.created', { n: r.created }),
+          r.alreadyAssigned.length
+            ? t('assignments.admin.alreadyAssigned', {
+                names: r.alreadyAssigned.join('، '),
+              })
+            : '',
+        ]
+          .filter(Boolean)
+          .join(' '),
+      );
       setUserIds(new Set());
       setNote('');
       onAssigned();
@@ -326,7 +501,11 @@ function AssignPanel({
   }
 
   return (
-    <aside ref={panelRef} aria-label={t('assignments.admin.newTitle')} className="flex w-full flex-[1_1_320px] scroll-mt-6 lg:w-auto lg:max-w-[380px] flex-col gap-[14px] rounded-ui-2xl border border-border bg-panel p-[18px]">
+    <aside
+      ref={panelRef}
+      aria-label={t('assignments.admin.newTitle')}
+      className="flex w-full flex-[1_1_320px] scroll-mt-6 lg:w-auto lg:max-w-[380px] flex-col gap-[14px] rounded-ui-2xl border border-border bg-panel p-[18px]"
+    >
       <h2 className="text-[17px] font-extrabold text-ink">{t('assignments.admin.newTitle')}</h2>
       <label className="flex flex-col gap-1.5 text-[14px] font-bold text-ink">
         {t('assignments.admin.formLabel')}
@@ -343,7 +522,19 @@ function AssignPanel({
         {users.map((u) => {
           return (
             <label key={u.id} className="flex min-h-[44px] items-center gap-[10px] rounded-ui-md border border-divider px-[10px] text-[14px]">
-              <input type="checkbox" className="h-[18px] w-[18px] accent-[var(--accent)]" checked={userIds.has(u.id)} onChange={() => setUserIds((p) => { const n = new Set(p); if (n.has(u.id)) n.delete(u.id); else n.add(u.id); return n; })} />
+              <input
+                type="checkbox"
+                className="h-[18px] w-[18px] accent-[var(--accent)]"
+                checked={userIds.has(u.id)}
+                onChange={() =>
+                  setUserIds((p) => {
+                    const n = new Set(p);
+                    if (n.has(u.id)) n.delete(u.id);
+                    else n.add(u.id);
+                    return n;
+                  })
+                }
+              />
               <span className="flex-1 font-bold text-ink">
                 <bdi>{u.displayName}</bdi>
               </span>

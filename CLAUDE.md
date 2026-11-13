@@ -309,6 +309,20 @@ Real data starts 2026-11-02. Never treat those rows as client input; delete by t
   "not set up yet" note). Staging sends from Meta's **test number** (5 confirmed recipients, added in
   Meta's API Setup "To" list); production needs a business number - `docs/STAGING.md` "WhatsApp".
 
+### Messages page: who gets what, when - added 2026-11-13 (owner: "full control of what goes where")
+
+- `/admin/messages` (`routes/MessagingSchedule.tsx`, API `GET/PUT api/messaging-schedule`, admins) sets
+  one `MessagingSchedules` row: reminders on/off, times (max 6), days, channels; the new-assignment
+  message on/off + channels; daily (time + days), weekly (time + one day) and monthly (time, last day)
+  reports on/off. Report recipients are the existing `ReportRecipients` (same component as /admin/reports).
+- **No row = the old behaviour** (`MessagingScheduleStore.Defaults`: `Notifications:ReminderTimes`,
+  `Reports:SendTime`, Sat-Thu, weekly Thursday). Both background services read the schedule every
+  minute - no restart. Days are a `DayOfWeek` bit mask (`WorkingDays` = all but Friday).
+- Automatic reminders are logged as `reminder-HH:mm` (was `reminder-1/2`), so editing the times
+  never re-sends a time already sent that day. A weekly report on a day other than Thu/Fri covers
+  the 7 days to it. Migration `AddMessagingSchedule` (one new table).
+- Form assignments grid on a phone: one Saturday-Friday week with previous/next arrows (no sideways scroll).
+
 ### Telegram notifications - added 2026-11-05 (both channels are on since WhatsApp went live 2026-11-07)
 
 - `AssignmentNotifier` sends each message on **every channel that is configured on the server

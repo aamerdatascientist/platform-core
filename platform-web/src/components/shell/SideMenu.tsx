@@ -80,6 +80,9 @@ export function SideMenu({ onSearch }: { onSearch: () => void }) {
           <Item to="/admin/reports">
             <span className="flex-1">{t('reports.title')}</span>
           </Item>
+          <Item to="/admin/messages">
+            <span className="flex-1">{t('messages.title')}</span>
+          </Item>
           <Item to="/admin/users">
             <span className="flex-1">{t('userManagement.title')}</span>
           </Item>

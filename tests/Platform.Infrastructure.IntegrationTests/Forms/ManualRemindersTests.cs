@@ -22,7 +22,7 @@ namespace Platform.Infrastructure.IntegrationTests.Forms;
 /// </summary>
 public class ManualRemindersTests
 {
-    private sealed class FakeTelegram : ITelegramClient
+    internal sealed class FakeTelegram : ITelegramClient
     {
         public List<long> Sent { get; } = new();
         public bool Fail { get; set; }
@@ -41,10 +41,12 @@ public class ManualRemindersTests
             throw new InvalidOperationException("WhatsApp isn't configured in these tests.");
     }
 
-    private sealed record World(ApplicationDbContext Db, FakeDynamicDataRepository Repo, FakeTelegram Telegram, AssignmentNotifier Notifier,
+    internal sealed record World(ApplicationDbContext Db, FakeDynamicDataRepository Repo, FakeTelegram Telegram, AssignmentNotifier Notifier,
         FormDefinition Form, User Linked, User Unlinked, User Filled, DateOnly Today);
 
-    private static async Task<World> CreateAsync()
+    private static readonly MessagingScheduleDto Defaults = MessagingScheduleStore.Defaults(new NotificationSettings(), "18:00");
+
+    internal static async Task<World> CreateAsync()
     {
         var db = new ApplicationDbContext(new DbContextOptionsBuilder<ApplicationDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
         var repo = new FakeDynamicDataRepository();
@@ -96,9 +98,9 @@ public class ManualRemindersTests
     public async Task ManualAndAutomaticRemindersDoNotUseUpEachOther()
     {
         var w = await CreateAsync();
-        (await w.Notifier.SendDueRemindersAsync(w.Today, 1, default)).Should().Be(1);
+        (await w.Notifier.SendDueRemindersAsync(w.Today, "09:00", Defaults, default)).Should().Be(1);
         (await w.Notifier.SendManualRemindersAsync(w.Today, default)).Sent.Should().Be(1, "the automatic slot doesn't block a manual reminder");
-        (await w.Notifier.SendDueRemindersAsync(w.Today, 2, default)).Should().Be(1, "and a manual one doesn't block the next automatic slot");
+        (await w.Notifier.SendDueRemindersAsync(w.Today, "14:00", Defaults, default)).Should().Be(1, "and a manual one doesn't block the next automatic slot");
     }
 
     [Fact]

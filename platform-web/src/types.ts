@@ -428,6 +428,33 @@ export interface ReportRunDto {
   deliveries: ReportDeliveryDto[];
 }
 
+export type DayName = 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday';
+
+/** One scheduled report: on/off, Saudi time "HH:mm", days (weekly: one; monthly: none = last day). */
+export interface ReportScheduleDto {
+  enabled: boolean;
+  time: string;
+  days: DayName[];
+}
+
+/** What the app sends on its own and when - the Messages page (2026-11-13). */
+export interface MessagingScheduleDto {
+  remindersEnabled: boolean;
+  reminderTimes: string[];
+  reminderDays: DayName[];
+  reminderWhatsApp: boolean;
+  reminderTelegram: boolean;
+  assignedEnabled: boolean;
+  assignedWhatsApp: boolean;
+  assignedTelegram: boolean;
+  daily: ReportScheduleDto;
+  weekly: ReportScheduleDto;
+  monthly: ReportScheduleDto;
+  /** Read-only: which channels the server can send on. */
+  whatsAppConfigured: boolean;
+  telegramConfigured: boolean;
+}
+
 export interface ReportsOverviewDto {
   analysisConfigured: boolean;
   pdfConfigured: boolean;

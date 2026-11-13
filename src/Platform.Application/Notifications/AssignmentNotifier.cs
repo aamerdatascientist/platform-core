@@ -20,7 +20,8 @@ public class AssignmentNotifier
     public const string TelegramChannel = "telegram";
     public const string AssignedKind = "assigned";
     public const string TestKind = "test";
-    public static string ReminderKind(int slot) => $"reminder-{slot}";
+    /// <summary>An automatic reminder, keyed by its time ("reminder-09:00") so editing the times never re-sends one already sent today.</summary>
+    public static string ReminderKind(string time) => $"reminder-{time}";
 
     /// <summary>
     /// An administrator's "Remind those who haven't filled" (redesign 23, owner decision 7,
@@ -93,6 +94,8 @@ public class AssignmentNotifier
     public async Task NotifyAssignedAsync(IReadOnlyCollection<Guid> assignmentIds, CancellationToken cancellationToken)
     {
         if (!AnyChannelConfigured || assignmentIds.Count == 0) return;
+        var schedule = await MessagingScheduleStore.LoadAsync(_db, _settings, null, cancellationToken);
+        if (!schedule.AssignedEnabled) return;
 
         var rows = await _db.FormAssignments
             .Where(a => assignmentIds.Contains(a.Id))
@@ -105,19 +108,19 @@ public class AssignmentNotifier
         foreach (var row in rows)
         {
             var message = AssignedMessage(_whatsAppSettings.AssignedTemplate, row.DisplayName, row.FormName, row.StartDate, Link("/assignments"));
-            foreach (var (channel, recipient) in ChannelsFor(row.PhoneNumber, row.TelegramChatId))
+            foreach (var (channel, recipient) in ChannelsFor(row.PhoneNumber, row.TelegramChatId).Where(c => schedule.AssignedChannel(c.Channel)))
                 await TrySendAsync(row.UserId, row.Id, AssignedKind, null, channel, recipient, message, cancellationToken);
         }
     }
 
     /// <summary>
-    /// Reminder number <paramref name="slot"/> (1-based) for <paramref name="today"/>: every
-    /// assignment still not filled today gets one message per channel - at most once per slot,
+    /// The reminder at <paramref name="time"/> for <paramref name="today"/>: every assignment still
+    /// not filled today gets one message per channel the schedule allows - at most once per time,
     /// however often this runs. Returns how many were sent.
     /// </summary>
-    public async Task<int> SendDueRemindersAsync(DateOnly today, int slot, CancellationToken cancellationToken)
+    public async Task<int> SendDueRemindersAsync(DateOnly today, string time, MessagingScheduleDto schedule, CancellationToken cancellationToken)
     {
-        if (!AnyChannelConfigured || !FormAssignmentTracker.IsWorkingDay(today)) return 0;
+        if (!AnyChannelConfigured || !FormAssignmentTracker.IsWorkingDay(today) || !schedule.RemindsOn(today)) return 0;
 
         var (assignments, stamps) = await FormAssignmentTracker.LoadAsync(_db, _dynamicData, null, null, today, today, cancellationToken);
         var pending = FormAssignmentTracker.BuildDays(assignments, stamps, today, today, today)
@@ -125,7 +128,7 @@ public class AssignmentNotifier
             .ToList();
         if (pending.Count == 0) return 0;
 
-        var kind = ReminderKind(slot);
+        var kind = ReminderKind(time);
         var alreadySent = (await _db.NotificationLogs
                 .Where(n => n.Kind == kind && n.ForDate == today && n.AssignmentId != null)
                 .Select(n => new { AssignmentId = n.AssignmentId!.Value, n.Channel })
@@ -142,7 +145,7 @@ public class AssignmentNotifier
         {
             var contact = contacts[day.UserId];
             var message = ReminderMessage(_whatsAppSettings.ReminderTemplate, day.UserName, day.FormName, today, Link($"/forms/{day.FormId}"));
-            foreach (var (channel, recipient) in ChannelsFor(contact.PhoneNumber, contact.TelegramChatId))
+            foreach (var (channel, recipient) in ChannelsFor(contact.PhoneNumber, contact.TelegramChatId).Where(c => schedule.ReminderChannel(c.Channel)))
             {
                 if (alreadySent.Contains((day.AssignmentId, channel))) continue;
                 if (await TrySendAsync(day.UserId, day.AssignmentId, kind, today, channel, recipient, message, cancellationToken))
