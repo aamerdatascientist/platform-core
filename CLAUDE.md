@@ -365,6 +365,21 @@ Real data starts 2026-11-02. Never treat those rows as client input; delete by t
   coming back into view, and reloads (once per build, `sessionStorage`) - at once on pages nobody
   types into, else on the next page change. Drafts and the offline queue survive a reload.
 
+### Admin flows 2, 3, 5 - added 2026-11-14, staging (spec: offline-backup .../proposed-flows-2-3-5/)
+
+- **Menus by job** (`platform-web/src/nav/navMap.ts`, tested by `npm test` = `node --test tests/*.test.ts`):
+  one map of groups, form codes and admin pages read by the side menu, Ctrl/Cmd+K, `/forms`, Today and
+  Settings (`useNav()` in ShellData). Form modules are untouched (API/analytics/builder use them); an
+  unmapped form gets a module-named group after "Projects". "Advanced setup" is collapsed by default
+  (localStorage `asas-nav-advanced-open`). Stage progress: `/admin/projects` chooser + `GET
+  api/stage-progress/projects` (admins). Form display names: `scripts/data/apply-form-display-names.mjs`.
+- **Warnings link to the user**: `components/ContactLink.tsx`, `/admin/users?edit=&focus=whatsapp|telegram&from=`
+  opens the drawer on the field; "Assign a form to {name}" after create / after fixing; `/admin/assignments?assign=`.
+  Messages asks before leaving with unsaved changes only from these links (no app-wide guard: BrowserRouter).
+- **Project setup chain** (`nav/projectSetup.ts`, `components/ProjectSetup.tsx`): only in the address
+  (`?setup={projectId}`), validated against the admin project list. Floors and plan are made on save, so
+  those steps open their records filtered to the project; the last is Form assignments with the daily report.
+
 ### Telegram notifications - added 2026-11-05 (both channels are on since WhatsApp went live 2026-11-07)
 
 - `AssignmentNotifier` sends each message on **every channel that is configured on the server
