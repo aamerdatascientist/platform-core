@@ -599,6 +599,14 @@ export interface StageUnitDto {
   lateByDays?: number | null;
 }
 
+/** A project in the Stage progress chooser (admin flows F5-6). */
+export interface StageProjectSummaryDto {
+  id: string;
+  code: string;
+  name: string;
+  status: string | null;
+}
+
 export interface ProjectProgressDto {
   projectId: string;
   code: string;

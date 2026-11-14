@@ -1,20 +1,60 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Icon, LogoMark } from '../icons';
-import { initial, useFormsByModule, useShell } from './ShellData';
+import { initial, useNav, useShell, type ShellNavGroup } from './ShellData';
+import { groupContainsPath } from '../../nav/navMap';
 import { useLocalized } from '../../forms/localized';
 
 /**
  * Desktop side menu (HANDOFF §5.2, screens 20-24): 264px on the inline-start side, the logo,
- * a search/jump button (Ctrl K), "Today · My tasks" with the count still due today, one group
- * per module listing its forms, then Administration (admins only), and the person at the
- * bottom with a Settings button. Scrolls with the page; not sticky.
+ * a search/jump button (Ctrl K), "Today · My tasks" with the count still due today, then the
+ * groups from `nav/navMap.ts` (admin flows F5: by job, not by module; "Advanced setup" collapsed
+ * until opened, remembered in this browser, open by itself on its own pages), and the person at
+ * the bottom with a Settings button. Scrolls with the page; not sticky.
  */
 export function SideMenu({ onSearch }: { onSearch: () => void }) {
   const { t } = useTranslation();
-  const { me, isAdmin, dueTodayCount, openDashboard, roleLabel } = useShell();
-  const groups = useFormsByModule();
+  const { me, dueTodayCount, openDashboard, roleLabel } = useShell();
+  const groups = useNav();
+  const [advancedOpen, setAdvancedOpen] = useState(readAdvancedOpen);
+  const toggleAdvanced = () =>
+    setAdvancedOpen((open) => {
+      const next = !open;
+      try {
+        localStorage.setItem(ADVANCED_KEY, next ? '1' : '0');
+      } catch {
+        // storage blocked: the group still opens for this visit
+      }
+      return next;
+    });
+
+  const renderItem = (item: ShellNavGroup['items'][number]) => {
+    if (item.kind === 'form')
+      return (
+        <Item key={item.form.id} to={`/forms/${item.form.id}`} active={location.pathname.startsWith(`/forms/${item.form.id}`)}>
+          <span className="flex-1"><bdi>{formName(item.form)}</bdi></span>
+        </Item>
+      );
+    if (item.to === null)
+      return (
+        <button
+          key={item.id}
+          type="button"
+          onClick={openDashboard}
+          className="flex min-h-[44px] items-center gap-2 rounded-ui-md px-[10px] text-start text-[15px] font-medium text-ink hover:bg-field-muted"
+          aria-label={`${t(item.labelKey)} (${t('nav.opensNewTab')})`}
+        >
+          <span>{t(item.labelKey)}</span>
+          <Icon name="external" size={16} />
+        </button>
+      );
+    return (
+      <Item key={item.id} to={item.to} active={location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)}>
+        <span className="flex-1">{t(item.labelKey)}</span>
+      </Item>
+    );
+  };
   const { formName } = useLocalized();
   const location = useLocation();
   const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform);
@@ -50,43 +90,16 @@ export function SideMenu({ onSearch }: { onSearch: () => void }) {
         </Item>
       </div>
 
-      {groups.map((group) => (
-        <Group key={group.label} title={group.label}>
-          {group.forms.map((form) => (
-            <Item key={form.id} to={`/forms/${form.id}`} active={location.pathname.startsWith(`/forms/${form.id}`)}>
-              <span className="flex-1"><bdi>{formName(form)}</bdi></span>
-            </Item>
-          ))}
-        </Group>
-      ))}
-
-      {isAdmin && (
-        <Group title={t('nav.administration')}>
-          <button
-            type="button"
-            onClick={openDashboard}
-            className="flex min-h-[44px] items-center gap-2 rounded-ui-md px-[10px] text-start text-[15px] font-medium text-ink hover:bg-field-muted"
-            aria-label={`${t('sidebar.executiveOverview')} (${t('nav.opensNewTab')})`}
-          >
-            <span>{t('sidebar.executiveOverview')}</span>
-            <Icon name="external" size={16} />
-          </button>
-          <Item to="/builder" active={location.pathname.startsWith('/builder')}>
-            <span className="flex-1">{t('settings.formBuilder')}</span>
-          </Item>
-          <Item to="/admin/assignments">
-            <span className="flex-1">{t('settings.assignments')}</span>
-          </Item>
-          <Item to="/admin/reports">
-            <span className="flex-1">{t('reports.title')}</span>
-          </Item>
-          <Item to="/admin/messages">
-            <span className="flex-1">{t('messages.title')}</span>
-          </Item>
-          <Item to="/admin/users">
-            <span className="flex-1">{t('userManagement.title')}</span>
-          </Item>
-        </Group>
+      {groups.map((group) =>
+        group.collapsible ? (
+          <CollapsibleGroup key={group.id} title={group.label} open={advancedOpen || groupContainsPath(group, location.pathname)} onToggle={toggleAdvanced}>
+            {group.items.map((item) => renderItem(item))}
+          </CollapsibleGroup>
+        ) : (
+          <Group key={group.id} title={group.label}>
+            {group.items.map((item) => renderItem(item))}
+          </Group>
+        ),
       )}
 
       <div className="mt-auto flex items-center gap-[10px] border-t border-divider pt-[14px]">
@@ -135,5 +148,32 @@ function Item({ to, end, active, children }: { to: string; end?: boolean; active
     >
       {children}
     </NavLink>
+  );
+}
+
+const ADVANCED_KEY = 'asas-nav-advanced-open';
+function readAdvancedOpen() {
+  try {
+    return localStorage.getItem(ADVANCED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+/** A group heading that opens and closes its items (existing group-label style plus a chevron, F5-7). */
+function CollapsibleGroup({ title, open, onToggle, children }: { title: string; open: boolean; onToggle: () => void; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={onToggle}
+        className="flex min-h-[32px] items-center gap-1 rounded-ui-md px-[10px] pb-1.5 text-start text-[12px] font-bold text-ink-soft hover:text-ink"
+      >
+        <span>{title}</span>
+        <Icon name={open ? 'chevronDown' : 'chevronForward'} size={14} />
+      </button>
+      {open && children}
+    </div>
   );
 }

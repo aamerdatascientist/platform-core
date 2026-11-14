@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { api } from '../../api/client';
 import { buildDashboardUrl } from '../../dashboardLink';
 import { getMode } from '../../theme/mode';
+import { buildNav, type NavGroup } from '../../nav/navMap';
 import type { CurrentUserDto, FormSummaryDto, MyAssignmentsDto } from '../../types';
 
 /**
@@ -95,21 +96,23 @@ export function useShell(): ShellData {
   return value;
 }
 
-/** Published forms grouped by module, module names translated (as the old sidebar did). */
-export function useFormsByModule() {
+export type ShellNavGroup = NavGroup<FormSummaryDto> & { label: string };
+
+/**
+ * The menu groups this person sees (admin flows F5, `nav/navMap.ts`), labels translated. Every
+ * menu reads this: side menu, Ctrl/Cmd+K, the Forms page, Today's other forms, Settings.
+ */
+export function useNav(): ShellNavGroup[] {
   const { t } = useTranslation();
-  const { forms } = useShell();
-  return useMemo(() => {
-    const groups = new Map<string, { label: string; forms: FormSummaryDto[] }>();
-    for (const form of forms ?? []) {
-      // Hidden forms (retired, e.g. project zones) stay out of every menu; data is kept.
-      if (form.status !== 'Published' || form.isHidden) continue;
-      const group = groups.get(form.moduleName) ?? { label: t(`moduleName.${form.moduleName}`, { defaultValue: form.moduleName }), forms: [] };
-      group.forms.push(form);
-      groups.set(form.moduleName, group);
-    }
-    return [...groups.values()];
-  }, [forms, t]);
+  const { forms, isAdmin } = useShell();
+  return useMemo(
+    () =>
+      buildNav(forms ?? [], isAdmin).map((g) => ({
+        ...g,
+        label: g.labelKey ? t(g.labelKey) : t(`moduleName.${g.moduleName}`, { defaultValue: g.moduleName ?? '' }),
+      })),
+    [forms, isAdmin, t],
+  );
 }
 
 /** The first letter of a name, for the avatar circle. */

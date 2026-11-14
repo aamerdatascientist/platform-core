@@ -612,7 +612,8 @@
     "telegramDisconnect": "Disconnect",
     "telegramError": "Could not update your Telegram connection.",
     "reportsHint": "Daily, weekly and monthly PDF reports with analysis, sent to stakeholders on WhatsApp",
-    "messagesHint": "What WhatsApp and Telegram send on their own, when, and to whom"
+    "messagesHint": "What WhatsApp and Telegram send on their own, when, and to whom",
+    "stageProgressHint": "Each project stage by stage: days done, planned finish, lateness"
   },
   "errors": {
     "offline": "Can't reach the server. Check your internet connection and try again.",
@@ -820,7 +821,11 @@
     "searchPlaceholder": "Type a form or page name",
     "noMatches": "Nothing matches “{{q}}”.",
     "opensNewTab": "Opens in a new tab",
-    "appName": "Asas"
+    "appName": "Asas",
+    "stageProgress": "Stage progress",
+    "chooseProject": "Choose a project",
+    "noProjects": "No projects yet. Add one with the Projects form.",
+    "projectsLoadError": "Couldn't load the projects."
   },
   "today": {
     "greetingMorning": "Good morning, {{name}}",
@@ -1212,5 +1217,12 @@
       "saveError": "Couldn't save. Check the number and try again.",
       "loadError": "Couldn't load the recipients."
     }
+  },
+  "navGroups": {
+    "dailyWork": "Daily work",
+    "projects": "Projects",
+    "team": "Team & messages",
+    "overview": "Overview",
+    "advanced": "Advanced setup"
   }
 }

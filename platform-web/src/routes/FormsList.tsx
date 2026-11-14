@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { Link, Navigate } from 'react-router-dom';
 import { Icon } from '../components/icons';
-import { useFormsByModule, useShell } from '../components/shell/ShellData';
+import { useNav, useShell } from '../components/shell/ShellData';
 import { Card, EmptyState, ErrorState, LoadingState, SectionHeading } from '../components/ui';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import { useEffect } from 'react';
@@ -9,13 +9,16 @@ import { useLocalized } from '../forms/localized';
 
 /**
  * The phone Forms tab (HANDOFF §5.1; not drawn - styled like "Other forms" on 02): one card per
- * module with its name as a 14px heading, a 56px row per form with a chevron. Someone who can
+ * menu group (`nav/navMap.ts`) with its name as a 14px heading, a 56px row per form with a chevron. Someone who can
  * open only one form (project managers today) goes straight to it.
  */
 export function FormsList() {
   const { t } = useTranslation();
   const { forms, formsError, refresh } = useShell();
-  const groups = useFormsByModule();
+  // The menu's groups (admin flows F5-9), forms only - admin pages live in Settings on a phone.
+  const groups = useNav()
+    .map((g) => ({ ...g, forms: g.items.flatMap((i) => (i.kind === 'form' ? [i.form] : [])) }))
+    .filter((g) => g.forms.length > 0);
   const { formName } = useLocalized();
   const [error, setError] = useErrorMessage();
   useEffect(() => {
@@ -34,7 +37,7 @@ export function FormsList() {
       <h1 className="text-[26px] font-extrabold text-ink">{t('nav.forms')}</h1>
       {all.length === 0 && <EmptyState title={t('sidebar.noForms')} />}
       {groups.map((group) => (
-        <section key={group.label} className="flex flex-col gap-2">
+        <section key={group.id} className="flex flex-col gap-2">
           <SectionHeading>{group.label}</SectionHeading>
           <Card className="divide-y divide-divider overflow-hidden">
             {group.forms.map((form) => (

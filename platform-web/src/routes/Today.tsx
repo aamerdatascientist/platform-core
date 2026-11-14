@@ -2,7 +2,8 @@ import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Icon } from '../components/icons';
-import { initial, useFormsByModule, useShell } from '../components/shell/ShellData';
+import { initial, useNav, useShell } from '../components/shell/ShellData';
+import { everydayForms } from '../nav/navMap';
 import { Card, DayCell, DayLegend, ErrorState, LoadingState, Pill } from '../components/ui';
 import { apiErrorMessage } from '../api/errorMessage';
 import type { DayState } from '../components/ui';
@@ -18,7 +19,7 @@ import { useLocalized } from '../forms/localized';
 export function Today() {
   const { t, i18n } = useTranslation();
   const { me, mine, loadError, refresh } = useShell();
-  const groups = useFormsByModule();
+  const groups = useNav();
   const { formName } = useLocalized();
   const locale = i18n.language.startsWith('ar') ? 'ar-u-nu-latn' : i18n.language;
 
@@ -27,14 +28,15 @@ export function Today() {
     refresh();
   }, [refresh]);
 
-  const formById = useMemo(() => new Map(groups.flatMap((g) => g.forms).map((f) => [f.id, f])), [groups]);
+  const groupForms = (g: (typeof groups)[number]) => g.items.flatMap((i) => (i.kind === 'form' ? [i.form] : []));
+  const formById = useMemo(() => new Map(groups.flatMap(groupForms).map((f) => [f.id, f])), [groups]);
   const nameOf = (d: AssignmentDayDto) => {
     const f = formById.get(d.formId);
     return f ? formName(f) : d.formName;
   };
   const formModule = useMemo(() => {
     const map = new Map<string, string>();
-    for (const g of groups) for (const f of g.forms) map.set(f.id, g.label);
+    for (const g of groups) for (const f of groupForms(g)) map.set(f.id, g.label);
     return map;
   }, [groups]);
 
@@ -48,7 +50,8 @@ export function Today() {
   const due = todays.filter((d) => d.status === 'pending');
   const filled = todays.filter((d) => d.status === 'filled');
   const assignedToday = new Set(todays.map((d) => d.formId));
-  const otherForms = groups.flatMap((g) => g.forms).filter((f) => !assignedToday.has(f.id));
+  // Menu order, Advanced setup (Default stage plan) left out (admin flows F5-9).
+  const otherForms = everydayForms(groups).filter((f) => !assignedToday.has(f.id));
 
   // Greeting by the phone's own clock (HANDOFF 02: morning before 12:00, afternoon 12-17, evening after).
   const hour = new Date().getHours();

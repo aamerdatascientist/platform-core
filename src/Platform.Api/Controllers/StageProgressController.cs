@@ -16,6 +16,11 @@ namespace Platform.Api.Controllers;
 [Authorize(Roles = "Administrator")]
 public class StageProgressController(ISender sender, ICurrentUserService currentUser) : ControllerBase
 {
+    /// <summary>Every project, for the Stage progress chooser.</summary>
+    [HttpGet("projects")]
+    public async Task<ActionResult<IReadOnlyList<StageProjectSummaryDto>>> ListProjects(CancellationToken cancellationToken) =>
+        Ok(await sender.Send(new ListStageProjectsQuery(), cancellationToken));
+
     [HttpGet("projects/{projectId:guid}")]
     public async Task<ActionResult<ProjectProgressDto>> GetProgress(Guid projectId, CancellationToken cancellationToken) =>
         Ok(await sender.Send(new GetProjectProgressQuery(projectId), cancellationToken));

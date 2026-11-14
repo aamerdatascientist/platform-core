@@ -9,6 +9,17 @@ import { initial, useShell } from '../components/shell/ShellData';
 import { TelegramConnect } from '../components/TelegramConnect';
 import { Card, Pill, Segmented } from '../components/ui';
 import { getModePreference, onModeChanged, setModePreference } from '../theme/mode';
+import { NAV_ROUTES, PHONE_ADMIN_ORDER, type NavRouteId } from '../nav/navMap';
+
+const ADMIN_HINTS: Record<NavRouteId, string> = {
+  users: 'settings.usersHint',
+  assignments: 'settings.assignmentsHint',
+  messages: 'settings.messagesHint',
+  reports: 'settings.reportsHint',
+  overview: 'settings.dashboardHint',
+  stageProgress: 'settings.stageProgressHint',
+  builder: 'settings.formBuilderHint',
+};
 import type { ModePreference } from '../theme/mode';
 
 interface SettingsProps {
@@ -111,12 +122,15 @@ export function Settings({ token }: SettingsProps) {
       {isAdmin && (
         <Section title={t('settings.administration')}>
           <Card kind="phone-secondary" className="divide-y divide-divider overflow-hidden">
-            <AdminRow onClick={openDashboard} title={t('sidebar.executiveOverview')} hint={t('settings.dashboardHint')} external />
-            <AdminRow to="/builder" title={t('settings.formBuilder')} hint={t('settings.formBuilderHint')} />
-            <AdminRow to="/admin/assignments" title={t('settings.assignments')} hint={t('settings.assignmentsHint')} />
-            <AdminRow to="/admin/reports" title={t('reports.title')} hint={t('settings.reportsHint')} />
-            <AdminRow to="/admin/messages" title={t('messages.title')} hint={t('settings.messagesHint')} />
-            <AdminRow to="/admin/users" title={t('userManagement.title')} hint={t('settings.usersHint')} />
+            {/* Admin flows F5-9: the order administrators work in. */}
+            {PHONE_ADMIN_ORDER.map((id) => {
+              const r = NAV_ROUTES[id];
+              return r.to === null ? (
+                <AdminRow key={id} onClick={openDashboard} title={t(r.labelKey)} hint={t(ADMIN_HINTS[id])} external />
+              ) : (
+                <AdminRow key={id} to={r.to} title={t(r.labelKey)} hint={t(ADMIN_HINTS[id])} />
+              );
+            })}
           </Card>
         </Section>
       )}

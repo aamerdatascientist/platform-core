@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '../icons';
 import { useModalFocus } from '../ui';
-import { useFormsByModule, useShell } from './ShellData';
+import { useNav, useShell } from './ShellData';
 import { useLocalized } from '../../forms/localized';
 
 interface Entry {
@@ -21,8 +21,8 @@ interface Entry {
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { isAdmin, openDashboard } = useShell();
-  const groups = useFormsByModule();
+  const { openDashboard } = useShell();
+  const groups = useNav();
   const { formName } = useLocalized();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
@@ -44,19 +44,17 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       { id: 'entries', label: t('nav.myEntries'), group: t('nav.main'), run: go('/entries') },
       { id: 'settings', label: t('nav.settings'), group: t('nav.main'), run: go('/settings') },
     ];
-    const forms = groups.flatMap((g) => g.forms.map<Entry>((f) => ({ id: f.id, label: formName(f), group: g.label, run: go(`/forms/${f.id}`) })));
-    const admin: Entry[] = isAdmin
-      ? [
-          { id: 'overview', label: t('sidebar.executiveOverview'), group: t('nav.administration'), run: openDashboard },
-          { id: 'builder', label: t('settings.formBuilder'), group: t('nav.administration'), run: go('/builder') },
-          { id: 'assign', label: t('settings.assignments'), group: t('nav.administration'), run: go('/admin/assignments') },
-          { id: 'reports', label: t('reports.title'), group: t('nav.administration'), run: go('/admin/reports') },
-          { id: 'messages', label: t('messages.title'), group: t('nav.administration'), run: go('/admin/messages') },
-          { id: 'users', label: t('userManagement.title'), group: t('nav.administration'), run: go('/admin/users') },
-        ]
-      : [];
-    return [...pages, ...forms, ...admin];
-  }, [groups, isAdmin, navigate, openDashboard, t]);
+    // Every menu item, in the menu's groups and order - Advanced setup included even while it is
+    // collapsed in the side menu (F5-8).
+    const items = groups.flatMap((g) =>
+      g.items.map<Entry>((i) =>
+        i.kind === 'form'
+          ? { id: i.form.id, label: formName(i.form), group: g.label, run: go(`/forms/${i.form.id}`) }
+          : { id: i.id, label: t(i.labelKey), group: g.label, run: i.to === null ? openDashboard : go(i.to) },
+      ),
+    );
+    return [...pages, ...items];
+  }, [groups, navigate, openDashboard, t, formName]);
 
   const q = query.trim().toLowerCase();
   const shown = q ? entries.filter((e) => e.label.toLowerCase().includes(q) || e.group.toLowerCase().includes(q)) : entries;

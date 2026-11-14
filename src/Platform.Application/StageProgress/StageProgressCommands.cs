@@ -21,6 +21,21 @@ public record ProjectProgressDto(
     int? SkeletonFastest, int? SkeletonSlowest, int TotalFastest, int TotalSlowest,
     IReadOnlyList<StageUnitDto> Units);
 
+/// <summary>A project in the Stage progress chooser (admin flows, 2026-11-14).</summary>
+public record StageProjectSummaryDto(Guid Id, string Code, string Name, string? Status);
+
+/// <summary>Every project, by code - the Stage progress menu item lists them (administrators).</summary>
+public record ListStageProjectsQuery : IRequest<IReadOnlyList<StageProjectSummaryDto>>;
+
+public class ListStageProjectsQueryHandler(StageProgressData data) : IRequestHandler<ListStageProjectsQuery, IReadOnlyList<StageProjectSummaryDto>>
+{
+    public async Task<IReadOnlyList<StageProjectSummaryDto>> Handle(ListStageProjectsQuery request, CancellationToken cancellationToken) =>
+        (await data.ProjectsAsync(cancellationToken))
+            .OrderBy(p => p.Code, StringComparer.OrdinalIgnoreCase)
+            .Select(p => new StageProjectSummaryDto(p.Id, p.Code, p.Name, p.Status))
+            .ToList();
+}
+
 /// <summary>A project's progress by unit (administrators: the reopen buttons live on it).</summary>
 public record GetProjectProgressQuery(Guid ProjectId) : IRequest<ProjectProgressDto>;
 

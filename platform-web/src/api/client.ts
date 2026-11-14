@@ -2,6 +2,7 @@ import type {
   ChoiceOptionDto,
   FormSectionDto,
   ProjectProgressDto,
+  StageProjectSummaryDto,
   MyEntriesPageDto,
   RecordDetailDto,
   RecordQuery,
@@ -504,6 +505,8 @@ export const api = {
   },
 
   stageProgress: {
+    /** Every project, by code (administrators) - the Stage progress chooser and project setup. */
+    projects: (token: string) => request<StageProjectSummaryDto[]>('/api/stage-progress/projects', {}, token),
     project: (token: string, projectId: string) => request<ProjectProgressDto>(`/api/stage-progress/projects/${projectId}`, {}, token),
     reopen: (token: string, projectId: string, body: { stageCode: string; substepCode: string | null; levelId: string | null; side: number | null; reason: string | null }) =>
       request<void>(`/api/stage-progress/projects/${projectId}/reopen`, { method: 'POST', body: JSON.stringify(body) }, token),
