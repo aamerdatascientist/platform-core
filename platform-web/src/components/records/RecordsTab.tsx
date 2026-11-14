@@ -39,9 +39,12 @@ export function RecordsTab({
   refreshKey,
   onEdit,
   onCount,
+  initialProject,
 }: {
   token: string;
   form: FormDefinitionDto;
+  /** Start filtered to this project, all dates (the project setup chain, admin flows F2-3). */
+  initialProject?: string;
   /** Bump to reload (after an edit). */
   refreshKey: number;
   onEdit: (record: RecordItemDto) => void;
@@ -85,10 +88,10 @@ export function RecordsTab({
 
   const [q, setQ] = useState('');
   const [query, setQuery] = useState('');
-  const [project, setProject] = useState('');
+  const [project, setProject] = useState(initialProject ?? '');
   const [phase, setPhase] = useState('');
   const [delay, setDelay] = useState(false);
-  const [last30, setLast30] = useState(true);
+  const [last30, setLast30] = useState(!initialProject);
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<{ items: RecordItemDto[]; total: number } | null>(null);
   const [retry, setRetry] = useState(0);

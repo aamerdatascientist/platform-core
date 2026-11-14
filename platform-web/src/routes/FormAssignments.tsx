@@ -14,6 +14,8 @@ import { saudiTodayIso } from '../forms/fieldValues';
 import { useLocalized } from '../forms/localized';
 import { dayLabel, localeFor } from '../forms/recordAnswers';
 import { useErrorMessage } from '../hooks/useErrorMessage';
+import { SetupComplete, SetupStrip, useSetupProject, useSetupSteps } from '../components/ProjectSetup';
+import { preselectUsers, SETUP_FORMS } from '../nav/projectSetup';
 import type { AssignmentDayDto, FormAssignmentDto, FormSummaryDto, UserSummaryDto } from '../types';
 
 const addDays = (iso: string, n: number) => new Date(Date.parse(`${iso}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
@@ -59,10 +61,15 @@ export function FormAssignments({ token }: { token: string }) {
   const [params] = useSearchParams();
   const assignParam = params.get('assign');
   const initialUserIds = useMemo(() => (assignParam ? [assignParam] : undefined), [assignParam]);
+  // Admin flows F2-6/F2-7: the last project setup step (?setup={projectId}) - the daily report
+  // selected, the strip's "Finish setup"; Assign or Finish ends the chain.
+  const setupProject = useSetupProject(params.get('setup'));
+  const setupStepsList = useSetupSteps();
+  const [setupDone, setSetupDone] = useState(false);
   useEffect(() => {
     // On a phone the panel sits below the grid: bring it into view once the people are loaded.
-    if (assignParam && !desktop && users.length > 0) panel.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, [assignParam, desktop, users.length]);
+    if ((assignParam || setupProject) && !desktop && users.length > 0) panel.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [assignParam, setupProject, desktop, users.length]);
 
   const weekStart = addDays(weekStartOf(today), -7 * weekOffset);
   const weekEnd = addDays(weekStart, 6);
@@ -407,7 +414,31 @@ export function FormAssignments({ token }: { token: string }) {
           </section>
         </div>
 
-        <AssignPanel panelRef={panel} token={token} users={users} onAssigned={() => setTick((x) => x + 1)} initialUserIds={initialUserIds} />
+        <AssignPanel
+          panelRef={panel}
+          token={token}
+          users={users}
+          onAssigned={() => {
+            setTick((x) => x + 1);
+            if (setupProject) setSetupDone(true);
+          }}
+          initialUserIds={initialUserIds}
+          initialFormCode={setupProject ? SETUP_FORMS.daily : undefined}
+          top={
+            setupProject &&
+            (setupDone ? (
+              <SetupComplete project={setupProject} />
+            ) : (
+              <SetupStrip
+                steps={setupStepsList}
+                current="people"
+                project={setupProject}
+                compact
+                action={{ label: t('flows.finish'), onClick: () => setSetupDone(true) }}
+              />
+            ))
+          }
+        />
       </div>
 
       <Sheet open={dayOpen !== null} onClose={() => setDayOpen(null)} title={dayOpen ? t('assignmentsV2.dayList', { date: dayLabel(dayOpen, locale) }) : ''} desktopWidth={520}>
@@ -481,7 +512,7 @@ function AssignPanel({
   useEffect(() => {
     if (applied.current.users || !initialUserIds?.length || users.length === 0) return;
     applied.current.users = true;
-    const known = initialUserIds.filter((id) => users.some((u) => u.id === id && u.isActive));
+    const known = preselectUsers(initialUserIds, users);
     if (known.length) setUserIds(new Set(known));
   }, [initialUserIds, users]);
   useEffect(() => {

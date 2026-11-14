@@ -25,6 +25,7 @@ import {
 } from '../forms/fieldValues';
 import type { FieldProblem } from '../forms/fieldValues';
 import { choiceContext, RepeatableSection, serverChoices, useServerOptions } from './form/RepeatableSection';
+import { SETUP_FORMS } from '../nav/projectSetup';
 import type { ChoiceOptionDto, FieldDefinitionDto, FormDefinitionDto, FormSectionDto, RecordBlockDto } from '../types';
 
 interface FormRendererProps {
@@ -129,6 +130,8 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
   // Set when the entry was kept on this phone instead (no connection) - screen 12.
   const [queuedShown, setQueuedShown] = useState(false);
   const queue = useOfflineQueue();
+  // Admin flows F2-1: an administrator who just created a project online starts the setup chain.
+  const [setupProjectId, setSetupProjectId] = useState<string | null>(null);
   const [sentSummary, setSentSummary] = useState<{ project: { label: string; value: string } | null; attachments: number }>({ project: null, attachments: 0 });
   const [attachmentFiles, setAttachmentFiles] = useState<Record<string, File[]>>({});
   // Errors show on Send, then for each field again when the person leaves it (HANDOFF §6:
@@ -644,6 +647,7 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
         project: projectField && projectChoice ? { label: fieldLabel(projectField), value: projectChoice.label } : null,
         attachments: uploads.length,
       });
+      setSetupProjectId(shell?.isAdmin && formDefinition.code === SETUP_FORMS.projects ? recordId : null);
       finishSend();
       setSubmittedAt(new Date());
       onSubmitted?.();
@@ -681,9 +685,11 @@ export function FormRenderer({ token, formDefinition, onSubmitted, onSentChange,
         project={sentSummary.project}
         attachments={sentSummary.attachments}
         warning={error}
+        setupProjectId={setupProjectId}
         onAnother={() => {
           setSubmittedAt(null);
           setError(null);
+          setSetupProjectId(null);
         }}
       />
     );

@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { FULL_SCREEN_ATTRIBUTE } from './shell/fullScreen';
 import { Icon } from './icons';
 import { useShell } from './shell/ShellData';
+import { SetupCard, useSetupSteps } from './ProjectSetup';
+import { nextStep, setupUrl } from '../nav/projectSetup';
 import { Button, Card } from './ui';
 
 /**
@@ -20,6 +22,7 @@ export function SentScreen({
   attachments,
   warning,
   onAnother,
+  setupProjectId = null,
 }: {
   formName: string;
   submittedAt: Date;
@@ -28,6 +31,8 @@ export function SentScreen({
   attachments: number;
   warning: string | null;
   onAnother: () => void;
+  /** Set when an administrator just created a project online: the setup chain starts here (admin flows F2-2). */
+  setupProjectId?: string | null;
 }) {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -44,6 +49,9 @@ export function SentScreen({
     return () => document.documentElement.removeAttribute(FULL_SCREEN_ATTRIBUTE);
   }, [refresh]);
 
+  const steps = useSetupSteps();
+  const next = setupProjectId ? nextStep(steps, 'details') : null;
+  const nextTo = setupProjectId && next ? setupUrl(next, setupProjectId) : null;
   const todays = mine ? mine.days.filter((d) => d.date === mine.today) : [];
   const allDone = todays.length > 0 && todays.every((d) => d.status !== 'pending');
 
@@ -84,6 +92,8 @@ export function SentScreen({
             <Icon name="alert" size={22} className="mt-px" />
             <span>{warning}</span>
           </p>
+        ) : nextTo ? (
+          <SetupCard steps={steps} current={next?.id ?? "details"} />
         ) : (
           allDone && (
             <p className="flex w-full items-center gap-3 rounded-ui-2xl bg-success-soft px-4 py-[14px] text-start text-[15px] font-medium text-success-strong">
@@ -94,7 +104,13 @@ export function SentScreen({
         )}
       </div>
       <div className="mt-6 flex flex-col gap-[10px]">
-        <Button block onClick={() => navigate('/')}>
+        {nextTo && next && (
+          <Button block onClick={() => navigate(nextTo)}>
+            {t('flows.next', { step: next.label })}
+            <Icon name="chevronForward" size={18} />
+          </Button>
+        )}
+        <Button block variant={nextTo ? 'secondary' : 'primary'} className={nextTo ? '!min-h-[52px] !text-[17px]' : ''} onClick={() => navigate('/')}>
           {t('sent.backToToday')}
         </Button>
         <Button block variant="secondary" className="!min-h-[52px] !text-[17px]" onClick={onAnother}>

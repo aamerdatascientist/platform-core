@@ -11,6 +11,8 @@ import { StatusPage } from '../components/StatusPage';
 import { ErrorState, InfoBanner, LoadingState, useIsDesktop } from '../components/ui';
 import { useLocalized } from '../forms/localized';
 import { useErrorMessage } from '../hooks/useErrorMessage';
+import { SetupStrip, useSetupProject, useSetupSteps } from '../components/ProjectSetup';
+import { nextStep, setupUrl, stepForForm } from '../nav/projectSetup';
 import type { FormDefinitionDto, RecordItemDto } from '../types';
 
 /**
@@ -34,6 +36,10 @@ export function FormView({ token }: { token: string }) {
   const [error, setError] = useErrorMessage();
   const [sentShown, setSentShown] = useState(false);
   const [editing, setEditing] = useState<RecordItemDto | null>(null);
+  // Admin flows F2-3/F2-4: a project setup step (?setup={projectId}) on the floors or stage plan form.
+  const setupParam = search.get('setup');
+  const setupProject = useSetupProject(setupParam);
+  const setupStepsList = useSetupSteps();
   const [notice, setNotice] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [count, setCount] = useState<number | null>(null);
@@ -46,6 +52,7 @@ export function FormView({ token }: { token: string }) {
     setNotice(null);
     setError(null);
     setLoadFailure(null);
+    setSentShown(false); // a new form never starts on the previous form's Sent screen (setup "Next" stays on this page)
     api.forms
       .get(token, formId)
       .then(setForm)
@@ -61,12 +68,53 @@ export function FormView({ token }: { token: string }) {
   if (error) return <ErrorState message={error} onRetry={() => setRetry((n) => n + 1)} />;
   if (!form || !shell?.me) return <LoadingState />;
 
-  if (!desktop) return <FormRenderer token={token} formDefinition={form} onSubmitted={() => setRefreshKey((k) => k + 1)} onSentChange={setSentShown} />;
+  const setupStep = setupProject ? stepForForm(setupStepsList, form.id) : null;
+  const setupNext = setupStep ? nextStep(setupStepsList, setupStep.id) : null;
+  const setupStrip =
+    setupProject && setupStep && setupNext ? (
+      <SetupStrip
+        steps={setupStepsList}
+        current={setupStep.id}
+        project={setupProject}
+        compact={!desktop}
+        action={{ label: t('flows.next', { step: setupNext.label }), to: setupUrl(setupNext, setupProject.id) ?? '/' }}
+      />
+    ) : null;
+  const keepSetup: Record<string, string> = setupStrip && setupParam ? { setup: setupParam } : {};
 
-  const tab = isAdmin && search.get('tab') === 'records' ? 'records' : 'fill';
+  if (!desktop) {
+    // On a phone a setup step shows the strip and this project's records (checked or edited here).
+    if (setupStrip && setupProject)
+      return (
+        <div className="flex flex-col gap-3">
+          <h1 className="text-[22px] font-extrabold text-ink">
+            <bdi>{formName(form)}</bdi>
+          </h1>
+          {setupStrip}
+          {editing ? (
+            <FormRenderer
+              key={`edit-${editing.id}`}
+              token={token}
+              formDefinition={form}
+              editRecord={editing}
+              onCancelEdit={() => setEditing(null)}
+              onSubmitted={() => {
+                setEditing(null);
+                setRefreshKey((k) => k + 1);
+              }}
+            />
+          ) : (
+            <RecordsTab token={token} form={form} refreshKey={refreshKey} onCount={setCount} onEdit={setEditing} initialProject={setupProject.id} />
+          )}
+        </div>
+      );
+    return <FormRenderer token={token} formDefinition={form} onSubmitted={() => setRefreshKey((k) => k + 1)} onSentChange={setSentShown} />;
+  }
+
+  const tab = isAdmin && (search.get('tab') === 'records' || (setupStrip && !editing)) ? 'records' : 'fill';
   const setTab = (next: 'fill' | 'records') => {
     setNotice(null);
-    setSearch(next === 'records' ? { tab: 'records' } : {}, { replace: true });
+    setSearch(next === 'records' ? { tab: 'records', ...keepSetup } : keepSetup, { replace: true });
   };
   const moduleLabel = t(`moduleName.${form.moduleName}`, { defaultValue: form.moduleName });
   const tabClass = (on: boolean) =>
@@ -95,6 +143,8 @@ export function FormView({ token }: { token: string }) {
           )}
         </div>
       )}
+
+      {!sentShown && setupStrip}
 
       {isAdmin && !sentShown && (
         <div role="tablist" className="flex gap-1 border-b border-border">
@@ -143,9 +193,10 @@ export function FormView({ token }: { token: string }) {
             form={form}
             refreshKey={refreshKey}
             onCount={setCount}
+            initialProject={setupProject && setupStrip ? setupProject.id : undefined}
             onEdit={(record) => {
               setEditing(record);
-              setSearch({}, { replace: true });
+              setSearch(keepSetup, { replace: true });
             }}
           />
         </div>

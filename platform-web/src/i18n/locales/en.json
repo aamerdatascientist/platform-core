@@ -1237,6 +1237,21 @@
     "leaveTitle": "Leave without saving?",
     "leaveBody": "Your changes on this page haven't been saved. If you leave now, they'll be lost.",
     "leaveAnyway": "Leave without saving",
-    "stay": "Stay on this page"
+    "stay": "Stay on this page",
+    "setupTitle": "Project setup · {{done}} of {{total}} done",
+    "setupDetails": "Project details",
+    "setupPeople": "Who reports on it",
+    "next": "Next: {{step}}",
+    "finish": "Finish setup",
+    "setupComplete": "Project setup complete",
+    "setupCompleteBody": "{{project}}'s floors and stage plan are in place. Anyone you assigned the daily report to can report on it now.",
+    "openProgress": "Open stage progress",
+    "stepLine": "Project setup, step {{n}} of {{total}}: {{step}}",
+    "setupLabel": "Project setup",
+    "state": {
+      "done": "done",
+      "current": "next",
+      "later": "later"
+    }
   }
 }
