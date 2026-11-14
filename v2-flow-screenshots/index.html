@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Asas Design Review</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: the app's own palette and type (Tajawal), a sticky contents rail, then a catalogue of screen cards with phone shots side by side and laptop shots full width. */
+:root {
+  --bg: #F3F5F7; --panel: #FFFFFF; --ink: #13171C; --soft: #5A6571; --border: #DEE2E7; --divider: #EEF0F3;
+  --accent: #2E6A9E; --accent-soft: #E7F0F8; --accent-strong: #1F4F78;
+  --success: #2B7449; --success-soft: #E5F3EA; --warning: #8F5A0C; --warning-soft: #FBF1E1; --danger: #A8432F;
+  --shot-bg: #E6EAEF;
+  --font: Tajawal, system-ui, "Segoe UI", Tahoma, Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121519; --panel: #1B1F24; --ink: #ECEEF0; --soft: #9AA4AF; --border: #2E343C; --divider: #262B32;
+    --accent: #6AA8DB; --accent-soft: #1E2E3D; --accent-strong: #CFE3F4;
+    --success: #63B67F; --success-soft: #1C3326; --warning: #E0A94B; --warning-soft: #3A2E1A; --danger: #E07B69; --shot-bg: #23282F; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121519; --panel: #1B1F24; --ink: #ECEEF0; --soft: #9AA4AF; --border: #2E343C; --divider: #262B32;
+  --accent: #6AA8DB; --accent-soft: #1E2E3D; --accent-strong: #CFE3F4;
+  --success: #63B67F; --success-soft: #1C3326; --warning: #E0A94B; --warning-soft: #3A2E1A; --danger: #E07B69; --shot-bg: #23282F; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 16.5px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 64px; }
+.wrap { max-width: 1280px; margin: 0 auto; display: grid; grid-template-columns: 220px minmax(0, 1fr); gap: 36px; }
+@media (max-width: 960px) { .wrap { grid-template-columns: minmax(0, 1fr); } nav.toc { display: none; } }
+nav.toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 20px); align-self: start; display: flex; flex-direction: column; gap: 2px; font-size: 14px; max-height: calc(100vh - 40px); overflow-y: auto; }
+nav.toc a { color: var(--soft); text-decoration: none; padding: 4px 10px; border-radius: 8px; }
+nav.toc a:hover, nav.toc a:focus-visible { background: var(--accent-soft); color: var(--accent-strong); outline: none; }
+nav.toc .label { font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--soft); padding: 12px 10px 4px; font-weight: 700; }
+main { min-width: 0; display: flex; flex-direction: column; gap: 52px; }
+h1 { font-size: clamp(30px, 4.4vw, 44px); line-height: 1.12; margin: 0; font-weight: 800; text-wrap: balance; }
+h2 { font-size: 26px; margin: 0; font-weight: 800; text-wrap: balance; }
+h3 { font-size: 19px; margin: 0; font-weight: 700; }
+p { margin: 0; max-width: 72ch; }
+.eyebrow { color: var(--accent); font-weight: 700; letter-spacing: .1em; text-transform: uppercase; font-size: 13px; }
+.lede { font-size: 19px; color: var(--soft); max-width: 66ch; }
+.lede2 { color: var(--soft); }
+.top { display: flex; flex-direction: column; gap: 12px; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px; }
+.fact { background: var(--panel); border: 1px solid var(--border); border-radius: 999px; padding: 5px 14px; font-size: 14px; }
+section { display: flex; flex-direction: column; gap: 16px; scroll-margin-top: 20px; }
+code { font-family: var(--mono); font-size: .84em; background: var(--accent-soft); color: var(--accent-strong); padding: 1px 6px; border-radius: 6px; overflow-wrap: anywhere; }
+.muted { color: var(--soft); }
+ul, ol { margin: 0; padding-inline-start: 22px; display: flex; flex-direction: column; gap: 6px; }
+li { max-width: 72ch; }
+.pill { display: inline-block; font-size: 12.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+.p-prod { background: var(--success-soft); color: var(--success); }
+.p-stg { background: var(--warning-soft); color: var(--warning); }
+.p-plan { background: var(--accent-soft); color: var(--accent-strong); }
+.table-wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--border); border-radius: 14px; }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 15px; }
+th, td { text-align: start; padding: 11px 14px; border-bottom: 1px solid var(--divider); vertical-align: top; }
+th { font-size: 12.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--soft); font-weight: 700; background: color-mix(in srgb, var(--bg) 60%, var(--panel)); }
+tr:last-child td { border-bottom: 0; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; }
+.card h3 { font-size: 17px; }
+.flow { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 16px; overflow-x: auto; display: flex; flex-direction: column; gap: 8px; }
+.flow h3 { font-size: 17px; }
+.group { gap: 22px; }
+.screen { background: var(--panel); border: 1px solid var(--border); border-radius: 16px; padding: 20px; display: flex; flex-direction: column; gap: 16px; scroll-margin-top: 20px; }
+.screen header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.screen .num { font-family: var(--mono); color: var(--accent); font-size: 14px; }
+.screen dl { margin: 0; display: grid; gap: 8px; }
+.screen dl div { display: grid; grid-template-columns: 140px minmax(0, 1fr); gap: 12px; }
+@media (max-width: 560px) { .screen dl div { grid-template-columns: minmax(0, 1fr); gap: 0; } }
+.screen dt { color: var(--soft); font-size: 14px; font-weight: 700; padding-top: 2px; }
+.screen dd { margin: 0; max-width: 72ch; }
+.row { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 4px; align-items: flex-start; }
+figure { margin: 0; display: flex; flex-direction: column; gap: 6px; flex: none; }
+figure img { display: block; border: 1px solid var(--border); border-radius: 12px; background: var(--shot-bg); }
+figure.ph img { width: 230px; max-width: 100%; height: auto; }
+figure.dk { flex: 1 1 520px; min-width: 0; max-width: 100%; }
+figure.dk img { width: 100%; height: auto; }
+.desks { flex-wrap: wrap; overflow: visible; }
+figcaption { font-size: 13px; color: var(--soft); }
+.row.phones figure.ph { max-width: 60vw; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; }
+.sw { display: flex; gap: 10px; align-items: center; background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 8px 10px; font-size: 13.5px; }
+.sw i { width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--border); flex: none; display: flex; overflow: hidden; }
+.sw i b { flex: 1; }
+.sw span { display: flex; flex-direction: column; line-height: 1.3; min-width: 0; }
+.sw small { color: var(--soft); font-family: var(--mono); font-size: 11.5px; overflow-wrap: anywhere; }
+.dark-row { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-start; }
+.dark-row figure.dk { flex: 1 1 460px; }
+a { color: var(--accent); }
+footer { color: var(--soft); font-size: 14px; border-top: 1px solid var(--border); padding-top: 16px; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <nav class="toc" aria-label="Contents">
+    <span class="label">Start</span>
+    <a href="#about">About this file</a>
+    <a href="#users">User types</a>
+    <a href="#nav">Navigation</a>
+    <a href="#flows">Flows</a>
+    <span class="label">Screens</span>
+    <a href="#g-signed-out">Signed out and public</a><a href="#g-member">Field engineer (Project Manager role) and everyone</a><a href="#g-form">Filling a form (daily progress report)</a><a href="#g-admin">Administrator</a><a href="#g-overview">Executive Overview (administrators)</a><a href="#g-system">Components and dark mode</a>
+    <span class="label">System</span>
+    <a href="#dark">Dark mode</a>
+    <a href="#tokens">Design tokens</a>
+    <a href="#issues">Issues spotted</a>
+    <a href="#questions">Questions for review</a>
+    <a href="#next">Coming next</a>
+  </nav>
+
+  <main>
+    <header class="top">
+      <span class="eyebrow">Asas · design and flows</span>
+      <h1>Every screen of Asas on phone and laptop, for design review</h1>
+      <p class="lede">Asas is a construction company's daily reporting app: engineers fill site reports from their phones, administrators build the forms, assign them, send reminders and follow progress on dashboards and reports. Arabic first, English too, light and dark.</p>
+      <div class="facts">
+        <span class="fact">26 screens · 90 screenshots</span>
+        <span class="fact">Phone 390 px · Laptop 1440 px</span>
+        <span class="fact">Arabic (right to left) and English</span>
+        <span class="fact">Captured 14 Nov 2026</span>
+      </div>
+    </header>
+
+    <section id="about">
+      <h2>About this file</h2>
+      <ul>
+        <li><span class="pill p-prod">Production</span> is what the client uses today. <span class="pill p-stg">Staging only</span> is built and tested but not released yet (stage progress). <span class="pill p-stg">Changed on staging</span> marks production screens that look different on staging.</li>
+        <li>Screenshots come from the staging version running on a copy of staging's data, so they show everything that exists. Project 119 is real-shaped sample data; "Hazim" is the field engineer, "Admin" the administrator.</li>
+        <li>Each screen card lists its address, who sees it, what it does, other states it has, and notes for the designer. Click any screenshot to open it full size.</li>
+        <li>Breakpoint: below 1024 px the app uses the <strong>phone shell</strong> (bottom tab bar); from 1024 px the <strong>laptop shell</strong> (side menu). Every tappable target is at least 44 × 44 px on a phone.</li>
+      </ul>
+    </section>
+
+    <section id="users">
+      <h2>User types and what each one sees</h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>User type</th><th>Who</th><th>Can open</th><th>Navigation</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Signed out</strong></td><td>Anyone</td><td>Sign in only</td><td>None</td></tr>
+          <tr><td><strong>Share-link viewer</strong></td><td>Anyone with an Executive Overview link (office screens, owners)</td><td>That one dashboard, read-only</td><td>None (standalone page)</td></tr>
+          <tr><td><strong>Member</strong> (role "Project Manager" today: site engineers)</td><td>Field staff</td><td>Today, Forms (only those they're allowed), My entries, Settings; their own entries</td><td>Phone: tab bar (Today, Forms, My entries, Settings). Laptop: side menu with Today and form groups</td></tr>
+          <tr><td><strong>Administrator</strong></td><td>Office managers, the owner</td><td>Everything a member sees, every form and entry, plus Executive Overview, Form builder, Form assignments, Stakeholder reports, Messages, Users &amp; roles, Project progress</td><td>Laptop: side menu "Administration" group and Ctrl/Cmd+K. Phone: the same pages listed in Settings</td></tr>
+          <tr><td><strong>Recipients outside the app</strong></td><td>Stakeholders, assigned people</td><td>No screens: they receive WhatsApp / Telegram messages and PDF reports</td><td>Message templates and the PDF are part of the experience</td></tr>
+        </tbody>
+      </table></div>
+      <p class="muted">Planned for v3, not built: super admin and platform staff (across companies), company owners, self sign-up. See "Coming next".</p>
+    </section>
+
+    <section id="nav">
+      <h2>Navigation and site map</h2>
+      <div class="flow">
+<pre class="mermaid">
+flowchart LR
+  SI[Sign in] --> T[Today]
+  subgraph Everyone
+    T --- F[Forms] --- E[My entries] --- S[Settings]
+    F --> FF[Fill a form: steps, review, send]
+    FF --> SENT[Sent] & OFF[Saved on this phone]
+    E --> ED[Entry detail]
+  end
+  subgraph Administrators
+    S -. phone .-> ADM[Administration list]
+    ADM --> EO[Executive Overview - new tab]
+    ADM --> FB[Form builder] --> FBE[Edit form]
+    ADM --> FA[Form assignments]
+    ADM --> SR[Stakeholder reports]
+    ADM --> MS[Messages]
+    ADM --> UR[Users and roles]
+    EO --> PP[Project progress]
+  end
+  LINK[Share link] --> EO
+</pre>
+      </div>
+      <div class="cards">
+        <div class="card"><h3>Phone shell</h3><p>Bottom tab bar: Today (with a due-count badge), Forms, My entries, Settings. Forms open full screen with a step header and a fixed bottom action. Pickers open as bottom sheets.</p></div>
+        <div class="card"><h3>Laptop shell</h3><p>264 px side menu: search (Ctrl/Cmd+K), Today, form groups, Administration (administrators), profile at the bottom. Content area up to about 1100 px; details open as side drawers.</p></div>
+        <div class="card"><h3>Standalone pages</h3><p>Executive Overview opens in its own tab as a 16:9 canvas. Sign in, session ended and 404 are full-page states.</p></div>
+      </div>
+    </section>
+
+    <section id="flows">
+      <h2>Main flows</h2>
+      <div class="flow">
+        <h3>1 · A site engineer's day</h3>
+<pre class="mermaid">
+flowchart LR
+  A[WhatsApp / Telegram reminder at 9:00] --> B[Open Asas: Today]
+  B --> C[Fill: daily progress report]
+  C --> D[Step 1 Basics] --> E[Step 2 Progress: stage blocks] --> G[Step 3 Photos + review]
+  G -->|online| H[Sent: done for today]
+  G -->|no connection| I[Saved on this phone] -->|connection back| H
+  C -.->|leave mid-way| J[Draft kept on the phone]
+  H --> K[My entries]
+</pre>
+      </div>
+      <div class="flow">
+        <h3>2 · Setting up work (administrator)</h3>
+<pre class="mermaid">
+flowchart LR
+  A[Form builder: create or edit form] --> B[Steps, fields, rules, access] --> C[Publish]
+  C --> D[Form assignments: pick people, dates]
+  D --> E[New-assignment message sent]
+  F[Messages: reminder times, days, channels] --> G[Reminders to those who haven't filled]
+  D --> H[Who filled and when: weekly grid]
+  H --> I[Remind those who haven't filled now]
+</pre>
+      </div>
+      <div class="flow">
+        <h3>3 · Following progress and reporting</h3>
+<pre class="mermaid">
+flowchart LR
+  A[Daily reports arrive] --> B[Executive Overview: tiles, charts, filters]
+  B --> C[Project progress: stage by stage]
+  B --> D[Copy share link: office screen / owner]
+  A --> E[Stakeholder report: daily, weekly, monthly PDF + written analysis]
+  E --> F[WhatsApp to recipients]
+  G[Messages: report times and recipients] --> E
+  H[Stakeholder reports page: preview / send now / history] --> E
+</pre>
+      </div>
+      <div class="flow">
+        <h3>4 · Stage progress (staging)</h3>
+<pre class="mermaid">
+flowchart LR
+  A[Projects form: floors, parking, sides] --> B[Project's stage plan copied]
+  B --> C[Daily report: choose stage, level or side; plan met; finished]
+  C --> D[Days earned per stage]
+  D --> E[Project progress page] --> F[Reopen a finished unit]
+  D --> G[Overview: work complete, behind/ahead, forecast]
+  H[Pause log: pause / resume project] --> D
+</pre>
+      </div>
+    </section>
+
+    <section id="g-signed-out" class="group"><h2>Signed out and public</h2><article class="screen" id="s-signin">
+      <header><span class="num">01</span><h3>Sign in</h3><span class="pill p-prod">Production</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>/</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Everyone (signed out)</dd></div>
+        <div><dt>What it does</dt><dd>Email and password. Language and light/dark toggles. &quot;Forgot password&quot; points to the administrator (no email reset yet).</dd></div>
+        <div><dt>Other states</dt><dd>Wrong password (inline error), too many attempts (rate-limited), session ended page after a sign-out elsewhere.</dd></div>
+        <div><dt>For the designer</dt><dd>First impression of the product; currently a plain card. Consider brand presence and a short line on what Asas is.</dd></div>
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/signin--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/signin--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/signin--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/signin--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div><div class="row desks"><figure class="dk"><a href="img/signin--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/signin--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure><figure class="dk"><a href="img/signin--desktop-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/signin--desktop-ar.jpg" alt="Laptop · Arabic"></a><figcaption>Laptop · Arabic</figcaption></figure></div>
+    </article><article class="screen" id="s-overview-public">
+      <header><span class="num">02</span><h3>Executive Overview via share link</h3><span class="pill p-prod">Production</span> <span class="pill p-stg">Changed on staging</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>/dashboards/executive-overview#k=…</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Anyone with the link</dd></div>
+        <div><dt>What it does</dt><dd>The same dashboard as administrators see, opened without signing in. The key is in the link; replacing it on the server cuts off all old links.</dd></div>
+        <div><dt>Other states</dt><dd>Invalid or revoked key: &quot;link not valid&quot; page.</dd></div>
+        <div><dt>For the designer</dt><dd>Shown on office TVs and phones. Fixed 16:9 canvas scaled to the window.</dd></div>
+      </dl>
+      <div class="row desks"><figure class="dk"><a href="img/overview-public--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/overview-public--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure></div>
+    </article></section><section id="g-member" class="group"><h2>Field engineer (Project Manager role) and everyone</h2><article class="screen" id="s-today-pm">
+      <header><span class="num">03</span><h3>Today · My tasks</h3><span class="pill p-prod">Production</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>/</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Every signed-in person</dd></div>
+        <div><dt>What it does</dt><dd>The forms assigned to this person for today: due, filled, missed. Big &quot;Fill&quot; buttons. Waiting-to-send entries from the offline queue.</dd></div>
+        <div><dt>Other states</dt><dd>Nothing assigned (empty state), all done, offline banner, entries waiting to send.</dd></div>
+        <div><dt>For the designer</dt><dd>The most-used screen on site. One-hand use, glare, gloves.</dd></div>
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/today-pm--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/today-pm--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/today-pm--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/today-pm--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div><div class="row desks"><figure class="dk"><a href="img/today-pm--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/today-pm--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure><figure class="dk"><a href="img/today-pm--desktop-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/today-pm--desktop-ar.jpg" alt="Laptop · Arabic"></a><figcaption>Laptop · Arabic</figcaption></figure></div>
+    </article><article class="screen" id="s-forms-pm">
+      <header><span class="num">04</span><h3>Forms</h3><span class="pill p-prod">Production</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>/forms</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Every signed-in person</dd></div>
+        <div><dt>What it does</dt><dd>All forms this person may open, grouped (Daily reports, Operations, Stock management).</dd></div>
+        <div><dt>Other states</dt><dd>No access to any form; load error with Try again.</dd></div>
+        
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/forms-pm--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/forms-pm--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/forms-pm--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/forms-pm--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div><div class="row desks"><figure class="dk"><a href="img/forms-pm--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/forms-pm--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure><figure class="dk"><a href="img/forms-pm--desktop-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/forms-pm--desktop-ar.jpg" alt="Laptop · Arabic"></a><figcaption>Laptop · Arabic</figcaption></figure></div>
+    </article><article class="screen" id="s-entries-pm">
+      <header><span class="num">05</span><h3>My entries</h3><span class="pill p-prod">Production</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>/entries</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Every signed-in person</dd></div>
+        <div><dt>What it does</dt><dd>Entries this person sent, newest first, filter by form; opens the entry.</dd></div>
+        <div><dt>Other states</dt><dd>No entries yet.</dd></div>
+        
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/entries-pm--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/entries-pm--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/entries-pm--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/entries-pm--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div><div class="row desks"><figure class="dk"><a href="img/entries-pm--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/entries-pm--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure><figure class="dk"><a href="img/entries-pm--desktop-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/entries-pm--desktop-ar.jpg" alt="Laptop · Arabic"></a><figcaption>Laptop · Arabic</figcaption></figure></div>
+    </article><article class="screen" id="s-entry-detail">
+      <header><span class="num">06</span><h3>Entry detail</h3><span class="pill p-prod">Production</span> <span class="pill p-stg">Changed on staging</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>/entries/{form}/{entry}</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Owner of the entry; administrators</dd></div>
+        <div><dt>What it does</dt><dd>All answers of one entry, steps as sections, photos, who sent it and when. Administrators can edit or delete. On staging: stage blocks shown per stage.</dd></div>
+        <div><dt>Other states</dt><dd>Deleted entry, no access.</dd></div>
+        <div><dt>For the designer</dt><dd>Known issue on staging (see &quot;Issues spotted&quot;): the stage block repeats under Basics, and long questions are cut off and widen the page on a phone.</dd></div>
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/entry-detail--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/entry-detail--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/entry-detail--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/entry-detail--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div><div class="row desks"><figure class="dk"><a href="img/entry-detail--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/entry-detail--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure><figure class="dk"><a href="img/entry-detail--desktop-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/entry-detail--desktop-ar.jpg" alt="Laptop · Arabic"></a><figcaption>Laptop · Arabic</figcaption></figure></div>
+    </article><article class="screen" id="s-settings-pm">
+      <header><span class="num">07</span><h3>Settings</h3><span class="pill p-prod">Production</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>/settings</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Every signed-in person</dd></div>
+        <div><dt>What it does</dt><dd>Profile, language, appearance (light, dark, match phone), Telegram reminders, change password, sign out.</dd></div>
+        
+        <div><dt>For the designer</dt><dd>On a phone, administrators also reach every admin page from here (see Administrator section).</dd></div>
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/settings-pm--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/settings-pm--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/settings-pm--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/settings-pm--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div><div class="row desks"><figure class="dk"><a href="img/settings-pm--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/settings-pm--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure><figure class="dk"><a href="img/settings-pm--desktop-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/settings-pm--desktop-ar.jpg" alt="Laptop · Arabic"></a><figcaption>Laptop · Arabic</figcaption></figure></div>
+    </article><article class="screen" id="s-notfound">
+      <header><span class="num">08</span><h3>Page not found</h3><span class="pill p-prod">Production</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>any unknown address</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Everyone</dd></div>
+        <div><dt>What it does</dt><dd>Friendly 404 with a way back.</dd></div>
+        
+        
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/notfound--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/notfound--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div><div class="row desks"><figure class="dk"><a href="img/notfound--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/notfound--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure></div>
+    </article></section><section id="g-form" class="group"><h2>Filling a form (daily progress report)</h2><p class="lede2">The daily progress report is the core of the app. On a phone it is three steps with a fixed bottom button; on a laptop the same sections sit on one long page with a single Send. On staging it has stage blocks (stage progress); production still has the earlier version of this form. Drafts save on the phone automatically; entries sent without a connection wait on the phone and send themselves later.</p><article class="screen" id="s-form-fill">
+      <header><span class="num">09</span><h3>Step 1 · Basics (laptop: the whole form on one page)</h3><span class="pill p-prod">Production</span> <span class="pill p-stg">Changed on staging</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>/forms/{form}</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Assigned people; anyone with access</dd></div>
+        <div><dt>What it does</dt><dd>Report date (Today / Yesterday / Other), project picker, workers on site (stepper), weather chips. Step header with progress bar; fixed bottom button &quot;Next: Progress&quot;.</dd></div>
+        <div><dt>Other states</dt><dd>Draft saved indicator, offline banner, field errors.</dd></div>
+        
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/form-fill--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/form-fill--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/form-fill--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/form-fill--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div><div class="row desks"><figure class="dk"><a href="img/form-fill--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/form-fill--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure><figure class="dk"><a href="img/form-fill--desktop-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/form-fill--desktop-ar.jpg" alt="Laptop · Arabic"></a><figcaption>Laptop · Arabic</figcaption></figure></div>
+    </article><article class="screen" id="s-form-step2-errors">
+      <header><span class="num">10</span><h3>Step 2 · Errors</h3><span class="pill p-prod">Production</span> <span class="pill p-stg">Changed on staging</span></header>
+      <dl>
+        
+        
+        <div><dt>What it does</dt><dd>Pressing Next (phone) or Send (laptop) with missing answers: each field shows &quot;Required&quot; and a summary line above the buttons.</dd></div>
+        
+        
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/form-step2-errors--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/form-step2-errors--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/form-step2-errors--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/form-step2-errors--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div><div class="row desks"><figure class="dk"><a href="img/form-desk-errors--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/form-desk-errors--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure><figure class="dk"><a href="img/form-desk-errors--desktop-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/form-desk-errors--desktop-ar.jpg" alt="Laptop · Arabic"></a><figcaption>Laptop · Arabic</figcaption></figure></div>
+    </article><article class="screen" id="s-form-step2">
+      <header><span class="num">11</span><h3>Step 2 · Progress with a stage block</h3><span class="pill p-stg">Staging only</span></header>
+      <dl>
+        
+        
+        <div><dt>What it does</dt><dd>Delay yes/no, then one block per stage worked today: stage, level or side, plan met, finished, problems. &quot;Add another stage&quot; repeats the block. Stages and levels offered depend on the project and what is already finished.</dd></div>
+        <div><dt>Other states</dt><dd>Stage not allowed yet (blocked with a reason), finished stage, problem description when &quot;Yes&quot;.</dd></div>
+        <div><dt>For the designer</dt><dd>Longest screen in the app; needs the clearest hierarchy.</dd></div>
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/form-step2--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/form-step2--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/form-step2--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/form-step2--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div>
+    </article><article class="screen" id="s-form-step3">
+      <header><span class="num">12</span><h3>Step 3 · Photos and review</h3><span class="pill p-prod">Production</span> <span class="pill p-stg">Changed on staging</span></header>
+      <dl>
+        
+        
+        <div><dt>What it does</dt><dd>Site photo (camera or library), then a review of every step with Edit links, then Send.</dd></div>
+        <div><dt>Other states</dt><dd>Upload size limit, photo removed.</dd></div>
+        
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/form-step3--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/form-step3--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/form-step3--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/form-step3--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div>
+    </article><article class="screen" id="s-form-sent">
+      <header><span class="num">13</span><h3>Sent</h3><span class="pill p-prod">Production</span></header>
+      <dl>
+        
+        
+        <div><dt>What it does</dt><dd>Confirmation with form, project and attachments; &quot;You've done everything due today&quot;; Back to Today / Submit another.</dd></div>
+        <div><dt>Other states</dt><dd>Warning variant (sent, but something to note).</dd></div>
+        
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/form-sent--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/form-sent--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/form-sent--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/form-sent--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div><div class="row desks"><figure class="dk"><a href="img/form-desk-sent--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/form-desk-sent--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure></div>
+    </article><article class="screen" id="s-form-offline">
+      <header><span class="num">14</span><h3>Saved on this phone (no connection)</h3><span class="pill p-prod">Production</span></header>
+      <dl>
+        
+        
+        <div><dt>What it does</dt><dd>Entry kept on the phone; list of entries waiting; sends itself when the connection is back; Try sending now.</dd></div>
+        
+        
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/form-offline--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/form-offline--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/form-offline--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/form-offline--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div>
+    </article></section><section id="g-admin" class="group"><h2>Administrator</h2><p class="lede2">Administrators see everything above plus the Administration pages. On a laptop these are in the side menu and the Ctrl/Cmd+K search; on a phone they are listed in Settings.</p><article class="screen" id="s-today-admin">
+      <header><span class="num">15</span><h3>Today (administrator)</h3><span class="pill p-prod">Production</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>/</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Administrator</dd></div>
+        <div><dt>What it does</dt><dd>Same Today page; administrators can also be assigned forms.</dd></div>
+        
+        
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/today-admin--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/today-admin--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/today-admin--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/today-admin--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div><div class="row desks"><figure class="dk"><a href="img/today-admin--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/today-admin--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure><figure class="dk"><a href="img/today-admin--desktop-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/today-admin--desktop-ar.jpg" alt="Laptop · Arabic"></a><figcaption>Laptop · Arabic</figcaption></figure></div>
+    </article><article class="screen" id="s-settings-admin">
+      <header><span class="num">16</span><h3>Settings with Administration (phone)</h3><span class="pill p-prod">Production</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>/settings</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Administrator</dd></div>
+        <div><dt>What it does</dt><dd>On a phone, the Administration list: Executive Overview, Form builder, Form assignments, Stakeholder reports, Messages, Users &amp; roles.</dd></div>
+        
+        
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/settings-admin--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/settings-admin--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/settings-admin--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/settings-admin--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div>
+    </article><article class="screen" id="s-palette">
+      <header><span class="num">17</span><h3>Search and jump (Ctrl/Cmd+K)</h3><span class="pill p-prod">Production</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>any page, laptop</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Everyone (admin pages for administrators)</dd></div>
+        <div><dt>What it does</dt><dd>Jump to any page or form by typing.</dd></div>
+        
+        
+      </dl>
+      <div class="row desks"><figure class="dk"><a href="img/palette--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/palette--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure><figure class="dk"><a href="img/palette--desktop-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/palette--desktop-ar.jpg" alt="Laptop · Arabic"></a><figcaption>Laptop · Arabic</figcaption></figure></div>
+    </article><article class="screen" id="s-builder-home">
+      <header><span class="num">18</span><h3>Form builder · list</h3><span class="pill p-prod">Production</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>/builder</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Administrator</dd></div>
+        <div><dt>What it does</dt><dd>All forms with status (draft, published), create a form.</dd></div>
+        
+        
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/builder-home--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/builder-home--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/builder-home--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/builder-home--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div><div class="row desks"><figure class="dk"><a href="img/builder-home--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/builder-home--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure><figure class="dk"><a href="img/builder-home--desktop-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/builder-home--desktop-ar.jpg" alt="Laptop · Arabic"></a><figcaption>Laptop · Arabic</figcaption></figure></div>
+    </article><article class="screen" id="s-builder-form">
+      <header><span class="num">19</span><h3>Form builder · editing a form</h3><span class="pill p-prod">Production</span> <span class="pill p-stg">Changed on staging</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>/builder/{form}</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Administrator</dd></div>
+        <div><dt>What it does</dt><dd>Steps, fields, field settings (labels in Arabic and English, rules, conditions, lookups, options), publish, access by role or user. Live edits on published forms: relabel, reorder, add (safe); rename, change type, archive, delete (confirmed). On staging: repeatable sections and system forms.</dd></div>
+        <div><dt>Other states</dt><dd>Draft vs published, risky-change confirmations, system form (locked fields).</dd></div>
+        <div><dt>For the designer</dt><dd>Built for laptop; usable but dense on a phone.</dd></div>
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/builder-form--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/builder-form--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/builder-form--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/builder-form--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div><div class="row desks"><figure class="dk"><a href="img/builder-form--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/builder-form--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure><figure class="dk"><a href="img/builder-form--desktop-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/builder-form--desktop-ar.jpg" alt="Laptop · Arabic"></a><figcaption>Laptop · Arabic</figcaption></figure></div>
+    </article><article class="screen" id="s-users">
+      <header><span class="num">20</span><h3>Users &amp; roles</h3><span class="pill p-prod">Production</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>/admin/users</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Administrator</dd></div>
+        <div><dt>What it does</dt><dd>People, roles, activate/deactivate, reset password, WhatsApp number and test message, Telegram link (private or group).</dd></div>
+        
+        
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/users--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/users--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/users--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/users--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div><div class="row desks"><figure class="dk"><a href="img/users--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/users--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure><figure class="dk"><a href="img/users--desktop-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/users--desktop-ar.jpg" alt="Laptop · Arabic"></a><figcaption>Laptop · Arabic</figcaption></figure></div>
+    </article><article class="screen" id="s-assignments">
+      <header><span class="num">21</span><h3>Form assignments</h3><span class="pill p-prod">Production</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>/admin/assignments</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Administrator</dd></div>
+        <div><dt>What it does</dt><dd>Today's summary (filled, due, not filled) with &quot;Remind those who haven't filled&quot;; the weekly &quot;Who filled and when&quot; grid (Saturday to Friday, arrows for other weeks); the assign panel (form, people, from/to, note).</dd></div>
+        <div><dt>Other states</dt><dd>No assignments, a day's list (tap a day), ended assignments.</dd></div>
+        
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/assignments--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/assignments--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/assignments--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/assignments--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div><div class="row desks"><figure class="dk"><a href="img/assignments--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/assignments--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure><figure class="dk"><a href="img/assignments--desktop-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/assignments--desktop-ar.jpg" alt="Laptop · Arabic"></a><figcaption>Laptop · Arabic</figcaption></figure></div>
+    </article><article class="screen" id="s-messages">
+      <header><span class="num">22</span><h3>Messages</h3><span class="pill p-prod">Production</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>/admin/messages</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Administrator</dd></div>
+        <div><dt>What it does</dt><dd>Form reminders (on/off, times, days, WhatsApp/Telegram, recipients with Add a recipient), new-assignment message, stakeholder report schedules (daily, weekly, monthly: time and days) and report recipients. Save bar appears when something changed.</dd></div>
+        <div><dt>Other states</dt><dd>Unsaved changes, saved, channel not set up.</dd></div>
+        
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/messages--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/messages--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/messages--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/messages--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div><div class="row desks"><figure class="dk"><a href="img/messages--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/messages--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure><figure class="dk"><a href="img/messages--desktop-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/messages--desktop-ar.jpg" alt="Laptop · Arabic"></a><figcaption>Laptop · Arabic</figcaption></figure></div>
+    </article><article class="screen" id="s-reports">
+      <header><span class="num">23</span><h3>Stakeholder reports</h3><span class="pill p-prod">Production</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>/admin/reports</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Administrator</dd></div>
+        <div><dt>What it does</dt><dd>Setup status, the three schedules with next date, Claude spend this month against the cap, recipients, &quot;Make a report now&quot; (preview or send), history with phone and A4 PDF downloads.</dd></div>
+        <div><dt>Other states</dt><dd>Report failed / sent without analysis (&quot;Show reason&quot;), WhatsApp not set up.</dd></div>
+        <div><dt>For the designer</dt><dd>The PDF report itself (A4 and phone) is a separate design, generated on the server.</dd></div>
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/reports--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/reports--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/reports--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/reports--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div><div class="row desks"><figure class="dk"><a href="img/reports--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/reports--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure><figure class="dk"><a href="img/reports--desktop-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/reports--desktop-ar.jpg" alt="Laptop · Arabic"></a><figcaption>Laptop · Arabic</figcaption></figure></div>
+    </article><article class="screen" id="s-project-progress">
+      <header><span class="num">24</span><h3>Project progress (stage by stage)</h3><span class="pill p-stg">Staging only</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>/admin/projects/{project}/progress</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Administrator</dd></div>
+        <div><dt>What it does</dt><dd>A project's planned range, days earned, and every stage, step and floor or side with days, state, planned finish and lateness; reopen a finished unit.</dd></div>
+        <div><dt>Other states</dt><dd>Not started, in progress, finished, reopened.</dd></div>
+        <div><dt>For the designer</dt><dd>New; reached from the Projects form and the overview.</dd></div>
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/project-progress--phone-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/project-progress--phone-ar.jpg" alt="Phone · Arabic"></a><figcaption>Phone · Arabic</figcaption></figure><figure class="ph"><a href="img/project-progress--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/project-progress--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div><div class="row desks"><figure class="dk"><a href="img/project-progress--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/project-progress--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure><figure class="dk"><a href="img/project-progress--desktop-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/project-progress--desktop-ar.jpg" alt="Laptop · Arabic"></a><figcaption>Laptop · Arabic</figcaption></figure></div>
+    </article></section><section id="g-overview" class="group"><h2>Executive Overview (administrators)</h2><p class="lede2">A standalone 16:9 dashboard that opens in its own tab, drawn on a fixed 1760×990 canvas scaled to the window. On staging it reads stage progress and wraps long text; production shows the earlier version.</p><article class="screen" id="s-overview">
+      <header><span class="num">25</span><h3>Executive Overview</h3><span class="pill p-prod">Production</span> <span class="pill p-stg">Changed on staging</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>/dashboards/executive-overview</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Administrator (and share-link viewers)</dd></div>
+        <div><dt>What it does</dt><dd>Eight tiles (projects, work complete, plan met, workers, delays, forecast finish, days late, lateness), projects table with progress bars and stage segments, plan met by week, workers by week, plan met by weather, delay causes, stock, latest problems. Filters by project and stage; copy share link; full screen; language and theme toggles.</dd></div>
+        <div><dt>Other states</dt><dd>Filtered to one project, filtered to one stage, no data yet.</dd></div>
+        <div><dt>For the designer</dt><dd>On a phone the whole canvas shrinks; consider whether a phone layout is needed.</dd></div>
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/overview--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/overview--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div><div class="row desks"><figure class="dk"><a href="img/overview--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/overview--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure><figure class="dk"><a href="img/overview--desktop-ar.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/overview--desktop-ar.jpg" alt="Laptop · Arabic"></a><figcaption>Laptop · Arabic</figcaption></figure></div>
+    </article></section><section id="g-system" class="group"><h2>Components and dark mode</h2><article class="screen" id="s-components">
+      <header><span class="num">26</span><h3>Component sheet</h3><span class="pill p-prod">Production</span></header>
+      <dl>
+        <div><dt>Address</dt><dd><code>/dev/ui (development only)</code></dd></div>
+        <div><dt>Who sees it</dt><dd>Developers</dd></div>
+        <div><dt>What it does</dt><dd>Buttons, chips, segmented controls, inputs, day cells, pills, empty/loading/error states, sheet and drawer: the shared parts every screen uses.</dd></div>
+        
+        <div><dt>For the designer</dt><dd>Useful starting point for a component library review.</dd></div>
+      </dl>
+      <div class="row phones"><figure class="ph"><a href="img/components--phone-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/components--phone-en.jpg" alt="Phone · English"></a><figcaption>Phone · English</figcaption></figure></div><div class="row desks"><figure class="dk"><a href="img/components--desktop-en.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/components--desktop-en.jpg" alt="Laptop · English"></a><figcaption>Laptop · English</figcaption></figure></div>
+    </article></section>
+
+    <section id="dark">
+      <h2>Dark mode samples</h2>
+      <p class="lede2">Every screen supports light, dark and "match phone". A few examples:</p>
+      <div class="dark-row"><figure class="ph"><a href="img/today-pm--phone-en--dark.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/today-pm--phone-en--dark.jpg" alt="today-pm--phone-en--dark"></a><figcaption>today pm · Phone · English</figcaption></figure><figure class="ph"><a href="img/form-fill--phone-ar--dark.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/form-fill--phone-ar--dark.jpg" alt="form-fill--phone-ar--dark"></a><figcaption>form fill · Phone · Arabic</figcaption></figure><figure class="dk"><a href="img/assignments--desktop-en--dark.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/assignments--desktop-en--dark.jpg" alt="assignments--desktop-en--dark"></a><figcaption>assignments · Laptop · English</figcaption></figure><figure class="dk"><a href="img/messages--desktop-en--dark.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/messages--desktop-en--dark.jpg" alt="messages--desktop-en--dark"></a><figcaption>messages · Laptop · English</figcaption></figure><figure class="dk"><a href="img/overview--desktop-en--dark.jpg" target="_blank" rel="noopener"><img loading="lazy" src="img/overview--desktop-en--dark.jpg" alt="overview--desktop-en--dark"></a><figcaption>overview · Laptop · English</figcaption></figure></div>
+    </section>
+
+    <section id="tokens">
+      <h2>Design tokens in use</h2>
+      <p class="lede2">From the app's stylesheet (<code>platform-web/src/index.css</code>). Each colour is shown light | dark.</p>
+      <div class="swatches">
+        <div class="sw"><i><b style="background:#F3F5F7"></b><b style="background:#121519"></b></i><span>Page background<small>#F3F5F7 · #121519</small></span></div>
+        <div class="sw"><i><b style="background:#FFFFFF"></b><b style="background:#1B1F24"></b></i><span>Panel / cards<small>#FFFFFF · #1B1F24</small></span></div>
+        <div class="sw"><i><b style="background:#13171C"></b><b style="background:#ECEEF0"></b></i><span>Ink (text)<small>#13171C · #ECEEF0</small></span></div>
+        <div class="sw"><i><b style="background:#5A6571"></b><b style="background:#9AA4AF"></b></i><span>Ink soft<small>#5A6571 · #9AA4AF</small></span></div>
+        <div class="sw"><i><b style="background:#2E6A9E"></b><b style="background:#6AA8DB"></b></i><span>Accent<small>#2E6A9E · #6AA8DB</small></span></div>
+        <div class="sw"><i><b style="background:#E7F0F8"></b><b style="background:#1E2E3D"></b></i><span>Accent soft<small>#E7F0F8 · #1E2E3D</small></span></div>
+        <div class="sw"><i><b style="background:#2B7449"></b><b style="background:#63B67F"></b></i><span>Success / filled<small>#2B7449 · #63B67F</small></span></div>
+        <div class="sw"><i><b style="background:#8F5A0C"></b><b style="background:#E0A94B"></b></i><span>Warning / due<small>#8F5A0C · #E0A94B</small></span></div>
+        <div class="sw"><i><b style="background:#A8432F"></b><b style="background:#E07B69"></b></i><span>Danger<small>#A8432F · #E07B69</small></span></div>
+        <div class="sw"><i><b style="background:#C9553F"></b><b style="background:#E07B69"></b></i><span>Missed (cells only)<small>#C9553F · #E07B69</small></span></div>
+        <div class="sw"><i><b style="background:#DEE2E7"></b><b style="background:#2E343C"></b></i><span>Border<small>#DEE2E7 · #2E343C</small></span></div>
+        <div class="sw"><i><b style="background:#EEF0F3"></b><b style="background:#23282F"></b></i><span>Off (Friday, outside)<small>#EEF0F3 · #23282F</small></span></div>
+      </div>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Token group</th><th>Values</th></tr></thead>
+        <tbody>
+          <tr><td>Type</td><td>Tajawal (Arabic and Latin), IBM Plex Mono for codes. Phone inputs 16 px minimum (prevents iPhone zoom).</td></tr>
+          <tr><td>Radius</td><td>6 · 8 · 10 (laptop inputs, buttons) · 12 · 14 (phone inputs, tiles) · larger cards · 24 (bottom sheets) · pill</td></tr>
+          <tr><td>Sizes</td><td>Tap target ≥ 44 px · phone inputs and main buttons 56 px · chips 46 px · yes/no segments 52 px · laptop inputs 44 px, buttons 42 px · tab bar 80 px · side menu 264 px</td></tr>
+          <tr><td>Spacing</td><td>Phone content padding 20 px; laptop 24 / 32 px</td></tr>
+          <tr><td>States</td><td>Filled (success), due today (dashed warning), not filled (missed), off (Friday / outside the assignment); tone colours on dashboard tiles: good / warning / bad, decided by the server</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="issues">
+      <h2>Issues spotted while capturing</h2>
+      <p class="lede2">Found on the staging version (stage progress, not yet released). Not fixed yet.</p>
+      <ol>
+        <li><strong>Entry detail on a phone repeats the stage block:</strong> "Stage 1" appears inside "Basics" as well as under "Progress".</li>
+        <li><strong>Entry detail on a phone is wider than the screen:</strong> a long question ("Did this stage finish today on the selected floors or sides?") is cut off and the page can slide sideways.</li>
+        <li><strong>Executive Overview on a phone</strong> shows the 16:9 canvas very small with large empty space above and below (expected today; see question 2).</li>
+      </ol>
+    </section>
+
+    <section id="questions">
+      <h2>Questions for the design review</h2>
+      <ol>
+        <li><strong>Step 2 of the daily report</strong> (stage blocks) is the longest screen: is the hierarchy clear enough for one-hand use on site?</li>
+        <li><strong>Executive Overview on a phone</strong> shrinks the whole 16:9 canvas. Should it get a phone layout (stacked tiles and charts)?</li>
+        <li><strong>Admin pages on a phone</strong> (form builder, users, messages) work but are dense. Which deserve a phone-first layout, and which can stay laptop-first?</li>
+        <li><strong>Arabic typography:</strong> Tajawal for everything, including numbers and dates. Is the scale and weight right for long Arabic labels?</li>
+        <li><strong>Sign-in and first impression:</strong> brand presence, and preparing for self sign-up in v3.</li>
+        <li><strong>Empty, loading and error states</strong> share one style (see the component sheet). Are they consistent and friendly enough?</li>
+        <li><strong>Charts in dark mode</strong> and colour meaning (accent vs success vs danger) across tiles, grids and bars.</li>
+        <li><strong>Icons:</strong> a small hand-drawn set in the app; is a fuller, consistent icon set needed?</li>
+        <li><strong>Messages outside the app</strong> (WhatsApp templates, Telegram, the PDF report): should they be part of this review?</li>
+      </ol>
+    </section>
+
+    <section id="next">
+      <h2>Coming next (planned, not built)</h2>
+      <div class="cards">
+        <div class="card"><h3><span class="pill p-plan">v3</span> Many companies</h3><p>Sign-up and company creation, email invites and password reset, company switcher for the super admin and platform staff, super admin console, plans and billing pages (payment links or saved cards), onboarding checklist, templates.</p></div>
+        <div class="card"><h3><span class="pill p-plan">v3</span> SQL dashboards</h3><p>Query editor with a table list and data dictionary, results table, chart builder, dashboard grid with phone order, share links, and a Claude assistant panel.</p></div>
+        <div class="card"><h3><span class="pill p-plan">v4</span> Later</h3><p>Workflow designer, native phone app, custom domains, cross-company reporting, template marketplace, point-and-click query builder.</p></div>
+      </div>
+    </section>
+
+    <footer>Prepared 14 Nov 2026 from the staging version of Asas. Screens marked "Production" are live today; the rest are waiting for release.</footer>
+  </main>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<script>window.mermaid && mermaid.initialize({ startOnLoad: true });</script>
+</body>
+</html>
