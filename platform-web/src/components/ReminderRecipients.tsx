@@ -8,6 +8,7 @@ import { Button, ErrorState, Sheet } from './ui';
 import { saudiTodayIso } from '../forms/fieldValues';
 import { useLocalized } from '../forms/localized';
 import { useErrorMessage } from '../hooks/useErrorMessage';
+import { ContactLink, userContactUrl } from './ContactLink';
 import type { FormAssignmentDto, UserSummaryDto } from '../types';
 
 const phone = (digits: string) => `+${digits.replace(/^(\d{3})(\d{2})(\d{3})(\d{4})$/, '$1 $2 $3 $4')}`;
@@ -24,7 +25,20 @@ interface Recipient {
  * to a user (and saves their number) - the same as the Form assignments page, from here.
  * `compact` shows names only (the new-assignment card), the full list is on the reminders card.
  */
-export function ReminderRecipients({ token, compact = false, version, onChanged }: { token: string; compact?: boolean; version: number; onChanged: () => void }) {
+export function ReminderRecipients({
+  token,
+  compact = false,
+  version,
+  onChanged,
+  onNavigate,
+}: {
+  token: string;
+  compact?: boolean;
+  version: number;
+  onChanged: () => void;
+  /** Leaving the page from a warning link goes through this (the page asks first when it has unsaved changes). */
+  onNavigate?: (to: string) => void;
+}) {
   const { t } = useTranslation();
   const { forms } = useShell();
   const { formName } = useLocalized();
@@ -89,14 +103,24 @@ export function ReminderRecipients({ token, compact = false, version, onChanged 
       {compact
         ? recipients.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
-              {recipients.map((r) => (
-                <span
-                  key={r.user.id}
-                  className={`rounded-ui-pill px-3 py-1.5 text-[13px] font-bold ${r.user.phoneNumber || r.user.telegramLinked ? 'bg-accent-soft text-accent-strong' : 'bg-warning-soft text-warning-strong'}`}
-                >
-                  <bdi>{r.user.displayName}</bdi>
-                </span>
-              ))}
+              {recipients.map((r) =>
+                r.user.phoneNumber || r.user.telegramLinked ? (
+                  <span key={r.user.id} className="rounded-ui-pill bg-accent-soft px-3 py-1.5 text-[13px] font-bold text-accent-strong">
+                    <bdi>{r.user.displayName}</bdi>
+                  </span>
+                ) : (
+                  // Admin flows F3-1: the warning-coloured chip (no way to reach them) opens their account.
+                  <ContactLink
+                    key={r.user.id}
+                    to={userContactUrl(r.user.id, 'whatsapp', 'messages')}
+                    label={t('flows.addWhatsappFor', { name: r.user.displayName })}
+                    onNavigate={onNavigate}
+                    className="rounded-ui-pill bg-warning-soft px-3 py-1.5 text-[13px] font-bold text-warning-strong"
+                  >
+                    <bdi>{r.user.displayName}</bdi>
+                  </ContactLink>
+                ),
+              )}
             </div>
           )
         : recipients.map((r) => (
@@ -113,7 +137,14 @@ export function ReminderRecipients({ token, compact = false, version, onChanged 
                     {phone(r.user.phoneNumber)}
                   </span>
                 ) : (
-                  <span className="text-[13px] font-bold text-warning-strong">{t('messages.people.noNumber')}</span>
+                  <ContactLink
+                    to={userContactUrl(r.user.id, 'whatsapp', 'messages')}
+                    label={t('flows.addWhatsappFor', { name: r.user.displayName })}
+                    onNavigate={onNavigate}
+                    className="self-start text-[13px] font-bold text-warning-strong"
+                  >
+                    {t('messages.people.noNumber')}
+                  </ContactLink>
                 )}
               </div>
               <div className="hidden flex-wrap justify-end gap-1 sm:flex">

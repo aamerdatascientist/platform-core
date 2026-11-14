@@ -1224,5 +1224,19 @@
     "team": "Team & messages",
     "overview": "Overview",
     "advanced": "Advanced setup"
+  },
+  "flows": {
+    "addWhatsappFor": "Add WhatsApp number for {{name}}",
+    "connectTelegramFor": "Connect Telegram for {{name}}",
+    "assignFormTo": "Assign a form to {{name}}",
+    "backTo": "Back to {{page}}",
+    "done": "Done",
+    "userAdded": "{{name}} was added.",
+    "numberSaved": "WhatsApp number saved for {{name}}.",
+    "telegramReady": "Telegram is connected for {{name}}.",
+    "leaveTitle": "Leave without saving?",
+    "leaveBody": "Your changes on this page haven't been saved. If you leave now, they'll be lost.",
+    "leaveAnyway": "Leave without saving",
+    "stay": "Stay on this page"
   }
 }

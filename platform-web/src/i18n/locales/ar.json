@@ -1261,5 +1261,19 @@
     "team": "الفريق والرسائل",
     "overview": "نظرة عامة",
     "advanced": "إعدادات متقدمة"
+  },
+  "flows": {
+    "addWhatsappFor": "إضافة رقم واتساب لـ {{name}}",
+    "connectTelegramFor": "ربط تيليجرام لـ {{name}}",
+    "assignFormTo": "إسناد نموذج إلى {{name}}",
+    "backTo": "العودة إلى {{page}}",
+    "done": "تم",
+    "userAdded": "تمت إضافة {{name}}.",
+    "numberSaved": "تم حفظ رقم واتساب لـ {{name}}.",
+    "telegramReady": "تم ربط تيليجرام لـ {{name}}.",
+    "leaveTitle": "المغادرة دون حفظ؟",
+    "leaveBody": "لم تُحفظ تغييراتك في هذه الصفحة. إذا غادرت الآن فستضيع.",
+    "leaveAnyway": "مغادرة دون حفظ",
+    "stay": "البقاء في الصفحة"
   }
 }

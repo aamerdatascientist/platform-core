@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useId, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api/client';
-import { Button, ErrorState, LoadingState, Switch } from '../components/ui';
+import { Button, ErrorState, LoadingState, Sheet, Switch } from '../components/ui';
 import { localeFor } from '../forms/recordAnswers';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import type { DayName, MessagingScheduleDto, ReportRecipientDto, ReportScheduleDto } from '../types';
@@ -58,6 +58,10 @@ export function MessagingSchedule({ token }: { token: string }) {
   const [done, setDone] = useState(false);
   // Bumped when either recipients list changes, so the other one reloads too.
   const [peopleVersion, setPeopleVersion] = useState(0);
+  // Admin flows F3-3: a warning link pressed with unsaved changes asks first (the app has no
+  // general leave guard; BrowserRouter can't block navigation).
+  const [leaveTo, setLeaveTo] = useState<string | null>(null);
+  const navigate = useNavigate();
   const [error, setError] = useErrorMessage();
 
   // The recipients come with the reports overview; if that fails, the schedule still loads.
@@ -87,6 +91,7 @@ export function MessagingSchedule({ token }: { token: string }) {
   if (!draft || !saved) return <LoadingState />;
 
   const changed = JSON.stringify(draft) !== JSON.stringify(saved);
+  const leave = (to: string) => (changed ? setLeaveTo(to) : navigate(to));
   const set = (patch: Partial<MessagingScheduleDto>) => (setDone(false), setDraft({ ...draft, ...patch }));
   const setReport = (kind: 'daily' | 'weekly' | 'monthly', patch: Partial<ReportScheduleDto>) => set({ [kind]: { ...draft[kind], ...patch } });
 
@@ -147,7 +152,7 @@ export function MessagingSchedule({ token }: { token: string }) {
           </Row>
         </fieldset>
         <div className="border-t border-divider pt-4">
-          <ReminderRecipients token={token} version={peopleVersion} onChanged={() => setPeopleVersion((v) => v + 1)} />
+          <ReminderRecipients token={token} version={peopleVersion} onChanged={() => setPeopleVersion((v) => v + 1)} onNavigate={leave} />
         </div>
         <p className="text-[13px] text-ink-soft">
           {t('messages.reminders.who')}{' '}
@@ -166,7 +171,7 @@ export function MessagingSchedule({ token }: { token: string }) {
           </Row>
         </fieldset>
         <div className="border-t border-divider pt-4">
-          <ReminderRecipients compact token={token} version={peopleVersion} onChanged={() => setPeopleVersion((v) => v + 1)} />
+          <ReminderRecipients compact token={token} version={peopleVersion} onChanged={() => setPeopleVersion((v) => v + 1)} onNavigate={leave} />
         </div>
       </section>
 
@@ -228,6 +233,20 @@ export function MessagingSchedule({ token }: { token: string }) {
           ) : null}
         </div>
       )}
+
+      <Sheet open={leaveTo !== null} onClose={() => setLeaveTo(null)} title={t('flows.leaveTitle')} desktopWidth={460}>
+        <div className="flex flex-col gap-3 pb-2">
+          <p className="text-[14px] text-ink">{t('flows.leaveBody')}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button size="desktop" variant="danger" onClick={() => leaveTo && navigate(leaveTo)}>
+              {t('flows.leaveAnyway')}
+            </Button>
+            <Button size="desktop" variant="secondary" onClick={() => setLeaveTo(null)}>
+              {t('flows.stay')}
+            </Button>
+          </div>
+        </div>
+      </Sheet>
     </div>
   );
 }

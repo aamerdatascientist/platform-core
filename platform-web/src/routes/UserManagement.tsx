@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ContactLink, userContactUrl, type ContactField, type ContactOrigin } from '../components/ContactLink';
 import { useTranslation } from 'react-i18next';
 import { api } from '../api/client';
 import { builderInput } from '../components/builder/FieldSettings';
 import { initial, useShell } from '../components/shell/ShellData';
 import { Button, ClickableRow, Drawer, ErrorState, LoadingState, Segmented, Sheet, TableCard, tdClass, thClass } from '../components/ui';
 import { UserTelegramPanel } from '../components/UserTelegramPanel';
+import { Icon } from '../components/icons';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import { useWhatsAppGate } from '../config/whatsapp';
 import type { RoleDto, UserSummaryDto } from '../types';
@@ -28,6 +31,14 @@ export function UserManagement({ token }: { token: string }) {
   const [filter, setFilter] = useState<Filter>('all');
   const [selected, setSelected] = useState<string | null>(null);
   const [dialog, setDialog] = useState<'none' | 'user' | 'role'>('none');
+  // Admin flows F3-2: /admin/users?edit={id}&focus=whatsapp|telegram&from=messages|assignments|users
+  // opens that user's editor on the missing field; an unknown id leaves the plain list.
+  const [params, setParams] = useSearchParams();
+  const editParam = params.get('edit');
+  const focusParam = (['whatsapp', 'telegram'] as const).find((x) => x === params.get('focus')) ?? null;
+  const fromParam = (['messages', 'assignments', 'users'] as const).find((x) => x === params.get('from')) ?? null;
+  const [created, setCreated] = useState<{ id: string; name: string } | null>(null);
+  const navigate = useNavigate();
 
   async function load() {
     try {
@@ -42,6 +53,17 @@ export function UserManagement({ token }: { token: string }) {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  useEffect(() => {
+    if (!users || !editParam) return;
+    if (users.some((u) => u.id === editParam)) setSelected(editParam);
+    else setParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [users, editParam]);
+  const closeDrawer = () => {
+    setSelected(null);
+    if (editParam) setParams({}, { replace: true });
+  };
 
   const shown = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -61,7 +83,11 @@ export function UserManagement({ token }: { token: string }) {
     if (u.telegramLinked)
       return <span className="text-success">{u.phoneNumber ? t('usersV2.remindersTelegramWhatsapp') : t('usersV2.remindersTelegram')}</span>;
     if (u.phoneNumber) return <span className="text-success">{t('usersV2.remindersWhatsapp')}</span>;
-    return <span className="text-warning">{t('usersV2.noTelegram')}</span>;
+    return (
+      <ContactLink to={userContactUrl(u.id, 'telegram', 'users')} label={t('flows.connectTelegramFor', { name: u.displayName })} className="text-warning">
+        {t('usersV2.noTelegram')}
+      </ContactLink>
+    );
   };
 
   return (
@@ -82,6 +108,17 @@ export function UserManagement({ token }: { token: string }) {
       </div>
 
       {error && <p className="text-[14px] text-danger">{error}</p>}
+
+      {/* Admin flows F3-4: after adding someone, the next step is giving them a form. */}
+      {created && (
+        <NextStep
+          message={t('flows.userAdded', { name: created.name })}
+          assignLabel={t('flows.assignFormTo', { name: created.name })}
+          onAssign={() => navigate(`/admin/assignments?assign=${created.id}`)}
+          backLabel={t('flows.done')}
+          onBack={() => setCreated(null)}
+        />
+      )}
 
       {/* Role cards */}
       <div className="flex flex-wrap gap-[10px]">
@@ -176,11 +213,22 @@ export function UserManagement({ token }: { token: string }) {
             </tbody>
           </TableCard>
         </div>
-        {user && <UserDrawer key={user.id} token={token} user={user} roles={roles} onClose={() => setSelected(null)} onChanged={load} />}
+        {user && (
+          <UserDrawer
+            key={user.id}
+            token={token}
+            user={user}
+            roles={roles}
+            focus={user.id === editParam ? focusParam : null}
+            from={user.id === editParam ? fromParam : null}
+            onClose={closeDrawer}
+            onChanged={load}
+          />
+        )}
       </div>
 
       <Sheet open={dialog === 'user'} onClose={() => setDialog('none')} title={t('userManagement.newUser')} desktopWidth={560}>
-        <NewUserForm token={token} roles={roles} onDone={() => (setDialog('none'), void load())} />
+        <NewUserForm token={token} roles={roles} onDone={(id, name) => (setDialog('none'), setCreated({ id, name }), void load())} />
       </Sheet>
       <Sheet open={dialog === 'role'} onClose={() => setDialog('none')} title={t('userManagement.newRole')} desktopWidth={480}>
         <NewRoleForm token={token} onDone={() => (setDialog('none'), void load())} />
@@ -189,8 +237,42 @@ export function UserManagement({ token }: { token: string }) {
   );
 }
 
-function UserDrawer({ token, user, roles, onClose, onChanged }: { token: string; user: UserSummaryDto; roles: RoleDto[]; onClose: () => void; onChanged: () => Promise<void> }) {
+function UserDrawer({
+  token,
+  user,
+  roles,
+  focus,
+  from,
+  onClose,
+  onChanged,
+}: {
+  token: string;
+  user: UserSummaryDto;
+  roles: RoleDto[];
+  /** Opened from a warning link: the field to put the cursor in (F3-2). */
+  focus: ContactField | null;
+  /** ... and the page it came from, for the way back (F3-4). */
+  from: ContactOrigin | null;
+  onClose: () => void;
+  onChanged: () => Promise<void>;
+}) {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const phoneRef = useRef<HTMLInputElement>(null);
+  const telegramRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    // After the drawer's own entrance, so the focus isn't taken back by the dialog.
+    const id = window.setTimeout(() => (focus === 'whatsapp' ? phoneRef.current?.focus() : focus === 'telegram' ? telegramRef.current?.focus() : undefined), 250);
+    return () => window.clearTimeout(id);
+  }, [focus]);
+  // The field that was missing when the link opened the drawer; once it is filled, offer the next step.
+  const [missingAtOpen] = useState(() => (focus === 'whatsapp' ? !user.phoneNumber : focus === 'telegram' ? !user.telegramLinked : false));
+  const fixed = missingAtOpen && user.isActive && (focus === 'whatsapp' ? !!user.phoneNumber : !!user.telegramLinked);
+  const backTo: Record<ContactOrigin, { path: string; key: string }> = {
+    messages: { path: '/admin/messages', key: 'messages.title' },
+    assignments: { path: '/admin/assignments', key: 'settings.assignments' },
+    users: { path: '/admin/users', key: 'userManagement.title' },
+  };
   const { roleLabel } = useShell();
   const [error, setError] = useErrorMessage();
   const [busy, setBusy] = useState(false);
@@ -275,7 +357,7 @@ function UserDrawer({ token, user, roles, onClose, onChanged }: { token: string;
         <label className="flex flex-col gap-1.5 text-[13px] text-ink-soft">
           {t('usersV2.whatsappNumber')}
           <span className="flex gap-1.5">
-            <input dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0551234567" className={`${builderInput} !h-[40px] text-[14px]`} />
+            <input ref={phoneRef} dir="ltr" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="0551234567" className={`${builderInput} !h-[40px] text-[14px]`} />
             {phoneChanged ? (
               <Button size="compact" className="!h-[40px] !min-h-[40px] shrink-0" disabled={busy} onClick={() => act(() => api.users.setPhoneNumber(token, user.id, phone.trim() || null), 'userManagement.phoneError')}>
                 {t('common.save')}
@@ -324,11 +406,20 @@ function UserDrawer({ token, user, roles, onClose, onChanged }: { token: string;
           <span className={`flex-1 text-[13px] ${user.telegramLinked ? 'text-success-strong' : 'text-warning-strong'}`}>
             {user.telegramLinked ? t('usersV2.telegramLinkedBox') : t('usersV2.telegramNotLinkedBox')}
           </span>
-          <button type="button" onClick={() => setTelegramOpen(true)} className="h-[34px] shrink-0 rounded-[9px] bg-panel px-[10px] text-[13px] font-bold text-ink">
+          <button ref={telegramRef} type="button" onClick={() => setTelegramOpen(true)} className="h-[34px] shrink-0 rounded-[9px] bg-panel px-[10px] text-[13px] font-bold text-ink">
             {user.telegramLinked ? t('userManagement.telegram') : t('usersV2.linkGroup')}
           </button>
         </div>
         {note && <p className="text-[13px] text-success" role="status">{note}</p>}
+        {fixed && (
+          <NextStep
+            message={t(focus === 'whatsapp' ? 'flows.numberSaved' : 'flows.telegramReady', { name: user.displayName })}
+            assignLabel={t('flows.assignFormTo', { name: user.displayName })}
+            onAssign={() => navigate(`/admin/assignments?assign=${user.id}`)}
+            backLabel={from && from !== 'users' ? t('flows.backTo', { page: t(backTo[from].key) }) : t('flows.backTo', { page: t('userManagement.title') })}
+            onBack={() => (from && from !== 'users' ? navigate(backTo[from].path) : onClose())}
+          />
+        )}
       </section>
 
       <section className="flex flex-col gap-2 px-[18px] py-[14px]">
@@ -408,7 +499,7 @@ function ResetPassword({ token, user, onClose }: { token: string; user: UserSumm
 }
 
 /** The existing "new user" form: email, name, password (10+), first role. */
-function NewUserForm({ token, roles, onDone }: { token: string; roles: RoleDto[]; onDone: () => void }) {
+function NewUserForm({ token, roles, onDone }: { token: string; roles: RoleDto[]; onDone: (id: string, name: string) => void }) {
   const { t } = useTranslation();
   const { roleLabel } = useShell();
   const [email, setEmail] = useState('');
@@ -423,8 +514,8 @@ function NewUserForm({ token, roles, onDone }: { token: string; roles: RoleDto[]
     if (!email.trim() || !name.trim() || password.length < 10 || !roleId) return setError({ key: 'userManagement.createUserRequiredError' });
     setBusy(true);
     try {
-      await api.auth.register(token, { email, displayName: name, password, departmentId: null, defaultRoleId: roleId });
-      onDone();
+      const { id } = await api.auth.register(token, { email, displayName: name, password, departmentId: null, defaultRoleId: roleId });
+      onDone(id, name.trim());
     } catch (err) {
       setError({ err, fallbackKey: 'userManagement.createUserError' });
     } finally {
@@ -506,5 +597,26 @@ function NewRoleForm({ token, onDone }: { token: string; onDone: () => void }) {
         </Button>
       </div>
     </form>
+  );
+}
+
+/** The next step after adding or fixing a user (admin flows F3-4): "Assign a form to {name}" first, then the way back. */
+function NextStep({ message, assignLabel, onAssign, backLabel, onBack }: { message: string; assignLabel: string; onAssign: () => void; backLabel: string; onBack: () => void }) {
+  return (
+    <div role="status" className="flex flex-col gap-3 rounded-ui-lg bg-success-soft px-4 py-3">
+      <span className="flex items-center gap-2 text-[14px] font-bold text-success-strong">
+        <Icon name="check" size={18} />
+        {message}
+      </span>
+      <div className="flex flex-wrap gap-2">
+        <Button size="desktop" onClick={onAssign}>
+          {assignLabel}
+          <Icon name="chevronForward" size={16} />
+        </Button>
+        <Button size="desktop" variant="secondary" onClick={onBack}>
+          {backLabel}
+        </Button>
+      </div>
+    </div>
   );
 }

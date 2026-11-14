@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { ContactLink, userContactUrl } from '../components/ContactLink';
 import { api } from '../api/client';
 import { builderInput } from '../components/builder/FieldSettings';
 import { DateButton } from '../components/DateField';
@@ -54,6 +55,14 @@ export function FormAssignments({ token }: { token: string }) {
   const [remindResult, setRemindResult] = useState<string | null>(null);
   const [dayOpen, setDayOpen] = useState<string | null>(null);
   const panel = useRef<HTMLElement>(null);
+  // Admin flows F3-5: /admin/assignments?assign={userId} opens the panel with that person ticked.
+  const [params] = useSearchParams();
+  const assignParam = params.get('assign');
+  const initialUserIds = useMemo(() => (assignParam ? [assignParam] : undefined), [assignParam]);
+  useEffect(() => {
+    // On a phone the panel sits below the grid: bring it into view once the people are loaded.
+    if (assignParam && !desktop && users.length > 0) panel.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, [assignParam, desktop, users.length]);
 
   const weekStart = addDays(weekStartOf(today), -7 * weekOffset);
   const weekEnd = addDays(weekStart, 6);
@@ -398,7 +407,7 @@ export function FormAssignments({ token }: { token: string }) {
           </section>
         </div>
 
-        <AssignPanel panelRef={panel} token={token} users={users} onAssigned={() => setTick((x) => x + 1)} />
+        <AssignPanel panelRef={panel} token={token} users={users} onAssigned={() => setTick((x) => x + 1)} initialUserIds={initialUserIds} />
       </div>
 
       <Sheet open={dayOpen !== null} onClose={() => setDayOpen(null)} title={dayOpen ? t('assignmentsV2.dayList', { date: dayLabel(dayOpen, locale) }) : ''} desktopWidth={520}>
@@ -432,7 +441,26 @@ export function FormAssignments({ token }: { token: string }) {
 }
 
 /** The assign panel (23): form, users with their Telegram status, from / to, note, "Assign n users". */
-function AssignPanel({ panelRef, token, users, onAssigned }: { panelRef: React.RefObject<HTMLElement>; token: string; users: UserSummaryDto[]; onAssigned: () => void }) {
+function AssignPanel({
+  panelRef,
+  token,
+  users,
+  onAssigned,
+  initialUserIds,
+  initialFormCode,
+  top,
+}: {
+  panelRef: React.RefObject<HTMLElement>;
+  token: string;
+  users: UserSummaryDto[];
+  onAssigned: (created: number) => void;
+  /** Ticked when the panel opens (`?assign=`, admin flows F3-5); unknown or deactivated ids are ignored. */
+  initialUserIds?: string[];
+  /** The form selected when the panel opens (`?setup=`: the daily report, F2-6). */
+  initialFormCode?: string;
+  /** Shown at the top of the panel (the project setup strip, F2-6). */
+  top?: React.ReactNode;
+}) {
   const { t } = useTranslation();
   const { formName } = useLocalized();
   const { forms } = useShell();
@@ -448,6 +476,20 @@ function AssignPanel({ panelRef, token, users, onAssigned }: { panelRef: React.R
   useEffect(() => {
     if (!formId && published[0]) setFormId(published[0].id);
   }, [formId, published]);
+  // Preselection from the address, applied once the people (and forms) have loaded.
+  const applied = useRef({ users: false, form: false });
+  useEffect(() => {
+    if (applied.current.users || !initialUserIds?.length || users.length === 0) return;
+    applied.current.users = true;
+    const known = initialUserIds.filter((id) => users.some((u) => u.id === id && u.isActive));
+    if (known.length) setUserIds(new Set(known));
+  }, [initialUserIds, users]);
+  useEffect(() => {
+    if (applied.current.form || !initialFormCode || published.length === 0) return;
+    applied.current.form = true;
+    const wanted = published.find((f) => f.code === initialFormCode);
+    if (wanted) setFormId(wanted.id);
+  }, [initialFormCode, published]);
 
   async function assign() {
     setError(null);
@@ -476,7 +518,7 @@ function AssignPanel({ panelRef, token, users, onAssigned }: { panelRef: React.R
       );
       setUserIds(new Set());
       setNote('');
-      onAssigned();
+      onAssigned(r.created);
     } catch (err) {
       setError({ err, fallbackKey: 'assignments.admin.assignError' });
     } finally {
@@ -490,6 +532,7 @@ function AssignPanel({ panelRef, token, users, onAssigned }: { panelRef: React.R
       aria-label={t('assignments.admin.newTitle')}
       className="flex w-full flex-[1_1_320px] scroll-mt-6 lg:w-auto lg:max-w-[380px] flex-col gap-[14px] rounded-ui-2xl border border-border bg-panel p-[18px]"
     >
+      {top}
       <h2 className="text-[17px] font-extrabold text-ink">{t('assignments.admin.newTitle')}</h2>
       <label className="flex flex-col gap-1.5 text-[14px] font-bold text-ink">
         {t('assignments.admin.formLabel')}
@@ -523,8 +566,21 @@ function AssignPanel({ panelRef, token, users, onAssigned }: { panelRef: React.R
                 <bdi>{u.displayName}</bdi>
               </span>
               <span className="flex flex-col items-end text-[12px] leading-tight">
-                <span className={u.telegramLinked ? 'text-success' : 'text-warning'}>{u.telegramLinked ? t('usersV2.remindersTelegram') : t('usersV2.noTelegram')}</span>
-                <span className={u.phoneNumber ? 'text-success' : 'text-ink-soft'}>{u.phoneNumber ? t('whatsapp.channelOk') : t('whatsapp.channelNone')}</span>
+                {/* Admin flows F3-1: a missing channel links to the person's account; it never ticks the box. */}
+                {u.telegramLinked ? (
+                  <span className="text-success">{t('usersV2.remindersTelegram')}</span>
+                ) : (
+                  <ContactLink to={userContactUrl(u.id, 'telegram', 'assignments')} label={t('flows.connectTelegramFor', { name: u.displayName })} className="text-warning">
+                    {t('usersV2.noTelegram')}
+                  </ContactLink>
+                )}
+                {u.phoneNumber ? (
+                  <span className="text-success">{t('whatsapp.channelOk')}</span>
+                ) : (
+                  <ContactLink to={userContactUrl(u.id, 'whatsapp', 'assignments')} label={t('flows.addWhatsappFor', { name: u.displayName })} className="text-ink-soft">
+                    {t('whatsapp.channelNone')}
+                  </ContactLink>
+                )}
               </span>
             </label>
           );
