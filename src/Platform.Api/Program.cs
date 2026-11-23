@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Configuration.Json;
 using Microsoft.IdentityModel.Tokens;
 using Platform.Api;
+using Platform.Api.Health;
 using Platform.Api.Middleware;
 using Platform.Api.Security;
 using Platform.Application;
@@ -152,6 +153,7 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+StagingHealthEndpoints.Map(app);
 
 app.Run();
 

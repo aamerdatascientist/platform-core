@@ -4,9 +4,7 @@ using Microsoft.AspNetCore.RateLimiting;
 namespace Platform.Api;
 
 /// <summary>
-/// Request limits, using ASP.NET Core's built-in rate limiter. Only password-checking
-/// endpoints (sign-in, change password) are limited: without a limit anyone could try
-/// passwords against an account as fast as the server answers.
+/// Request limits, using ASP.NET Core's built-in rate limiter.
 ///
 /// Counted per client IP address. The limit is generous on purpose - a site office's
 /// workers may all reach the internet through one shared address - while still cutting a
@@ -17,6 +15,7 @@ namespace Platform.Api;
 public static class RateLimitPolicies
 {
     public const string SignIn = "sign-in";
+    public const string HealthDependencies = "health-dependencies";
 
     /// <summary>Making a report now (Claude + PDFs): per signed-in administrator. The monthly cap
     /// bounds the cost anyway; this stops a stuck button or a script from burning through it.</summary>
@@ -42,6 +41,12 @@ public static class RateLimitPolicies
                     """{"title":"Too Many Requests","status":429,"detail":"Too many attempts. Wait a few minutes and try again.","code":"auth.tooManyAttempts"}""",
                     cancellationToken);
             };
+
+            options.AddConcurrencyLimiter(HealthDependencies, limiter =>
+            {
+                limiter.PermitLimit = 2;
+                limiter.QueueLimit = 0;
+            });
 
             options.AddPolicy(SignIn, httpContext =>
                 RateLimitPartition.GetFixedWindowLimiter(
