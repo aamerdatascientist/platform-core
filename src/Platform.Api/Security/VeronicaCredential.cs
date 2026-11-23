@@ -48,12 +48,17 @@ internal static class VeronicaCredential
             return;
         }
 
-        if (!IsAllowedRead(context.Request) &&
-            (!user.Roles.Contains("Administrator") ||
-             !await AllowsWorkflowAsync(context.Request, db, configuration, userId)))
+        if (!IsAllowedRead(context.Request))
         {
-            context.Fail("Invalid Veronica credential for this request.");
-            return;
+            var rejection = user.Roles.Contains("Administrator")
+                ? await WorkflowRejectionAsync(context.Request, db, configuration, userId)
+                : "administrator-required";
+            if (rejection is not null)
+            {
+                context.Response.Headers["X-Veronica-Workflow-Diagnostic"] = rejection;
+                context.Fail("Invalid Veronica credential for this request.");
+                return;
+            }
         }
 
         var claims = new List<Claim>
@@ -98,33 +103,48 @@ internal static class VeronicaCredential
         path.StartsWith(prefix, StringComparison.Ordinal) &&
         Guid.TryParseExact(path[prefix.Length..], "D", out _);
 
-    private static async Task<bool> AllowsWorkflowAsync(
+    private static async Task<string?> WorkflowRejectionAsync(
         HttpRequest request, IApplicationDbContext db, IConfiguration configuration, Guid userId)
     {
-        if (request.QueryString.HasValue ||
-            !Guid.TryParse(configuration["Veronica:WorkflowFormId"], out var fixtureId) || fixtureId == Guid.Empty)
-            return false;
+        if (request.QueryString.HasValue)
+            return "route-not-allowed";
+
+        Guid? configuredFixtureId = null;
+        var configured = configuration["Veronica:WorkflowFormId"];
+        if (!string.IsNullOrWhiteSpace(configured))
+        {
+            if (!Guid.TryParse(configured, out var fixtureId) || fixtureId == Guid.Empty)
+                return "fixture-setting-invalid";
+            configuredFixtureId = fixtureId;
+        }
 
         var parts = (request.Path.Value ?? "").Split('/');
         var method = request.Method;
+        Guid? requestedFixtureId = null;
         Guid? attachmentId = null;
         Guid? recordIdToCheck = null;
         switch (parts)
         {
             case ["", "api", "forms", var form, "submissions"] when
-                Guid.TryParseExact(form, "D", out var formId) && formId == fixtureId &&
-                HttpMethods.IsPost(method) && request.ContentLength is > 0 and <= 4096 &&
-                Guid.TryParseExact(request.Headers["Idempotency-Key"].ToString(), "D", out _):
+                Guid.TryParseExact(form, "D", out var formId) && HttpMethods.IsPost(method):
+                if (request.ContentLength is not (> 0 and <= 4096))
+                    return "payload-size";
+                if (!Guid.TryParseExact(request.Headers["Idempotency-Key"].ToString(), "D", out _))
+                    return "idempotency-key";
+                requestedFixtureId = formId;
                 break;
             case ["", "api", "forms", var form, "submissions", var record] when
-                Guid.TryParseExact(form, "D", out var formId) && formId == fixtureId &&
+                Guid.TryParseExact(form, "D", out var formId) &&
                 Guid.TryParseExact(record, "D", out var recordId) && (HttpMethods.IsGet(method) || HttpMethods.IsDelete(method)):
+                requestedFixtureId = formId;
                 recordIdToCheck = recordId;
                 break;
             case ["", "api", "forms", var form, "records", var record, "attachments"] when
-                Guid.TryParseExact(form, "D", out var formId) && formId == fixtureId &&
-                Guid.TryParseExact(record, "D", out var recordId) && HttpMethods.IsPost(method) &&
-                request.ContentLength is > 0 and <= 4096:
+                Guid.TryParseExact(form, "D", out var formId) &&
+                Guid.TryParseExact(record, "D", out var recordId) && HttpMethods.IsPost(method):
+                if (request.ContentLength is not (> 0 and <= 4096))
+                    return "payload-size";
+                requestedFixtureId = formId;
                 recordIdToCheck = recordId;
                 break;
             case ["", "api", "records", var record, "attachments"] when
@@ -140,35 +160,42 @@ internal static class VeronicaCredential
                 attachmentId = fileId;
                 break;
             default:
-                return false;
+                return "route-not-allowed";
         }
 
+        if (configuredFixtureId is { } configuredId && requestedFixtureId is { } requestedId &&
+            configuredId != requestedId)
+            return "fixture-id-mismatch";
+
         var cancellation = request.HttpContext.RequestAborted;
-        var table = await db.FormDefinitions.AsNoTracking().Where(form =>
-            form.Id == fixtureId && !form.IsDeleted && !form.IsSystem && form.Status == FormStatus.Published &&
+        var expectedId = configuredFixtureId ?? requestedFixtureId;
+        var fixtures = await db.FormDefinitions.AsNoTracking().Where(form =>
+            (expectedId == null || form.Id == expectedId) &&
+            !form.IsDeleted && !form.IsSystem && form.Status == FormStatus.Published &&
             form.Code == "veronica-health-probe" &&
             form.Description == "Dedicated fixture for Veronica staging health checks." &&
-            db.FormDefinitionUsers.Any(allowed => allowed.FormDefinitionId == fixtureId && allowed.UserId == userId) &&
-            !db.FormDefinitionUsers.Any(allowed => allowed.FormDefinitionId == fixtureId && allowed.UserId != userId) &&
-            !db.FormDefinitionRoles.Any(allowed => allowed.FormDefinitionId == fixtureId))
-            .Select(form => form.TableName).SingleOrDefaultAsync(cancellation);
-        if (string.IsNullOrEmpty(table))
-            return false;
+            db.FormDefinitionUsers.Any(allowed => allowed.FormDefinitionId == form.Id && allowed.UserId == userId) &&
+            !db.FormDefinitionUsers.Any(allowed => allowed.FormDefinitionId == form.Id && allowed.UserId != userId) &&
+            !db.FormDefinitionRoles.Any(allowed => allowed.FormDefinitionId == form.Id))
+            .Select(form => new { form.Id, form.TableName }).Take(2).ToListAsync(cancellation);
+        if (fixtures.Count != 1 || string.IsNullOrEmpty(fixtures[0].TableName))
+            return "fixture-not-available";
+        var fixture = fixtures[0];
 
         if (attachmentId is { } id)
         {
             recordIdToCheck = await db.FileMetadataEntries.AsNoTracking().Where(file =>
-                !file.IsDeleted && file.Id == id && file.FormDefinitionId == fixtureId &&
+                !file.IsDeleted && file.Id == id && file.FormDefinitionId == fixture.Id &&
                 file.FieldCode == "probe_attachment")
                 .Select(file => (Guid?)file.RecordId).SingleOrDefaultAsync(cancellation);
             if (recordIdToCheck is null)
-                return false;
+                return "attachment-not-in-fixture";
         }
 
         if (recordIdToCheck is not { } recordIdForLookup)
-            return true;
+            return null;
         var repository = request.HttpContext.RequestServices.GetRequiredService<IDynamicDataRepository>();
-        var row = await repository.GetRecordAsync(table, [], recordIdForLookup, cancellation);
-        return row?.CreatedByUserId == userId;
+        var row = await repository.GetRecordAsync(fixture.TableName!, [], recordIdForLookup, cancellation);
+        return row?.CreatedByUserId == userId ? null : "record-not-in-fixture";
     }
 }

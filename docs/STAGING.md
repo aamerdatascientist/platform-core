@@ -407,6 +407,6 @@ The dependency checks are read-only and use a five-second cancellation budget. P
 
 ### Cockpit submission and attachment probe
 
-Set `Veronica__WorkflowFormId` on `asas-api-staging` to the GUID of the dedicated published `veronica-health-probe` fixture. The fixture must be non-system and its form-user list must contain only Veronica, with no form-role grants. Removing the setting disables the workflow scope without interrupting connector reads.
+The staging API can resolve the single dedicated published `veronica-health-probe` fixture from its code, fixture marker, and access grants. To pin the fixture explicitly, set `Veronica__WorkflowFormId` on `asas-api-staging` to its GUID. It must be non-system and its form-user list must contain only Veronica, with no form-role grants. An invalid or mismatched setting fails closed. A valid Veronica credential gets a diagnostic category when a scope check rejects a request.
 
 The credential can create a submission only on that fixture. It can read and clean up only Veronica-owned records in that fixture, and can upload small attachments or download and delete the probe attachment on those records. It cannot create or edit forms or write to other forms. The Windows cockpit's Run workflow test action exercises the live submission and attachment endpoints and records individual timings.
