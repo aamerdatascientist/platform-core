@@ -394,3 +394,13 @@ $secure = Get-Content -LiteralPath $credentialPath -Raw | ConvertTo-SecureString
 $env:ASAS_STAGING_TOKEN = [System.Net.NetworkCredential]::new('', $secure).Password
 try { py -3 server.py } finally { Remove-Item Env:ASAS_STAGING_TOKEN -ErrorAction SilentlyContinue }
 ```
+
+## Staging service health
+
+The staging API exposes status-only GET endpoints. Each returns HTTP 200 when healthy or HTTP 503 on failure, with no diagnostic body.
+
+- `/health/live` checks that the Azure App Service can serve requests.
+- `/health/database` checks connectivity to the configured PostgreSQL database.
+- `/health/attachments` checks access to the `attachments-staging` container and verifies the configured container name.
+
+The dependency checks are read-only and use a five-second cancellation budget. Point Azure App Service Health Check at `/health/live` and monitor dependencies separately so a shared outage does not mark every API instance unhealthy. For the Windows Hermes monitor, create an empty `veronica-asas-dependencies.enabled` file beside its health script after the endpoints deploy.
