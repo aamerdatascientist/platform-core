@@ -5,6 +5,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Platform.Application.Common.Interfaces;
+using Platform.Domain.Forms.Enums;
 
 namespace Platform.Api.Security;
 
@@ -25,7 +26,6 @@ internal static class VeronicaCredential
         if (!string.Equals(configuration["WEBSITE_SITE_NAME"], "asas-api-staging", StringComparison.OrdinalIgnoreCase)
             || !Guid.TryParse(configuration["Veronica:UserId"], out var userId)
             || userId == Guid.Empty
-            || !IsAllowedRead(context.Request)
             || !Matches(token, hash))
         {
             context.Fail("Invalid Veronica credential for this request.");
@@ -45,6 +45,14 @@ internal static class VeronicaCredential
         if (user is null)
         {
             context.Fail("Veronica's staging identity is inactive or missing.");
+            return;
+        }
+
+        if (!IsAllowedRead(context.Request) &&
+            (!user.Roles.Contains("Administrator") ||
+             !await AllowsWorkflowAsync(context.Request, db, configuration, userId)))
+        {
+            context.Fail("Invalid Veronica credential for this request.");
             return;
         }
 
@@ -89,4 +97,78 @@ internal static class VeronicaCredential
     private static bool IsDetail(string path, string prefix) =>
         path.StartsWith(prefix, StringComparison.Ordinal) &&
         Guid.TryParseExact(path[prefix.Length..], "D", out _);
+
+    private static async Task<bool> AllowsWorkflowAsync(
+        HttpRequest request, IApplicationDbContext db, IConfiguration configuration, Guid userId)
+    {
+        if (request.QueryString.HasValue ||
+            !Guid.TryParse(configuration["Veronica:WorkflowFormId"], out var fixtureId) || fixtureId == Guid.Empty)
+            return false;
+
+        var parts = (request.Path.Value ?? "").Split('/');
+        var method = request.Method;
+        Guid? attachmentId = null;
+        Guid? recordIdToCheck = null;
+        switch (parts)
+        {
+            case ["", "api", "forms", var form, "submissions"] when
+                Guid.TryParseExact(form, "D", out var formId) && formId == fixtureId &&
+                HttpMethods.IsPost(method) && request.ContentLength is > 0 and <= 4096 &&
+                Guid.TryParseExact(request.Headers["Idempotency-Key"].ToString(), "D", out _):
+                break;
+            case ["", "api", "forms", var form, "submissions", var record] when
+                Guid.TryParseExact(form, "D", out var formId) && formId == fixtureId &&
+                Guid.TryParseExact(record, "D", out var recordId) && (HttpMethods.IsGet(method) || HttpMethods.IsDelete(method)):
+                recordIdToCheck = recordId;
+                break;
+            case ["", "api", "forms", var form, "records", var record, "attachments"] when
+                Guid.TryParseExact(form, "D", out var formId) && formId == fixtureId &&
+                Guid.TryParseExact(record, "D", out var recordId) && HttpMethods.IsPost(method) &&
+                request.ContentLength is > 0 and <= 4096:
+                recordIdToCheck = recordId;
+                break;
+            case ["", "api", "records", var record, "attachments"] when
+                HttpMethods.IsGet(method) && Guid.TryParseExact(record, "D", out var recordId):
+                recordIdToCheck = recordId;
+                break;
+            case ["", "api", "attachments", var file, "download-url"] when
+                HttpMethods.IsGet(method) && Guid.TryParseExact(file, "D", out var fileId):
+                attachmentId = fileId;
+                break;
+            case ["", "api", "attachments", var file] when
+                HttpMethods.IsDelete(method) && Guid.TryParseExact(file, "D", out var fileId):
+                attachmentId = fileId;
+                break;
+            default:
+                return false;
+        }
+
+        var cancellation = request.HttpContext.RequestAborted;
+        var table = await db.FormDefinitions.AsNoTracking().Where(form =>
+            form.Id == fixtureId && !form.IsDeleted && !form.IsSystem && form.Status == FormStatus.Published &&
+            form.Code == "veronica-health-probe" &&
+            form.Description == "Dedicated fixture for Veronica staging health checks." &&
+            db.FormDefinitionUsers.Any(allowed => allowed.FormDefinitionId == fixtureId && allowed.UserId == userId) &&
+            !db.FormDefinitionUsers.Any(allowed => allowed.FormDefinitionId == fixtureId && allowed.UserId != userId) &&
+            !db.FormDefinitionRoles.Any(allowed => allowed.FormDefinitionId == fixtureId))
+            .Select(form => form.TableName).SingleOrDefaultAsync(cancellation);
+        if (string.IsNullOrEmpty(table))
+            return false;
+
+        if (attachmentId is { } id)
+        {
+            recordIdToCheck = await db.FileMetadataEntries.AsNoTracking().Where(file =>
+                !file.IsDeleted && file.Id == id && file.FormDefinitionId == fixtureId &&
+                file.FieldCode == "probe_attachment")
+                .Select(file => (Guid?)file.RecordId).SingleOrDefaultAsync(cancellation);
+            if (recordIdToCheck is null)
+                return false;
+        }
+
+        if (recordIdToCheck is not { } recordIdForLookup)
+            return true;
+        var repository = request.HttpContext.RequestServices.GetRequiredService<IDynamicDataRepository>();
+        var row = await repository.GetRecordAsync(table, [], recordIdForLookup, cancellation);
+        return row?.CreatedByUserId == userId;
+    }
 }

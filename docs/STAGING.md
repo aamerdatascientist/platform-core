@@ -404,3 +404,9 @@ The staging API exposes status-only GET endpoints. Each returns HTTP 200 when he
 - `/health/attachments` checks access to the `attachments-staging` container and verifies the configured container name.
 
 The dependency checks are read-only and use a five-second cancellation budget. Point Azure App Service Health Check at `/health/live` and monitor dependencies separately so a shared outage does not mark every API instance unhealthy. For the Windows Hermes monitor, create an empty `veronica-asas-dependencies.enabled` file beside its health script after the endpoints deploy.
+
+### Cockpit submission and attachment probe
+
+Set `Veronica__WorkflowFormId` on `asas-api-staging` to the GUID of the dedicated published `veronica-health-probe` fixture. The fixture must be non-system and its form-user list must contain only Veronica, with no form-role grants. Removing the setting disables the workflow scope without interrupting connector reads.
+
+The credential can create a submission only on that fixture. It can read and clean up only Veronica-owned records in that fixture, and can upload small attachments or download and delete the probe attachment on those records. It cannot create or edit forms or write to other forms. The Windows cockpit's Run workflow test action exercises the live submission and attachment endpoints and records individual timings.
