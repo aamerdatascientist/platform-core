@@ -85,6 +85,9 @@ public class BlobStorageService : IBlobStorageService
         await blob.DeleteIfExistsAsync(cancellationToken: cancellationToken);
     }
 
+    public async Task<bool> ContainerExistsAsync(CancellationToken cancellationToken) =>
+        (await _container.ExistsAsync(cancellationToken)).Value;
+
     private static string ParseAccountKey(string connectionString)
     {
         foreach (var part in connectionString.Split(';', StringSplitOptions.RemoveEmptyEntries))
