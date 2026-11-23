@@ -6,6 +6,7 @@ using Microsoft.Extensions.Configuration.Json;
 using Microsoft.IdentityModel.Tokens;
 using Platform.Api;
 using Platform.Api.Middleware;
+using Platform.Api.Security;
 using Platform.Application;
 using Platform.Infrastructure;
 
@@ -91,6 +92,7 @@ builder.Services
         // long ClaimTypes URIs on the way in, which breaks CurrentUserService's lookups
         // for the exact claim types JwtTokenService issues.
         options.MapInboundClaims = false;
+        options.Events = new JwtBearerEvents { OnMessageReceived = VeronicaCredential.AuthenticateAsync };
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
