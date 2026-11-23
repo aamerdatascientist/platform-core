@@ -359,3 +359,38 @@ domain and the generated `azurestaticapps.net` address stay valid; the CSP needs
 because it lists API origins, not site origins. The API allows both site addresses
 (`Cors__AllowedOrigins__0` and `__1`). Sign-ins are kept per address, so moving from the old
 address to `staging.asasksa.co` means signing in once more.
+
+## Veronica's staging credential
+
+The staging API accepts one opaque bearer credential for Veronica. It has no scheduled expiry. It uses the configured active user's existing permissions and only accepts GET requests for forms, the user's own assignments, stage progress, and executive overview. Stage progress and executive overview still require the user's Administrator role. The feature only accepts credentials on the `asas-api-staging` Azure App Service.
+
+On the Windows host, run the following once as the Windows account that will run the cockpit. It generates the credential, saves it with Windows user-scoped encryption, and prints its SHA-256 digest for staging configuration.
+
+```powershell
+$credentialPath = Join-Path $env:LOCALAPPDATA 'hermes\veronica-asas.credential'
+if (Test-Path -LiteralPath $credentialPath) { throw 'A Veronica credential already exists.' }
+$bytes = New-Object byte[] 32
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+try { $rng.GetBytes($bytes) } finally { $rng.Dispose() }
+$token = 'asas_veronica_' + [BitConverter]::ToString($bytes).Replace('-', '').ToLowerInvariant()
+ConvertTo-SecureString $token -AsPlainText -Force | ConvertFrom-SecureString |
+    Set-Content -LiteralPath $credentialPath -Encoding ASCII
+$sha = [System.Security.Cryptography.SHA256]::Create()
+try {
+    [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($token))).Replace('-', '')
+} finally {
+    $sha.Dispose()
+    Remove-Variable token
+}
+```
+
+Set `Veronica__TokenSha256` to the printed digest and `Veronica__UserId` to the dedicated Veronica account's user GUID in the staging App Service settings. Leave these settings unset in production. To revoke access, remove the digest or deactivate the staging user. Replacing the digest rotates the single credential.
+
+Launch the cockpit as the same Windows user. Read the credential from its encrypted file into the existing server environment variable:
+
+```powershell
+$credentialPath = Join-Path $env:LOCALAPPDATA 'hermes\veronica-asas.credential'
+$secure = Get-Content -LiteralPath $credentialPath -Raw | ConvertTo-SecureString
+$env:ASAS_STAGING_TOKEN = [System.Net.NetworkCredential]::new('', $secure).Password
+try { py -3 server.py } finally { Remove-Item Env:ASAS_STAGING_TOKEN -ErrorAction SilentlyContinue }
+```
