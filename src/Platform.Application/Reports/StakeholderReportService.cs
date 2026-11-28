@@ -92,11 +92,12 @@ public class StakeholderReportService
 
     /// <param name="deliver">Send to the recipients (schedule / send now) or only store it (preview).</param>
     /// <returns>Null run when a scheduled report for this period was already claimed by someone else.</returns>
+    /// <param name="customFrom">Only for <see cref="ReportRun.Custom"/>: the first day of the picked range.</param>
     public async Task<ReportRunResult?> RunAsync(
         string kind, DateOnly to, string trigger, Guid? requestedBy, bool withAnalysis, bool deliver,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken, DateOnly? customFrom = null)
     {
-        var (from, _, _, _) = StakeholderReportBuilder.Period(kind, to);
+        var (from, _, _, _) = StakeholderReportBuilder.Period(kind, to, customFrom);
         var run = ReportRun.Start(kind, from, to, trigger, requestedBy, DateTime.UtcNow);
         _db.ReportRuns.Add(run);
         try
@@ -114,7 +115,7 @@ public class StakeholderReportService
         try
         {
             var inputs = await new ExecutiveOverviewLoader(_db, _dynamicData).LoadAsync(withLabels: true, cancellationToken);
-            var report = StakeholderReportBuilder.Build(inputs, kind, to);
+            var report = StakeholderReportBuilder.Build(inputs, kind, to, customFrom);
             var (analysis, note) = await AnalyseAsync(run, report, withAnalysis, cancellationToken);
 
             if (!_settings.IsPdfConfigured)
@@ -286,6 +287,7 @@ public static class ReportTexts
     {
         ReportRun.Daily => "التقرير اليومي",
         ReportRun.Weekly => "التقرير الأسبوعي",
+        ReportRun.Custom => "تقرير فترة مختارة",
         _ => "التقرير الشهري",
     };
 
@@ -296,8 +298,11 @@ public static class ReportTexts
     {
         ReportRun.Daily => Date(r.To, weekday: true),
         ReportRun.Weekly => $"الأسبوع {r.From.Day} {Months[r.From.Month - 1]} - {Date(r.To)}",
+        ReportRun.Custom => r.From == r.To ? Date(r.To, weekday: true) : $"من {Date(r.From)} إلى {Date(r.To)}",
         _ => $"شهر {Months[r.To.Month - 1]} {r.To.Year}",
     };
 
-    public static string FileName(StakeholderReport r) => $"Asas-{r.Kind}-report-{r.To:yyyy-MM-dd}.pdf";
+    public static string FileName(StakeholderReport r) => r.Kind == ReportRun.Custom
+        ? $"Asas-report-{r.From:yyyy-MM-dd}-to-{r.To:yyyy-MM-dd}.pdf"
+        : $"Asas-{r.Kind}-report-{r.To:yyyy-MM-dd}.pdf";
 }

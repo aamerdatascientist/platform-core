@@ -29,10 +29,17 @@ public static class StakeholderReportBuilder
     public const int MaxNameLength = 80;
 
     /// <summary>The period a report covers, ending on <paramref name="to"/>, and the one it is compared with.</summary>
-    public static (DateOnly From, DateOnly To, DateOnly PreviousFrom, DateOnly PreviousTo) Period(string kind, DateOnly to)
+    /// <param name="from">Only for <see cref="ReportRun.Custom"/>: the first day the administrator picked.</param>
+    public static (DateOnly From, DateOnly To, DateOnly PreviousFrom, DateOnly PreviousTo) Period(string kind, DateOnly to, DateOnly? from = null)
     {
         switch (kind)
         {
+            case ReportRun.Custom:
+                // The picked days, compared with the same number of days just before them.
+                if (from is not { } start || start > to)
+                    throw new ArgumentException("A custom report needs a start date on or before its end date.", nameof(from));
+                var length = to.DayNumber - start.DayNumber + 1;
+                return (start, to, start.AddDays(-length), start.AddDays(-1));
             case ReportRun.Daily:
                 // A day is compared with the two weeks before it - one day is too noisy to compare with one day.
                 return (to, to, to.AddDays(-14), to.AddDays(-1));
@@ -49,9 +56,9 @@ public static class StakeholderReportBuilder
         }
     }
 
-    public static StakeholderReport Build(OverviewInputs inputs, string kind, DateOnly to)
+    public static StakeholderReport Build(OverviewInputs inputs, string kind, DateOnly to, DateOnly? customFrom = null)
     {
-        var (from, _, previousFrom, previousTo) = Period(kind, to);
+        var (from, _, previousFrom, previousTo) = Period(kind, to, customFrom);
         var labels = inputs.Labels;
 
         var upToEnd = inputs.Reports.Where(r => r.Date <= to).ToList();
@@ -260,6 +267,7 @@ public static class StakeholderReportBuilder
                 points.Reverse();
                 break;
             case ReportRun.Weekly:
+            case ReportRun.Custom when SeriesByDay(kind, from, to):
                 for (var d = from; d <= to; d = d.AddDays(1))
                     if (IsWorkingDay(d)) points.Add(Point(d, ShortDate(d), reports.Where(r => r.Date == d)));
                 break;
@@ -274,6 +282,10 @@ public static class StakeholderReportBuilder
         }
         return points;
     }
+
+    /// <summary>A custom report up to two weeks long is charted day by day; a longer one week by week.</summary>
+    public static bool SeriesByDay(string kind, DateOnly from, DateOnly to) =>
+        kind == ReportRun.Weekly || (kind == ReportRun.Custom && to.DayNumber - from.DayNumber < DailySeriesDays);
 
     private static IReadOnlyList<ReportSeriesPoint> Trend(string kind, IReadOnlyList<OverviewReportRow> reports, DateOnly to)
     {

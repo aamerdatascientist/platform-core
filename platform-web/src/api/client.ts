@@ -14,7 +14,7 @@ import type {
   FormDefinitionDto,
   FormSummaryDto,
   PagedResult,
-  ReportKind,
+  RunKind,
   ReportRecipientDto,
   ReportRunDto,
   MessagingScheduleDto,
@@ -585,7 +585,8 @@ export const api = {
       request<void>(`/api/reports/recipients/${id}`, { method: 'DELETE' }, token),
 
     /** Makes a report now (up to a couple of minutes with the analysis). deliver false = preview only. */
-    run: (token: string, input: { kind: ReportKind; to: string | null; withAnalysis: boolean; deliver: boolean }) =>
+    /** `from` only with kind "custom" (the first day; `to` is the last). */
+    run: (token: string, input: { kind: RunKind; from?: string | null; to: string | null; withAnalysis: boolean; deliver: boolean }) =>
       request<ReportRunDto>('/api/reports/run', { method: 'POST', body: JSON.stringify(input) }, token),
 
     /** A 10-minute download link for a stored PDF. */

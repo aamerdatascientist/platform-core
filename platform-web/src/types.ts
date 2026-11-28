@@ -386,6 +386,8 @@ export interface FormAssignmentDto {
 // Mirrors Platform.Application.Reports.ReportDtos.
 
 export type ReportKind = 'daily' | 'weekly' | 'monthly';
+/** What "Make a report now" can make: a scheduled kind, or dates the administrator picks. */
+export type RunKind = ReportKind | 'custom';
 
 export interface ReportRecipientDto {
   id: string;
@@ -409,7 +411,7 @@ export interface ReportDeliveryDto {
 
 export interface ReportRunDto {
   id: string;
-  kind: ReportKind;
+  kind: RunKind;
   periodStart: string;
   periodEnd: string;
   /** schedule | preview | send-now */

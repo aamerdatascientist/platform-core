@@ -17,6 +17,15 @@ public class ReportRun : BaseEntity
     public const string Monthly = "monthly";
     public static readonly IReadOnlyList<string> Kinds = new[] { Daily, Weekly, Monthly };
 
+    /// <summary>
+    /// A report for dates an administrator picks (owner, 2026-11-28). Made only on request
+    /// (preview or send now), never on a schedule; compared with the same number of days just
+    /// before it.
+    /// </summary>
+    public const string Custom = "custom";
+    public static readonly IReadOnlyList<string> ManualKinds = new[] { Daily, Weekly, Monthly, Custom };
+    public const int MaxCustomDays = 366;
+
     public const string Schedule = "schedule";
     public const string Preview = "preview";
     public const string SendNow = "send-now";

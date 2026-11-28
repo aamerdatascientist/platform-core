@@ -706,7 +706,9 @@
       "monthly": "الشهري",
       "dailyShort": "يومي",
       "weeklyShort": "أسبوعي",
-      "monthlyShort": "شهري"
+      "monthlyShort": "شهري",
+      "custom": "فترة مختارة",
+      "customShort": "مخصص"
     },
     "trigger": {
       "schedule": "مجدول",
@@ -765,7 +767,11 @@
       "send": "إرسال الآن",
       "working": "جارٍ الإعداد…",
       "confirmSend": "إرسال التقرير {{kind}} لمستلميه على واتساب الآن؟",
-      "error": "تعذّر إعداد التقرير."
+      "error": "تعذّر إعداد التقرير.",
+      "from": "من",
+      "to": "إلى",
+      "confirmSendCustom": "إرسال تقرير الفترة من {{from}} إلى {{to}} لكل مستلمي التقارير على واتساب الآن؟",
+      "range": "من {{from}} إلى {{to}}"
     },
     "download": {
       "phone": "PDF للجوال",
