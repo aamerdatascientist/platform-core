@@ -125,6 +125,8 @@ public class ClaudeReportAnalyst : IReportAnalyst
         - monthly: the month compared with the previous month. Focus on progress per stage,
           how the forecast finish moved (DaysLateChange), the main causes, and decisions the
           owner may need to take.
+        - custom: a date range an administrator picked, compared with the same number of days
+          just before it. Focus on what happened in that range and how it compares.
 
         Field notes: planMetPercent = share of reports in which that day's planned work was
         fully done. workCompletePercent = days earned against the client's plan. daysLate =

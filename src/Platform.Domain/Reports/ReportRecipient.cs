@@ -46,6 +46,7 @@ public class ReportRecipient : AuditableEntity
         ReportRun.Daily => ReceivesDaily,
         ReportRun.Weekly => ReceivesWeekly,
         ReportRun.Monthly => ReceivesMonthly,
+        ReportRun.Custom => ReceivesDaily || ReceivesWeekly || ReceivesMonthly,
         _ => false,
     };
 }

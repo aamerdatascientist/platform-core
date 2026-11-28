@@ -418,6 +418,11 @@ Real data starts 2026-11-02. Never treat those rows as client input; delete by t
   if an active recipient receives it. No server-side refusal fallback on purpose (a refusal just
   means no analysis, and a fallback model could cost more than the cap assumes).
 - Admin page `/admin/reports`; API `api/reports` (administrators). Migration `AddStakeholderReports`.
+- **Custom dates (owner, 2026-11-28):** "Make a report now" also offers kind `custom` (`ReportRun.Custom`,
+  never scheduled, no migration): `POST api/reports/run` with `from` + `to` (both required, from <= to,
+  at most 366 days, not in the future; the other kinds refuse `from`). Compared with the same number of
+  days just before it; charted by day up to two weeks, by week beyond (`StakeholderReportBuilder.SeriesByDay`).
+  "Send now" goes to every active recipient who gets any regular report (`ReportRecipient.Receives`).
 - **Security (2026-11-06), keep all of it:** form text is untrusted - `StakeholderReportBuilder.Clip`
   (160 chars, no control characters) before Claude or the PDF; the prompt marks `<figures>` text as
   data, never instructions; `ReportOutputCheck` rejects links, e-mails, markup/code, `{{ }}`,

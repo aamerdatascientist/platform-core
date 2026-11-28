@@ -735,7 +735,9 @@
       "monthly": "Monthly",
       "dailyShort": "Daily",
       "weeklyShort": "Weekly",
-      "monthlyShort": "Monthly"
+      "monthlyShort": "Monthly",
+      "custom": "Custom dates",
+      "customShort": "Custom"
     },
     "trigger": {
       "schedule": "Scheduled",
@@ -794,7 +796,11 @@
       "send": "Send now",
       "working": "Working…",
       "confirmSend": "Send the {{kind}} report to its recipients on WhatsApp now?",
-      "error": "The report could not be made."
+      "error": "The report could not be made.",
+      "from": "From",
+      "to": "To",
+      "confirmSendCustom": "Send the report for {{from}} to {{to}} to every report recipient on WhatsApp now?",
+      "range": "{{from}} to {{to}}"
     },
     "download": {
       "phone": "Phone PDF",

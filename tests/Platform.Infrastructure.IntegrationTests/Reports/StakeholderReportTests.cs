@@ -6,6 +6,7 @@ using Platform.Application.Analytics.Queries.GetExecutiveOverview;
 using Platform.Application.Common.Interfaces;
 using Platform.Application.Notifications;
 using Platform.Application.Reports;
+using Platform.Application.Reports.Commands.RunReport;
 using Platform.Domain.Reports;
 using Platform.Infrastructure.IntegrationTests.Analytics;
 using Platform.Infrastructure.Persistence;
@@ -484,5 +485,96 @@ public class StakeholderReportTests
         withAnalysis.Should().Contain("dir=\"rtl\"").And.Contain("التوصيات").And.Contain("نزل الأخيار").And.Contain(phone ? "class=\"phone\"" : "class=\"a4\"");
         withAnalysis.Should().Contain("حرارة &lt;شديدة&gt;", "text from the forms is escaped");
         without.Should().Contain("لا تحليل").And.NotContain("<h2>التوصيات</h2>");
+    }
+
+    // ------------------------------------------------------------------ custom dates (owner, 2026-11-28)
+
+    [Fact]
+    public void Period_Custom_IsThePickedDays_AndComparesWithTheSameNumberOfDaysBefore()
+    {
+        var (from, to, prevFrom, prevTo) = StakeholderReportBuilder.Period(ReportRun.Custom, new DateOnly(2026, 11, 23), new DateOnly(2026, 11, 10));
+        from.Should().Be(new DateOnly(2026, 11, 10));
+        to.Should().Be(new DateOnly(2026, 11, 23));
+        prevFrom.Should().Be(new DateOnly(2026, 10, 27), "14 days picked, so the 14 days before");
+        prevTo.Should().Be(new DateOnly(2026, 11, 9));
+    }
+
+    [Fact]
+    public void Period_Custom_NeedsAStartOnOrBeforeTheEnd()
+    {
+        var noStart = () => StakeholderReportBuilder.Period(ReportRun.Custom, Today);
+        var backwards = () => StakeholderReportBuilder.Period(ReportRun.Custom, Today, Today.AddDays(1));
+        noStart.Should().Throw<ArgumentException>();
+        backwards.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void RunValidator_Custom_NeedsBothDays_InOrder_AtMostAYear_NotInTheFuture()
+    {
+        var v = new RunReportCommandValidator();
+        var today = ExecutiveOverviewLoader.SaudiToday(DateTime.UtcNow);
+        RunReportCommand Custom(DateOnly? from, DateOnly? to) => new(ReportRun.Custom, to, false, false, from);
+
+        v.Validate(Custom(today.AddDays(-30), today)).IsValid.Should().BeTrue();
+        v.Validate(Custom(today, today)).IsValid.Should().BeTrue("one day is a valid range");
+        v.Validate(Custom(today.AddDays(-365), today)).IsValid.Should().BeTrue("366 days is the most");
+        v.Validate(Custom(today.AddDays(-366), today)).IsValid.Should().BeFalse("367 days is too many");
+        v.Validate(Custom(null, today)).IsValid.Should().BeFalse("the first day is missing");
+        v.Validate(Custom(today.AddDays(-3), null)).IsValid.Should().BeFalse("the last day is missing");
+        v.Validate(Custom(today, today.AddDays(-1))).IsValid.Should().BeFalse("the first day is after the last");
+        v.Validate(Custom(today, today.AddDays(1))).IsValid.Should().BeFalse("the last day is in the future");
+        v.Validate(new RunReportCommand(ReportRun.Weekly, null, false, false)).IsValid.Should().BeTrue("the regular kinds are unchanged");
+        v.Validate(new RunReportCommand(ReportRun.Weekly, null, false, false, today)).IsValid.Should().BeFalse("only a custom report takes a first day");
+    }
+
+    [Fact]
+    public void Recipients_GetACustomReport_WhenTheyGetAnyRegularOne()
+    {
+        ReportRecipient.Create("a", "966500000001", daily: false, weekly: true, monthly: false).Receives(ReportRun.Custom).Should().BeTrue();
+        ReportRecipient.Create("b", "966500000002", daily: false, weekly: false, monthly: false).Receives(ReportRun.Custom).Should().BeFalse();
+        var inactive = ReportRecipient.Create("c", "966500000003", daily: true, weekly: true, monthly: true);
+        inactive.Update("c", "966500000003", true, true, true, isActive: false);
+        inactive.Receives(ReportRun.Custom).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Run_Custom_StoresThePickedRange_AndSendsItToEveryReportRecipient()
+    {
+        var h = new Harness();
+        h.Db.ReportRecipients.Add(ReportRecipient.Create("المالك", "966500000001", daily: false, weekly: false, monthly: true));
+        h.Db.ReportRecipients.Add(ReportRecipient.Create("لا شيء", "966500000002", daily: false, weekly: false, monthly: false));
+        await h.Db.SaveChangesAsync();
+        var from = new DateOnly(2026, 10, 15);
+
+        var result = await h.Service().RunAsync(ReportRun.Custom, Today, ReportRun.SendNow, null, withAnalysis: false, deliver: true, CancellationToken.None, customFrom: from);
+
+        result!.Run.Status.Should().Be(ReportRun.Done);
+        result.Run.Kind.Should().Be(ReportRun.Custom);
+        result.Run.PeriodStart.Should().Be(from);
+        result.Run.PeriodEnd.Should().Be(Today);
+        h.WhatsApp.Sent.Should().ContainSingle();
+        h.WhatsApp.Sent[0].To.Should().Be("966500000001");
+        h.WhatsApp.Sent[0].Parameters.Should().Equal("المالك", "تقرير فترة مختارة", "من 15 أكتوبر 2026 إلى 1 نوفمبر 2026");
+    }
+
+    [Theory]
+    [InlineData(6, "أيام الفترة")]
+    [InlineData(60, "أسابيع الفترة")]
+    public void Renderer_DrawsACustomRange_DayByDayUpToTwoWeeks_ThenWeekByWeek(int daysBack, string chartTitle)
+    {
+        var from = Today.AddDays(-daysBack);
+        var inputs = Inputs(Enumerable.Range(0, 80)
+            .Select(i => Today.AddDays(-i))
+            .Where(StakeholderReportBuilder.IsWorkingDay)
+            .Select(d => Report(d, d.Day % 2 == 0 ? Floor2 : Floor3, 5, met: d.Day % 3 != 0))
+            .ToArray());
+
+        var report = StakeholderReportBuilder.Build(inputs, ReportRun.Custom, Today, from);
+        var html = new ReportHtmlRenderer().RenderHtml(report, null, "لا تحليل", phone: false);
+
+        report.From.Should().Be(from);
+        report.To.Should().Be(Today);
+        report.Trend.Should().BeEmpty("a picked range has no fixed 8-week / 6-month trend");
+        html.Should().Contain("تقرير فترة مختارة").And.Contain(chartTitle);
     }
 }

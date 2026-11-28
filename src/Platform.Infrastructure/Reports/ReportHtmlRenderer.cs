@@ -77,6 +77,7 @@ public class ReportHtmlRenderer : IReportRenderer
             {
                 ReportRun.Daily => "ما يجب متابعته غداً",
                 ReportRun.Weekly => "ما يجب متابعته الأسبوع القادم",
+                ReportRun.Custom => "ما يجب متابعته بعد هذه الفترة",
                 _ => "ما يجب متابعته الشهر القادم",
             }).Append("</h2><ul class=\"w\">");
             foreach (var w in analysis.Watch) html.Append("<li>").Append(E(w)).Append("</li>");
@@ -110,10 +111,10 @@ public class ReportHtmlRenderer : IReportRenderer
         {
             Kpi(h, "التقارير", p.Reports.ToString(Inv),
                 p.MissingReports > 0 ? $"<div class=\"dl down\">{p.MissingReports} يوم عمل بلا تقرير</div>" : "<div class=\"dl\">لا أيام بلا تقرير</div>");
-            Kpi(h, "متوسط العمالة اليومي", p.CrewAveragePerDay.ToString(Inv), Delta(p.CrewChange, " عامل", r.Kind == ReportRun.Weekly ? "عن الأسبوع السابق" : "عن الشهر السابق"));
+            Kpi(h, "متوسط العمالة اليومي", p.CrewAveragePerDay.ToString(Inv), Delta(p.CrewChange, " عامل", PreviousWord(r)));
         }
         Kpi(h, "أُنجزت الخطة", Pct(p.PlanMetPercent),
-            Delta(p.PlanMetChangePoints, " نقطة", r.IsDaily ? "عن الأسبوعين" : r.Kind == ReportRun.Weekly ? "عن الأسبوع السابق" : "عن الشهر السابق"));
+            Delta(p.PlanMetChangePoints, " نقطة", r.IsDaily ? "عن الأسبوعين" : PreviousWord(r)));
         Kpi(h, "تأخيرات · مشاكل", $"{p.Delays}<small> · </small>{p.Problems}", $"<div class=\"dl\">{(r.IsDaily ? "اليوم" : PeriodWord(r))}</div>");
         h.Append("</div></div>");
     }
@@ -127,12 +128,13 @@ public class ReportHtmlRenderer : IReportRenderer
         {
             ReportRun.Daily => "آخر 14 يوم عمل",
             ReportRun.Weekly => "أيام الأسبوع",
+            ReportRun.Custom => StakeholderReportBuilder.SeriesByDay(r.Kind, r.From, r.To) ? "أيام الفترة" : "أسابيع الفترة",
             _ => "أسابيع الشهر",
         };
         h.Append("<div class=\"grid2\"><div class=\"card\"><h3>إنجاز الخطة · ").Append(seriesTitle).Append("</h3>")
             .Append(Bars(r.Series, r.IsDaily ? r.To : null));
         Note(h, analysis?.ChartNotes.PlanMet);
-        h.Append("</div><div class=\"card\"><h3>").Append(r.Kind == ReportRun.Monthly ? "متوسط العمالة اليومي · " : "العمالة في المواقع · ")
+        h.Append("</div><div class=\"card\"><h3>").Append(r.Kind == ReportRun.Monthly || (r.Kind == ReportRun.Custom && !StakeholderReportBuilder.SeriesByDay(r.Kind, r.From, r.To)) ? "متوسط العمالة اليومي · " : "العمالة في المواقع · ")
             .Append(seriesTitle).Append("</h3>").Append(LineChart(r.Series));
         Note(h, analysis?.ChartNotes.Crew);
         h.Append("</div></div>");
@@ -344,7 +346,20 @@ public class ReportHtmlRenderer : IReportRenderer
 
     private static int Pc(int value, int top) => (int)Math.Round(100.0 * value / top);
 
-    private static string PeriodWord(StakeholderReport r) => r.Kind == ReportRun.Weekly ? "هذا الأسبوع" : "هذا الشهر";
+    private static string PeriodWord(StakeholderReport r) => r.Kind switch
+    {
+        ReportRun.Weekly => "هذا الأسبوع",
+        ReportRun.Custom => "هذه الفترة",
+        _ => "هذا الشهر",
+    };
+
+    /// <summary>What a change is compared with: the previous week / month, or the same number of days before a custom range.</summary>
+    private static string PreviousWord(StakeholderReport r) => r.Kind switch
+    {
+        ReportRun.Weekly => "عن الأسبوع السابق",
+        ReportRun.Custom => "عن الفترة السابقة",
+        _ => "عن الشهر السابق",
+    };
 
     private static string LateText(int? days) => days switch
     {

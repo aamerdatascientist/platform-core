@@ -48,13 +48,13 @@ public class ReportsController : ControllerBase
     }
 
     /// <param name="Deliver">False = preview (stored, downloadable, not sent).</param>
-    public record RunRequest(string Kind, DateOnly? To, bool WithAnalysis, bool Deliver);
+    public record RunRequest(string Kind, DateOnly? To, bool WithAnalysis, bool Deliver, DateOnly? From = null);
 
     /// <summary>Makes a report now. Takes up to a couple of minutes with the analysis.</summary>
     [HttpPost("run")]
     [EnableRateLimiting(RateLimitPolicies.Reports)]
     public async Task<ActionResult<ReportRunDto>> Run(RunRequest request, CancellationToken cancellationToken) =>
-        Ok(await _sender.Send(new RunReportCommand(request.Kind, request.To, request.WithAnalysis, request.Deliver), cancellationToken));
+        Ok(await _sender.Send(new RunReportCommand(request.Kind, request.To, request.WithAnalysis, request.Deliver, request.From), cancellationToken));
 
     public record DownloadDto(string Url);
 

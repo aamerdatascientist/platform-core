@@ -10,9 +10,13 @@ import { dayLabel, localeFor } from '../forms/recordAnswers';
 import { useErrorMessage } from '../hooks/useErrorMessage';
 import { useWhatsAppGate } from '../config/whatsapp';
 import { Link } from 'react-router-dom';
-import type { DayName, MessagingScheduleDto, ReportKind, ReportRecipientDto, ReportRunDto, ReportScheduleDto, ReportsOverviewDto } from '../types';
+import type { DayName, MessagingScheduleDto, ReportKind, ReportRecipientDto, ReportRunDto, ReportScheduleDto, ReportsOverviewDto, RunKind } from '../types';
 
 const KINDS: ReportKind[] = ['daily', 'weekly', 'monthly'];
+const RUN_KINDS: RunKind[] = [...KINDS, 'custom'];
+
+/** The first day of the month `iso` is in. */
+const monthStartIso = (iso: string) => `${iso.slice(0, 8)}01`;
 type RecipientDraft = Omit<ReportRecipientDto, 'id'>;
 const emptyRecipient: RecipientDraft = {
   name: '',
@@ -325,8 +329,13 @@ export function Recipients({ token, recipients, onChanged }: { token: string; re
 
 function RunNow({ token, onDone }: { token: string; onDone: () => Promise<void> }) {
   const { t } = useTranslation();
-  const [kind, setKind] = useState<ReportKind>('daily');
+  const { i18n } = useTranslation();
+  const locale = localeFor(i18n.language);
+  const [kind, setKind] = useState<RunKind>('daily');
   const [date, setDate] = useState(todayIso());
+  // Custom dates: from the first of this month to today, until the administrator picks.
+  const [from, setFrom] = useState(monthStartIso(todayIso()));
+  const custom = kind === 'custom';
   const [withAnalysis, setWithAnalysis] = useState(true);
   const [busy, setBusy] = useState<'preview' | 'send' | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -344,6 +353,7 @@ function RunNow({ token, onDone }: { token: string; onDone: () => Promise<void> 
       setResult(
         await api.reports.run(token, {
           kind,
+          from: custom ? from : null,
           to: date || null,
           withAnalysis,
           deliver,
@@ -360,19 +370,40 @@ function RunNow({ token, onDone }: { token: string; onDone: () => Promise<void> 
   return (
     <section className={`${card} flex-[1_1_360px] gap-3 px-[18px] py-4`}>
       <h2 className="text-[17px] font-extrabold text-ink">{t('reports.run.title')}</h2>
-      <Segmented<ReportKind>
+      <Segmented<RunKind>
         size="desktop"
         label={t('reports.run.kind')}
         value={kind}
         onChange={setKind}
-        options={KINDS.map((k) => ({
+        options={RUN_KINDS.map((k) => ({
           value: k,
-          label: t(`reports.kind.${k}`),
+          // The short "Custom" keeps four options on one line on a phone.
+          label: t(k === 'custom' ? 'reports.kind.customShort' : `reports.kind.${k}`),
         }))}
       />
       <div className="flex flex-wrap items-center gap-[10px] text-[14px]">
-        <span className="text-ink-soft">{t('reports.run.date')}</span>
-        <DateButton value={date} onPick={setDate} title={t('reports.run.date')} maxDate={todayIso()} className="h-[38px] px-3" />
+        {custom ? (
+          <>
+            <span className="text-ink-soft">{t('reports.run.from')}</span>
+            <DateButton value={from} onPick={setFrom} title={t('reports.run.from')} maxDate={date} className="h-[38px] px-3" />
+            <span className="text-ink-soft">{t('reports.run.to')}</span>
+            <DateButton
+              value={date}
+              onPick={(v) => {
+                setDate(v);
+                if (from > v) setFrom(v);
+              }}
+              title={t('reports.run.to')}
+              maxDate={todayIso()}
+              className="h-[38px] px-3"
+            />
+          </>
+        ) : (
+          <>
+            <span className="text-ink-soft">{t('reports.run.date')}</span>
+            <DateButton value={date} onPick={setDate} title={t('reports.run.date')} maxDate={todayIso()} className="h-[38px] px-3" />
+          </>
+        )}
         <label className="ms-auto flex min-h-[40px] items-center gap-2 text-ink">
           <input type="checkbox" className="h-[18px] w-[18px] accent-[var(--accent)]" checked={withAnalysis} onChange={(e) => setWithAnalysis(e.target.checked)} />
           {t('reports.run.withAnalysis')}
@@ -395,7 +426,11 @@ function RunNow({ token, onDone }: { token: string; onDone: () => Promise<void> 
       </div>
       <Sheet open={confirming} onClose={() => setConfirming(false)} title={t('reports.run.send')} desktopWidth={460}>
         <div className="flex flex-col gap-3 pb-2">
-          <p className="text-[14px] text-ink">{t('reports.run.confirmSend', { kind: t(`reports.kind.${kind}`) })}</p>
+          <p className="text-[14px] text-ink">
+            {custom
+              ? t('reports.run.confirmSendCustom', { from: dayLabel(from, locale), to: dayLabel(date, locale) })
+              : t('reports.run.confirmSend', { kind: t(`reports.kind.${kind}`) })}
+          </p>
           <div className="flex gap-2">
             <Button size="desktop" onClick={() => run(true)}>
               {t('reports.run.send')}
@@ -539,6 +574,11 @@ function History({ token, runs }: { token: string; runs: ReportRunDto[] }) {
             <td className={`${tdClass} whitespace-nowrap`}>{when(run.createdAtUtc)}</td>
             <td className={tdClass}>
               <span className="font-bold">{t(`reports.kind.${run.kind}`)}</span> <span className="text-ink-soft">· {t(`reports.trigger.${run.trigger}`, run.trigger)}</span>
+              {run.kind === 'custom' && (
+                <span className="block text-[13px] text-ink-soft">
+                  {t('reports.run.range', { from: dayLabel(run.periodStart, locale), to: dayLabel(run.periodEnd, locale) })}
+                </span>
+              )}
             </td>
             <td className={tdClass}>
               <Outcome run={run} />
