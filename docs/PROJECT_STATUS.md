@@ -3,6 +3,19 @@
 Update this file at the end of every session - what changed, what's next. Keep CLAUDE.md
 itself stable; this is where the narrative goes.
 
+## 2026-11-28 - stakeholder reports: custom from/to dates (production + staging)
+
+- **Live on both** (owner's request): Stakeholder reports → Make a report now → **Custom** (مخصص), with
+  From and To. It covers the picked days, compares them with the same number of days before, and
+  "Send now" goes to every active report recipient. Daily, weekly and monthly reports are unchanged.
+  No migration.
+- Production `main` = `7fec680`, alone, with no staging work. Staging = `984b9f6` (merge).
+- Tested: 8 new tests, real-data PDFs locally, browser English/Arabic 7/7. The owner ran a custom
+  1-28 Nov report on staging with analysis: done, $0.098.
+- **Open problem (staging only, low priority):** a *signed-out* `POST /api/reports/run` answers 500
+  instead of 401; production answers 401. Signed-in use works. Needs staging's App Service log stream.
+- Full write-up: **`docs/releases/2026-11-28-report-custom-dates.md`**.
+
 ## Current state - 2026-11-07 (read this first): Asas v2.0 complete on staging
 
 **Everything is in `docs/releases/ASAS-v2.0.md`** - what v2.0 contains, all ten redesign phases, the

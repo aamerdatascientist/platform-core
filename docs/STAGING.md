@@ -310,6 +310,15 @@ that one the last.
 Migration `AddStakeholderReports` (three new tables) must be applied first. Then on the page:
 add the recipient, **Preview** (no send) to check the PDFs, then **Send now** once.
 
+**Custom dates (2026-11-28):** Make a report now → **Custom**, From/To. Tried by the owner on staging:
+1-28 Nov, Send now with analysis, done ($0.098). Details: `docs/releases/2026-11-28-report-custom-dates.md`.
+
+**Known issue (2026-11-28, open, low priority):** on staging only, a **signed-out**
+`POST /api/reports/run` answers **500** instead of 401. Production answers 401 with the same report code,
+and signed-in use on staging works. To find the cause, open `asas-api-staging` → **Log stream**, send a
+signed-out POST to `/api/reports/run`, and read the exception from `ExceptionHandlingMiddleware`.
+Suspects (staging only): the Veronica credential (#33) and the health probes / rate-limit change (#34).
+
 ## Day-to-day use
 
 - Try a change on staging: push the branch to `staging`
